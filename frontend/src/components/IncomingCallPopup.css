@@ -1,0 +1,248 @@
+.call-overlay {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.call-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.call-tab {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 12px 12px 0 0;
+  background: #333;
+  color: #aaa;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.call-tab.active {
+  background: #1a1f2e;
+  color: white;
+}
+
+.call-popup {
+  width: 340px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: callSlideIn 0.25s ease;
+  border: 1px solid #e2e8f0;
+}
+
+@keyframes callSlideIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+
+/* 헤더 */
+.call-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  color: white;
+}
+
+.call-icon {
+  font-size: 22px;
+  animation: callRing 0.6s ease infinite alternate;
+}
+
+@keyframes callRing {
+  from { transform: rotate(-15deg); }
+  to   { transform: rotate(15deg);  }
+}
+
+.call-info { flex: 1 }
+
+.call-phone {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.call-time {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+.call-close {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-close:hover { background: rgba(255,255,255,0.35); }
+
+/* 고객 정보 */
+.call-customer {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.call-customer.found { background: #f0fdf4; }
+.call-customer.new   { background: #fefce8; }
+
+.call-customer-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.call-customer-addr {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.call-outstanding {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* 이력 */
+.call-history {
+  padding: 10px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.call-history-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 6px;
+}
+
+.call-history-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.call-history-symptom {
+  flex: 1;
+  font-size: 12px;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.call-history-date {
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* 접수 폼 */
+.call-form {
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.call-form-row { display: flex; gap: 6px; }
+
+.call-select {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  background: white;
+}
+
+.call-textarea {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  resize: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.call-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+/* 버튼 */
+.call-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.call-btn-dismiss {
+  flex: 1;
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.call-btn-dismiss:hover { background: #f1f5f9; }
+
+.call-btn-register {
+  flex: 2;
+  padding: 9px;
+  border: none;
+  background: #2563eb;
+  color: white;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.call-btn-register:hover { background: #1d4ed8; }
+.call-btn-register:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.call-btn-new {
+  flex: 2;
+  padding: 9px;
+  border: none;
+  background: #f59e0b;
+  color: white;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.call-btn-new:hover { background: #d97706; }

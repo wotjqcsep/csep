@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/dashboardFragment">
+
+    <fragment
+        android:id="@+id/dashboardFragment"
+        android:name="com.csep.app.ui.dashboard.DashboardFragment"
+        android:label="대시보드" />
+
+    <fragment
+        android:id="@+id/receptionFragment"
+        android:name="com.csep.app.ui.reception.ReceptionFragment"
+        android:label="접수 관리" />
+
+    <fragment
+        android:id="@+id/customerFragment"
+        android:name="com.csep.app.ui.customer.CustomerFragment"
+        android:label="고객 관리" />
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.csep.app.ui.settings.SettingsFragment"
+        android:label="설정" />
+
+</navigation>

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 인터넷 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 전화 상태 감지 -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+
+    <!-- 연락처 그룹 읽기 -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- 화면 위 오버레이 (전화 수신 팝업) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 포그라운드 서비스 (백그라운드 전화 감지) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
+    <!-- SMS 수신 -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+
+    <!-- 부팅 후 자동 시작 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- 알림 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".CsepApplication"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CSEP">
+
+        <!-- 메인 액티비티 -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 전화 수신 오버레이 액티비티 (투명 배경) -->
+        <activity
+            android:name=".ui.call.CallOverlayActivity"
+            android:exported="false"
+            android:theme="@style/Theme.CSEP.Overlay"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true" />
+
+        <!-- 전화 상태 수신 브로드캐스트 리시버 -->
+        <receiver
+            android:name=".receiver.CallReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- SMS 수신 브로드캐스트 리시버 -->
+        <receiver
+            android:name=".receiver.SmsReceiver"
+            android:exported="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 부팅 후 자동시작 리시버 -->
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 포그라운드 서비스 -->
+        <service
+            android:name=".service.CallMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+    </application>
+</manifest>

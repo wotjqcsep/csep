@@ -1,0 +1,1 @@
+-keep class com.csep.app.data.model.** { *; }
