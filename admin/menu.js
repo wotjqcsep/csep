@@ -12,18 +12,18 @@ const MENU_CONFIG = [
   { section: '현황', items: [
     { id: 'dashboard', icon: '📊', label: '대시보드' },
   ]},
-  { section: '접수 / 현장', items: [
+  { section: '접수 · 현장', items: [
     { id: 'receptions', icon: '📞', label: '접수 관리' },
-    { id: 'engineers',  icon: '🔧', label: '기사 관리' },
+    { id: 'engineers',  icon: '🔧', label: '기사 · 배정' },
+    { id: 'history',    icon: '📋', label: '수리 이력' },
   ]},
-  { section: '고객', items: [
-    { id: 'customers', icon: '👥', label: '고객 관리' },
-    { id: 'history',   icon: '📋', label: '수리 이력' },
+  { section: '고객 · 자산', items: [
+    { id: 'customers', icon: '👥', label: '고객 · 장비' },
   ]},
-  { section: 'ERP', items: [
+  { section: '매출 · 정산', items: [
     { id: 'sales',     icon: '🛒', label: '판매 관리' },
     { id: 'inventory', icon: '📦', label: '재고 관리' },
-    { id: 'payments',  icon: '💳', label: '결제 관리' },
+    { id: 'payments',  icon: '💳', label: '미수금 · 결제' },
   ]},
   { section: '분석', items: [
     { id: 'stats', icon: '📈', label: '통계' },

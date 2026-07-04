@@ -14,7 +14,7 @@ function renderCustomers(){
   const sel = custState.selected ? cs.find(c=>c.id==custState.selected.id) : null;
   const comps = sel ? state.computers.filter(c=>c.customer_id==sel.id) : [];
   return `
-  <div class="page-header"><h2>고객 관리 (${cs.length}명)</h2><button class="btn" onclick="openCustomerModal()">+ 고객 추가</button></div>
+  <div class="page-header"><h2>고객 · 장비 (${cs.length}명)</h2><button class="btn" onclick="openCustomerModal()">+ 고객 추가</button></div>
   <div class="filter-bar">
     <input class="search-input" placeholder="이름, 회사명, 전화번호 검색..." value="${esc(q)}" oninput="custState.search=this.value;renderInto()">
     ${['all:전체','personal:개인','business:기업'].map(x=>{const[v,l]=x.split(':');return `<button class="filter-btn ${custState.filter===v?'active':''}" onclick="custState.filter='${v}';renderInto()">${l} (${v==='all'?cs.length:cs.filter(c=>c.customer_type===v).length})</button>`}).join('')}
@@ -104,7 +104,7 @@ async function deleteReception(id){ if(!confirm('이 접수를 삭제하시겠�
 function renderEngineers(){
   const es = state.engineers;
   return `
-  <div class="page-header"><h2>기사 관리 (${es.length}명)</h2><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div>
+  <div class="page-header"><h2>기사 · 배정 (${es.length}명)</h2><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div>
   <div class="table-container"><table class="table">
     <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>액션</th></tr></thead>
     <tbody>${es.length? es.map(e=>`<tr>
@@ -162,7 +162,7 @@ async function deleteInventory(id){ if(!confirm('삭제하시겠습니까?'))ret
 // ── 결제 관리 ──
 function renderPayments(){
   const ps = state.payments;
-  return `<div class="page-header"><h2>결제 관리 (${ps.length}건)</h2></div>
+  return `<div class="page-header"><h2>미수금 · 결제 (${ps.length}건)</h2></div>
   <div class="table-container"><table class="table">
     <thead><tr><th>#</th><th>금액</th><th>수단</th><th>상태</th><th>기한</th><th>액션</th></tr></thead>
     <tbody>${ps.length? ps.map(p=>`<tr>
