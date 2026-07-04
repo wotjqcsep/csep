@@ -111,8 +111,12 @@ function openReceptionModal(){
     ${field('r_phone','전화번호','')}
     ${area('r_symptom','증상 *','')}
     ${area('r_memo','초기 메모','')}
+    <div class="form-group"><label>담당 기사 (선택 시 바로 배정)</label><select id="r_eng">
+      <option value="">미배정 (나중에 배정)</option>
+      ${state.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}${e.is_admin?' (대표)':''} · ${statusLabel(e.status)}</option>`).join('')}
+    </select></div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveReception()">접수 등록</button></div>`;
-  modal('접수 등록', body);
+  modal('접수 등록 · 작업지시', body);
   renderCustSelect();
 }
 function renderCustSelect(){
@@ -132,7 +136,9 @@ function pickCust(id){ recPick.customerId=id; recPick.open=false; recPick.search
 async function saveReception(){
   if(!recPick.customerId){ alert('고객을 선택하세요'); return; }
   const symptom = v('r_symptom'); if(!symptom){ alert('증상을 입력하세요'); return; }
-  await api('POST','/receptions', { customer_id:Number(recPick.customerId), reception_channel:v('r_channel'), reception_phone:v('r_phone'), symptom, initial_memo:v('r_memo') });
+  const rec = await api('POST','/receptions', { customer_id:Number(recPick.customerId), reception_channel:v('r_channel'), reception_phone:v('r_phone'), symptom, initial_memo:v('r_memo') });
+  const eng = v('r_eng');
+  if(eng) await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);   // 작업지시: 바로 배정
   closeModal(); await loadAll();
 }
 
