@@ -27,7 +27,7 @@ function openCustomerModal(id, prefill){
     <div id="bizFields" style="display:${c.customer_type==='business'?'block':'none'}">
       <div class="form-row">${field('c_company','회사명',c.company_name)}${field('c_contact','담당자',c.contact_person)}</div>
     </div>
-    <div class="form-row">${field('c_name','고객명/식별명 *',c.name)}${field('c_phone','전화번호 *',c.phone)}</div>
+    <div class="form-row">${field('c_name','고객명/식별명 (선택)',c.name)}${field('c_phone','전화번호 *',c.phone)}</div>
     <div class="form-row">${field('c_phone2','보조전화',c.phone2)}${field('c_email','이메일',c.email)}</div>
     ${field('c_address','주소',c.address)}
     ${field('c_addr2','상세주소',c.address_detail)}
@@ -39,7 +39,7 @@ function openCustomerModal(id, prefill){
 function toggleBiz(){ document.getElementById('bizFields').style.display = v('c_type')==='business'?'block':'none'; }
 async function saveCustomer(id){
   const data = { name:v('c_name'), phone:v('c_phone'), customer_type:v('c_type'), company_name:v('c_company'), contact_person:v('c_contact'), phone2:v('c_phone2'), email:v('c_email'), address:v('c_address'), address_detail:v('c_addr2'), memo:v('c_memo') };
-  if(!data.name || !data.phone){ alert('이름과 전화번호는 필수입니다'); return; }
+  if(!data.phone){ alert('전화번호는 필수입니다'); return; }
   if(id){ data.outstanding_amount = Number(v('c_outstanding'))||0; await api('PUT','/customers/'+id, data); }
   else await api('POST','/customers', data);
   closeModal(); await loadAll();
@@ -49,7 +49,7 @@ async function saveCustomer(id){
 function openComputerModal(id, customerId){
   const c = id? state.computers.find(x=>x.id==id) : { customer_id:customerId, device_type:'desktop' };
   const isEdit = !!id;
-  const custOptions = state.customers.map(x=>`<option value="${x.id}" ${c.customer_id==x.id?'selected':''}>${esc(x.name)}</option>`).join('');
+  const custOptions = state.customers.map(x=>`<option value="${x.id}" ${c.customer_id==x.id?'selected':''}>${esc(x.name)||esc(x.phone)||('고객'+x.id)}</option>`).join('');
   const body = `
     <div class="form-row">
       <div class="form-group"><label>고객 *</label><select id="p_cust">${custOptions}</select></div>
@@ -122,10 +122,10 @@ function renderCustSelect(){
   const filtered = state.customers.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.company_name||'').toLowerCase().includes(q));
   el.innerHTML = `<div class="cs-wrap">
     <div class="cs-box" onclick="recPick.open=true;renderCustSelect();setTimeout(()=>{var i=document.getElementById('csInput');if(i)i.focus()},0)">
-      ${!recPick.open && sel ? `<span style="flex:1">${esc(sel.name)} <span style="color:var(--gray-400);font-size:12px">(${esc(sel.phone)})</span></span><button onclick="event.stopPropagation();recPick.customerId='';recPick.search='';renderCustSelect()" style="border:none;background:none;cursor:pointer;color:var(--gray-400);font-size:16px">×</button>`
-        : `<input id="csInput" placeholder="${sel?esc(sel.name):'이름, 전화번호 검색...'}" value="${esc(recPick.search)}" oninput="recPick.search=this.value;recPick.open=true;renderCustSelect();document.getElementById('csInput').focus()">`}
+      ${!recPick.open && sel ? `<span style="flex:1">${esc(sel.name)||esc(sel.phone)} ${sel.name?`<span style="color:var(--gray-400);font-size:12px">(${esc(sel.phone)})</span>`:''}</span><button onclick="event.stopPropagation();recPick.customerId='';recPick.search='';renderCustSelect()" style="border:none;background:none;cursor:pointer;color:var(--gray-400);font-size:16px">×</button>`
+        : `<input id="csInput" placeholder="${sel?(esc(sel.name)||esc(sel.phone)):'이름, 전화번호 검색...'}" value="${esc(recPick.search)}" oninput="recPick.search=this.value;recPick.open=true;renderCustSelect();document.getElementById('csInput').focus()">`}
     </div>
-    ${recPick.open? `<div class="cs-list">${filtered.length? filtered.map(c=>`<div class="cs-item" onmousedown="pickCust(${c.id})"><strong>${esc(c.name)}</strong> <span style="color:var(--gray-400);font-size:12px">${esc(c.phone)}</span>${c.company_name?` · ${esc(c.company_name)}`:''}</div>`).join('') : '<div class="cs-item" style="color:var(--gray-400)">검색 결과 없음</div>'}</div>`:''}
+    ${recPick.open? `<div class="cs-list">${filtered.length? filtered.map(c=>`<div class="cs-item" onmousedown="pickCust(${c.id})"><strong>${esc(c.name)||esc(c.phone)}</strong> ${c.name?`<span style="color:var(--gray-400);font-size:12px">${esc(c.phone)}</span>`:''}${c.company_name?` · ${esc(c.company_name)}`:''}</div>`).join('') : '<div class="cs-item" style="color:var(--gray-400)">검색 결과 없음</div>'}</div>`:''}
   </div>`;
 }
 function pickCust(id){ recPick.customerId=id; recPick.open=false; recPick.search=''; renderCustSelect(); }
@@ -172,7 +172,7 @@ async function saveEngineer(){
 
 // ── 판매 등록 ──
 function openSaleModal(){
-  const custOptions = state.customers.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  const custOptions = state.customers.map(x=>`<option value="${x.id}">${esc(x.name)||esc(x.phone)||('고객'+x.id)}</option>`).join('');
   const body = `
     <div class="form-group"><label>고객 *</label><select id="s_cust">${custOptions}</select></div>
     <div class="form-row">${field('s_item','품목명 *','')}<div class="form-group"><label>품목 유형</label><select id="s_type"><option value="part">부품</option><option value="product">완제품</option><option value="service">서비스</option></select></div></div>

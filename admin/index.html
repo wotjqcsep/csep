@@ -211,7 +211,7 @@ function renderDashboard(){
 }
 function statCard(label,value,color,size){ return `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value" style="${color?`color:${color};`:''}${size?`font-size:${size}px;`:''}">${value}</div></div>`; }
 function statusLabel(s){ return {idle:'대기',on_the_way:'출동',working:'작업중',off_duty:'퇴근',new:'신규',assigned:'배정',in_progress:'진행중',completed:'완료'}[s]||s; }
-function custName(id){ return (state.customers.find(c=>c.id==id)||{}).name || (id?`고객${id}`:'-'); }
+function custName(id){ const c=state.customers.find(c=>c.id==id); if(!c) return id?`고객${id}`:'-'; return c.name||c.phone||`고객${c.id}`; }
 function engName(id){ return (state.engineers.find(e=>e.id==id)||{}).name || '-'; }
 
 // (페이지 렌더러/모달은 app.js, modals.js)

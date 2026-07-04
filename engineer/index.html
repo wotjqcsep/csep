@@ -113,7 +113,7 @@ function cardHtml(r){
   const st={assigned:'배정',in_progress:'진행중',completed:'완료'}[r.status]||r.status;
   return `<div class="card">
     <div class="card-head">
-      <div><div class="cust-name">${esc(r.customer_name)||'고객'}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
+      <div><div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
       <span class="badge ${r.status}">${st}</span>
     </div>
     ${r.customer_phone?`<div class="info-line">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
