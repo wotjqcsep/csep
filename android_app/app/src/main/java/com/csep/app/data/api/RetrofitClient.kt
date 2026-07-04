@@ -12,7 +12,7 @@ object RetrofitClient {
 
     private const val PREF_NAME = "csep_prefs"
     private const val KEY_SERVER_URL = "server_url"
-    const val DEFAULT_URL = "http://192.168.0.1:8000/api/"  // 설치 시 변경
+    const val DEFAULT_URL = "https://csep-cf37.onrender.com/api/"  // 설치 시 앱 설정에서 변경 가능
 
     private var _baseUrl = DEFAULT_URL
     private var _instance: ApiService? = null
