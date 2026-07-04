@@ -14,16 +14,16 @@
 body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--gray-100);color:var(--gray-700);font-size:14px}
 .app{display:flex;min-height:100vh}
 /* 사이드바 */
-.sidebar{width:210px;background:#1e2330;color:#c9ced8;flex-shrink:0;display:flex;flex-direction:column;position:fixed;height:100vh;overflow-y:auto}
-.sidebar-header{padding:20px 18px;border-bottom:1px solid #2b3140}
-.sidebar-header h2{color:#5b8def;font-size:22px;font-weight:800}
-.sidebar-header span{font-size:11px;color:#6b7280}
-.nav-section{padding:8px 0}
-.nav-section-label{padding:8px 18px 4px;font-size:11px;color:#6b7280;text-transform:uppercase}
-.nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 18px;border:none;background:none;color:#c9ced8;cursor:pointer;font-size:14px;text-align:left}
-.nav-item:hover{background:#2b3140}
-.nav-item.active{background:#2d3a5f;color:#fff;border-left:3px solid var(--primary)}
-.nav-icon{font-size:16px}
+.sidebar{width:220px;background:#1a1f2b;color:#e6e9ef;flex-shrink:0;display:flex;flex-direction:column;position:fixed;height:100vh;overflow-y:auto}
+.sidebar-header{padding:22px 18px;border-bottom:1px solid #2b3140}
+.sidebar-header h2{color:#6b9cff;font-size:23px;font-weight:800;letter-spacing:.5px}
+.sidebar-header span{font-size:11px;color:#8b93a3}
+.nav-section{padding:6px 0}
+.nav-section-label{padding:10px 18px 5px;font-size:11px;color:#8b93a3;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:11px;width:100%;padding:11px 18px;border:none;background:none;color:#e6e9ef;cursor:pointer;font-size:15px;text-align:left;border-left:3px solid transparent;transition:background .12s}
+.nav-item:hover{background:#252c3a}
+.nav-item.active{background:#2a3654;color:#fff;border-left-color:#6b9cff;font-weight:700}
+.nav-icon{font-size:17px;width:20px;text-align:center}
 /* 메인 */
 .main{margin-left:210px;flex:1;display:flex;flex-direction:column;min-width:0}
 .header{background:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--gray-200);position:sticky;top:0;z-index:50}
@@ -127,17 +127,11 @@ select,input,textarea{font-family:inherit;font-size:14px}
 <div class="popup-stack" id="popups"></div>
 <div id="modalRoot"></div>
 
+<script src="menu.js"></script>
 <script>
 const API = '/api';
 const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null };
-const MENUS = [
-  { sec:'현황', items:[['dashboard','📊','대시보드']] },
-  { sec:'접수 / 현장', items:[['receptions','📞','접수 관리'],['engineers','🔧','기사 관리']] },
-  { sec:'고객', items:[['customers','👥','고객 관리'],['history','📋','수리 이력']] },
-  { sec:'ERP', items:[['sales','🛒','판매 관리'],['inventory','📦','재고 관리'],['payments','💳','결제 관리']] },
-  { sec:'분석', items:[['stats','📈','통계']] },
-];
-const TITLES = { dashboard:'대시보드', receptions:'접수 관리', engineers:'기사 관리', customers:'고객 관리', history:'수리 이력', sales:'판매 관리', inventory:'재고 관리', payments:'결제 관리', stats:'통계' };
+// MENUS, TITLES 는 menu.js 에서 정의됨 (메뉴 수정은 menu.js 한 곳에서)
 const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 
 // ── API 헬퍼 ──
@@ -181,7 +175,7 @@ function go(page){ state.page=page; document.getElementById('pageTitle').textCon
 function render(){
   renderNav();
   const el = document.getElementById('page');
-  const r = { dashboard:renderDashboard, receptions:renderReceptions, engineers:renderEngineers, customers:renderCustomers, history:renderHistory, sales:renderSales, inventory:renderInventory, payments:renderPayments, stats:renderStats }[state.page];
+  const r = pageRenderer(state.page);   // menu.js: id → renderXxx 자동 매핑
   el.innerHTML = r ? r() : '준비 중';
 }
 
