@@ -635,6 +635,12 @@ app.post('/api/incoming-call', wrap(async (req, res) => {
   res.json(call);
 }));
 
+// 고객 조회 전용 (팝업 생성 안 함) — 폰 오버레이가 사용
+app.get('/api/customer-lookup', wrap(async (req, res) => {
+  const { matched, recent } = await matchCustomer(req.query.phone);
+  res.json({ phone: digits(req.query.phone), customer: matched, recent_receptions: recent });
+}));
+
 app.get('/api/incoming-call/pending', wrap(async (req, res) => {
   res.json(incomingCalls.filter(c => !c.dismissed));
 }));

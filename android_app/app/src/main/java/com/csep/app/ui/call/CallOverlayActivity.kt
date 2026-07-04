@@ -63,9 +63,9 @@ class CallOverlayActivity : AppCompatActivity() {
     private fun loadCustomerInfo() {
         lifecycleScope.launch {
             try {
-                // 백엔드에서 고객 매칭 정보 가져오기
+                // 백엔드에서 고객 매칭 정보만 조회 (팝업 중복 생성 방지 — 조회 전용 엔드포인트)
                 val response = withContext(Dispatchers.IO) {
-                    RetrofitClient.api.notifyIncomingCall(phone)
+                    RetrofitClient.api.lookupCustomer(phone)
                 }
                 if (response.isSuccessful) {
                     val callInfo = response.body()

@@ -33,9 +33,13 @@ interface ApiService {
     @GET("dashboard")
     suspend fun getDashboard(): Response<DashboardData>
 
-    // 전화 수신 알림 (Android 앱 → 백엔드 → PC 팝업)
+    // 전화 수신 알림 (Android 앱 → 백엔드 → PC 팝업). CallReceiver 에서만 호출
     @POST("incoming-call")
     suspend fun notifyIncomingCall(@Query("phone") phone: String): Response<IncomingCall>
+
+    // 고객 조회 전용 (팝업 생성 안 함). 폰 오버레이가 고객정보 표시용으로 사용
+    @GET("customer-lookup")
+    suspend fun lookupCustomer(@Query("phone") phone: String): Response<IncomingCall>
 
     // SMS 수신 알림 (Android 앱 → 백엔드 → PC 자동접수)
     @POST("incoming-sms")
