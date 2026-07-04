@@ -43,20 +43,20 @@ function App() {
         getComputers(), getNetworkDevices(), getJobs(), getSales(), getInventory(), getPayments(), getStats(),
       ])
       const [dashboard, receptions, engineers, customers, computers, networkDevices, jobs, sales, inventory, payments, stats] = results
-      const get = (r, fallback) => r.status === 'fulfilled' ? r.value.data : fallback
-      setData({
-        dashboard: get(dashboard, null),
-        receptions: get(receptions, []),
-        engineers: get(engineers, []),
-        customers: get(customers, []),
-        computers: get(computers, []),
-        networkDevices: get(networkDevices, []),
-        jobs: get(jobs, []),
-        sales: get(sales, []),
-        inventory: get(inventory, []),
-        payments: get(payments, []),
-        stats: get(stats, null),
-      })
+      const get = (r, prev) => r.status === 'fulfilled' ? r.value.data : prev
+      setData(prev => ({
+        dashboard: get(dashboard, prev.dashboard),
+        receptions: get(receptions, prev.receptions),
+        engineers: get(engineers, prev.engineers),
+        customers: get(customers, prev.customers),
+        computers: get(computers, prev.computers),
+        networkDevices: get(networkDevices, prev.networkDevices),
+        jobs: get(jobs, prev.jobs),
+        sales: get(sales, prev.sales),
+        inventory: get(inventory, prev.inventory),
+        payments: get(payments, prev.payments),
+        stats: get(stats, prev.stats),
+      }))
       const failed = results.filter(r => r.status === 'rejected')
       setError(failed.length === results.length ? '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인하세요.' : null)
     } catch (err) {
