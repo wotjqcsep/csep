@@ -18,12 +18,12 @@ jobs:
       - name: Install dependencies
         run: |
           cd frontend
-          npm install
+          npm ci
 
       - name: Build
         run: |
           cd frontend
-          npm run build
+          npx vite build
         env:
           VITE_API_URL: https://csep-kpxv.onrender.com/api
 
