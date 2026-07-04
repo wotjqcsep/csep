@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Modal from '../components/Modal'
+import CustomerSelect from '../components/CustomerSelect'
 import { assignReception, updateReceptionStatus, createReception, deleteReception } from '../api'
 
 const STATUS_LABELS = { new: '신규', assigned: '배정', in_progress: '진행중', completed: '완료', cancelled: '취소' }
@@ -123,10 +124,7 @@ function Receptions({ receptions, engineers, customers, loading, onRefresh }) {
           <div className="form-row">
             <div className="form-group">
               <label>고객 *</label>
-              <select value={form.customer_id} onChange={set('customer_id')}>
-                <option value="">선택</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
-              </select>
+              <CustomerSelect customers={customers} value={form.customer_id} onChange={v => setForm(f => ({ ...f, customer_id: v }))} />
             </div>
             <div className="form-group">
               <label>접수 채널 *</label>
