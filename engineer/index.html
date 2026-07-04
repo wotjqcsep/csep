@@ -56,7 +56,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], modalRec:null };
+const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], modalRec:null };
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString();
@@ -89,6 +89,8 @@ async function loadReceptions(showLoading){
   try{
     const all = S.engineer.is_admin ? '?all=1' : '';   // 대표는 전체 조회 (미배정·전체 탭용)
     S.receptions = await api('GET',`/engineer/${S.engineer.id}/receptions${all}`);
+    if(!S.presets.length){ try{ S.presets = await api('GET','/result-presets'); }catch(e){} }
+    if(!S.parts.length){ try{ S.parts = await api('GET','/inventory'); }catch(e){} }
     if(S.engineer.is_admin){
       if(!S.engineers.length){ try{ S.engineers = await api('GET','/engineers'); }catch(e){} }
       if(!S.customers.length){ try{ S.customers = await api('GET','/customers'); }catch(e){} }
@@ -132,7 +134,7 @@ function cardHtml(r,mode){
       <span class="badge ${r.status}">${st}</span>
     </div>
     ${r.customer_phone?`<div class="info-line">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
-    ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>`:''}
+    ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)} <a onclick="openMapFor(${r.id})" style="color:var(--primary);cursor:pointer;margin-left:4px;font-weight:600">🗺️ 길찾기</a></div>`:''}
     ${engLine}
     <div class="symptom">${esc(r.symptom)||'(증상 없음)'}</div>
     ${r.status==='completed'&&r.work_description?`<div class="info-line">✅ ${esc(r.work_description)} · ${won(r.total_cost)}</div>`:''}
@@ -142,6 +144,8 @@ function cardHtml(r,mode){
   </div>`;
 }
 function setTab(t){ S.tab=t; render(); }
+// 지도 길찾기 (고객 주소 → 카카오맵)
+function openMapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address) window.open('https://map.kakao.com/?q='+encodeURIComponent(r.customer_address),'_blank'); }
 
 // ── 대표: 기사 배정 (현장) ──
 function openAssign(id){
@@ -216,8 +220,12 @@ function openComplete(id){
     <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
       <div class="sheet">
         <h3>작업 완료 - ${esc(r.customer_name)||'고객'}</h3>
-        <div class="fg"><label>작업 내용 *</label><textarea id="w_desc" placeholder="처리한 작업을 입력하세요"></textarea></div>
-        <div class="fg"><label>사용 부품</label><input id="w_parts" placeholder="예: SSD 500GB"></div>
+        <div class="fg"><label>작업 내용 *</label><textarea id="w_desc" placeholder="처리한 작업을 입력하세요"></textarea>
+          ${S.presets.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.presets.map((p,i)=>`<span onclick="appendField('w_desc',S.presets[${i}].text)" style="padding:5px 10px;background:#e7f5ff;color:#1971c2;border-radius:14px;font-size:12px;cursor:pointer">${esc(p.text)}</span>`).join('')}</div>`:''}
+        </div>
+        <div class="fg"><label>사용 부품</label><input id="w_parts" placeholder="예: SSD 500GB">
+          ${S.parts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.parts.slice(0,12).map((p,i)=>`<span onclick="appendField('w_parts',S.parts[${i}].part_name)" style="padding:5px 10px;background:#f1f3f5;color:#495057;border-radius:14px;font-size:12px;cursor:pointer">${esc(p.part_name)}</span>`).join('')}</div>`:''}
+        </div>
         <div class="row2">
           <div class="fg"><label>부품비</label><input id="w_cparts" type="number" value="0"></div>
           <div class="fg"><label>공임비</label><input id="w_clabor" type="number" value="0"></div>
@@ -228,6 +236,8 @@ function openComplete(id){
     </div>`);
 }
 function closeSheet(){ const o=document.getElementById('ov'); if(o)o.remove(); }
+// 프리셋/부품 칩 → 입력칸에 추가
+function appendField(id,text){ const el=document.getElementById(id); if(!el)return; el.value = el.value ? (el.value.replace(/\s*$/,'').replace(/,\s*$/,'')+', '+text) : text; }
 async function submitComplete(id){
   const g=x=>document.getElementById(x).value;
   const desc=g('w_desc'); if(!desc){ alert('작업 내용을 입력하세요'); return; }

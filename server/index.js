@@ -205,7 +205,18 @@ async function initDB() {
       subscription TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS result_presets (
+      id SERIAL PRIMARY KEY,
+      text TEXT NOT NULL,
+      sort INTEGER DEFAULT 0
+    );
   `);
+  // 결과 프리셋 기본값 시드 (비어있을 때만)
+  const pc = await pool.query('SELECT count(*) FROM result_presets');
+  if (Number(pc.rows[0].count) === 0) {
+    const defaults = ['재부팅/정상화', '윈도우 재설치', '악성코드 제거', '부품 교체', '데이터 백업/복구', '네트워크 설정', '프린터 설정', '점검 완료'];
+    for (let i = 0; i < defaults.length; i++) await pool.query('INSERT INTO result_presets (text, sort) VALUES ($1,$2)', [defaults[i], i]);
+  }
   // 기존 테이블(옛 스키마) 대비 누락 컬럼 보강
   await pool.query(`
     ALTER TABLE engineers ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
@@ -689,6 +700,21 @@ app.post('/api/fcm-token', wrap(async (req, res) => {
 app.post('/api/push-subscribe', wrap(async (req, res) => {
   const { engineer_id, subscription } = req.body;
   await pool.query('INSERT INTO push_subscriptions (engineer_id, subscription) VALUES ($1,$2)', [engineer_id, JSON.stringify(subscription)]);
+  res.json({ ok: true });
+}));
+
+// ============================================================
+//  결과 프리셋 (완료 입력 빠르게)
+// ============================================================
+app.get('/api/result-presets', wrap(async (req, res) => {
+  res.json((await pool.query('SELECT * FROM result_presets ORDER BY sort, id')).rows);
+}));
+app.post('/api/result-presets', wrap(async (req, res) => {
+  const { rows } = await pool.query('INSERT INTO result_presets (text, sort) VALUES ($1, (SELECT COALESCE(MAX(sort),0)+1 FROM result_presets)) RETURNING *', [req.body.text]);
+  res.json(rows[0]);
+}));
+app.delete('/api/result-presets/:id', wrap(async (req, res) => {
+  await pool.query('DELETE FROM result_presets WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
 
