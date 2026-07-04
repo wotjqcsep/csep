@@ -3,7 +3,7 @@
   "short_name": "CSEP기사",
   "start_url": "/engineer/",
   "display": "standalone",
-  "background_color": "#1e2330",
-  "theme_color": "#1e2330",
+  "background_color": "#1a1f2b",
+  "theme_color": "#1a1f2b",
   "icons": []
 }

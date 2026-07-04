@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CSEP 기사앱</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1e2330">
+<meta name="theme-color" content="#1a1f2b">
 <style>
 :root{--primary:#3b5bdb;--success:#2f9e44;--warning:#f08c00;--danger:#e03131;--bg:#f1f3f5;--gray-400:#adb5bd;--gray-500:#868e96;--gray-600:#495057}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);color:#343a40;font-size:15px;max-width:520px;margin:0 auto;min-height:100vh}
-.topbar{background:#1e2330;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
-.topbar h1{font-size:18px;color:#5b8def}
+.topbar{background:#1a1f2b;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+.topbar h1{font-size:18px;color:#6b9cff}
 .topbar .who{font-size:13px;color:#c9ced8}
 .tabs{display:flex;background:#fff;border-bottom:1px solid #e9ecef;position:sticky;top:52px;z-index:40}
 .tab{flex:1;padding:12px;border:none;background:none;font-size:14px;color:var(--gray-500);cursor:pointer;border-bottom:2px solid transparent}
@@ -99,7 +99,7 @@ function render(){
   const done=S.receptions.filter(r=>r.status==='completed');
   const list = S.tab==='done'? done : (S.tab==='all'? S.receptions : active);
   document.getElementById('app').innerHTML=`
-    <div class="topbar"><h1>CSEP 기사앱</h1><span class="who">${esc(S.engineer.name)}${isAdmin?' (대표)':''} · <a onclick="logout()" style="color:#5b8def;cursor:pointer">로그아웃</a></span></div>
+    <div class="topbar"><h1>CSEP 기사앱</h1><span class="who">${esc(S.engineer.name)}${isAdmin?' (대표)':''} · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
     <div class="tabs">
       <button class="tab ${S.tab==='active'?'active':''}" onclick="setTab('active')">진행 작업 (${active.length})</button>
       <button class="tab ${S.tab==='done'?'active':''}" onclick="setTab('done')">완료 (${done.length})</button>
