@@ -37,6 +37,8 @@ function Customers({ customers, computers, loading, onRefresh }) {
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [form, setForm] = useState(EMPTY_CUSTOMER)
+  const [addEquipForm, setAddEquipForm] = useState(EMPTY_COMPUTER)
+  const [modalTab, setModalTab] = useState('info')
 
   const [selectedComputer, setSelectedComputer] = useState(null)
   const [showAddComputer, setShowAddComputer] = useState(false)
@@ -57,11 +59,16 @@ function Customers({ customers, computers, loading, onRefresh }) {
     setDetailTab('info')
   }
 
-  const openAdd = () => { setForm(EMPTY_CUSTOMER); setShowAdd(true) }
-  const openEdit = (c) => { setForm({ ...c }); setShowEdit(true) }
+  const openAdd = () => { setForm(EMPTY_CUSTOMER); setAddEquipForm(EMPTY_COMPUTER); setModalTab('info'); setShowAdd(true) }
+  const openEdit = (c) => { setForm({ ...c }); setModalTab('info'); setShowEdit(true) }
 
   const handleSave = async () => {
-    await createCustomer(form)
+    if (!form.name || !form.phone) return alert('이름과 전화번호는 필수입니다')
+    const customer = await createCustomer(form)
+    const hasEquip = addEquipForm.name || addEquipForm.cpu || addEquipForm.ram
+    if (hasEquip && customer?.data) {
+      await createComputer({ ...addEquipForm, customer_id: customer.data.id, nas_hdd_count: addEquipForm.nas_hdd_count ? Number(addEquipForm.nas_hdd_count) : null })
+    }
     setShowAdd(false)
     onRefresh()
   }
@@ -278,8 +285,10 @@ function Customers({ customers, computers, loading, onRefresh }) {
       </div>
 
       {showAdd && (
-        <Modal title="고객 추가" onClose={() => setShowAdd(false)}>
-          <CustomerForm form={form} set={set} />
+        <Modal title="고객 추가" onClose={() => setShowAdd(false)} wide>
+          <ModalTabs tab={modalTab} setTab={setModalTab} tabs={[['info','고객 정보'],['equipment','장비 정보 (선택)']]} />
+          {modalTab === 'info' && <CustomerForm form={form} set={set} />}
+          {modalTab === 'equipment' && <EquipmentForm form={addEquipForm} set={(k) => (e) => setAddEquipForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))} customers={customers} hideCustomerSelect />}
           <div className="form-actions">
             <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>취소</button>
             <button className="btn" onClick={handleSave}>저장</button>
@@ -288,7 +297,8 @@ function Customers({ customers, computers, loading, onRefresh }) {
       )}
 
       {showEdit && (
-        <Modal title="고객 수정" onClose={() => setShowEdit(false)}>
+        <Modal title="고객 수정" onClose={() => setShowEdit(false)} wide>
+          <ModalTabs tab={modalTab} setTab={setModalTab} tabs={[['info','고객 정보']]} />
           <CustomerForm form={form} set={set} />
           <div className="form-actions">
             <button className="btn btn-secondary" onClick={() => setShowEdit(false)}>취소</button>
@@ -306,6 +316,28 @@ function Customers({ customers, computers, loading, onRefresh }) {
           </div>
         </Modal>
       )}
+    </div>
+  )
+}
+
+function ModalTabs({ tab, setTab, tabs }) {
+  return (
+    <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '2px solid var(--gray-200)' }}>
+      {tabs.map(([id, label]) => (
+        <button
+          key={id}
+          onClick={() => setTab(id)}
+          style={{
+            padding: '7px 16px', fontSize: 13, fontWeight: tab === id ? 700 : 400,
+            border: 'none', background: 'none', cursor: 'pointer',
+            borderBottom: tab === id ? '2px solid var(--primary)' : '2px solid transparent',
+            color: tab === id ? 'var(--primary)' : 'var(--gray-500)',
+            marginBottom: -2,
+          }}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   )
 }
@@ -395,7 +427,7 @@ function FormSection({ label }) {
   )
 }
 
-function EquipmentForm({ form, set, customers }) {
+function EquipmentForm({ form, set, customers, hideCustomerSelect }) {
   const type = form.device_type || 'desktop'
   const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.other
   const isPrinter = type === 'printer'
@@ -403,13 +435,15 @@ function EquipmentForm({ form, set, customers }) {
   return (
     <>
       <div className="form-row">
-        <div className="form-group">
-          <label>고객 *</label>
-          <select value={form.customer_id || ''} onChange={set('customer_id')}>
-            <option value="">선택</option>
-            {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
+        {!hideCustomerSelect && (
+          <div className="form-group">
+            <label>고객 *</label>
+            <select value={form.customer_id || ''} onChange={set('customer_id')}>
+              <option value="">선택</option>
+              {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
         <div className="form-group">
           <label>장비 종류 *</label>
           <select value={type} onChange={set('device_type')}>
