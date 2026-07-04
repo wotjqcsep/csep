@@ -17,8 +17,8 @@ function area(id,label,val){ return `<div class="form-group"><label>${label}</la
 const v = id => { const e=document.getElementById(id); return e?e.value:''; };
 
 // ── 고객 추가/수정 ──
-function openCustomerModal(id){
-  const c = id? state.customers.find(x=>x.id==id) : {};
+function openCustomerModal(id, prefill){
+  const c = id? state.customers.find(x=>x.id==id) : (prefill||{});
   const isEdit = !!id;
   const body = `
     <div class="form-group"><label>고객 구분 *</label><select id="c_type" onchange="toggleBiz()">
@@ -234,12 +234,25 @@ function popupCard(type, item){
       ${c? `<div style="margin:4px 0"><span class="badge new">${c.customer_type==='business'?'기업':'개인'}</span> <strong>${esc(c.name)}</strong>${c.company_name?` · ${esc(c.company_name)}`:''}</div>${c.address?`<div style="font-size:12px;color:var(--gray-500)">${esc(c.address)}</div>`:''}` : '<div style="color:var(--gray-400);margin:4px 0">미등록 고객</div>'}
       ${type==='sms'?`<div style="margin-top:6px;padding:8px;background:var(--gray-50);border-radius:6px;font-size:13px">${esc(item.message)}</div>`:''}
       ${(item.recent_receptions||[]).length?`<div style="margin-top:6px;font-size:12px;color:var(--gray-500)">최근: ${item.recent_receptions.map(r=>esc(r.symptom||'')).join(', ')}</div>`:''}
-      ${c?`<div style="margin-top:8px"><button class="btn btn-sm" onclick="quickReception(${c.id})">접수 등록</button></div>`:''}
+      <div style="margin-top:10px;display:flex;gap:6px">
+        ${c
+          ? `<button class="btn btn-sm" style="flex:1" onclick="quickReception(${c.id},'${type}',${item.id})">접수 등록</button>`
+          : `<button class="btn btn-sm" style="flex:1" onclick="registerFromPopup('${esc(item.phone)}','${type}',${item.id})">고객 등록</button>`}
+        <button class="btn btn-sm btn-secondary" style="flex:1" onclick="dismiss${type==='call'?'Call':'Sms'}(${item.id})">닫기</button>
+      </div>
     </div></div>`;
 }
 async function dismissCall(id){ await api('DELETE','/incoming-call/'+id); pendingCalls=pendingCalls.filter(c=>c.id!=id); renderPopups(); }
 async function dismissSms(id){ await api('DELETE','/incoming-sms/'+id); pendingSms=pendingSms.filter(s=>s.id!=id); renderPopups(); }
-function quickReception(custId){ go('receptions'); openReceptionModal(); pickCust(custId); }
+function quickReception(custId, type, itemId){
+  if(type==='call') dismissCall(itemId); else if(type==='sms') dismissSms(itemId);
+  go('receptions'); openReceptionModal(); pickCust(custId);
+}
+// 미등록 번호 → 전화번호 채운 고객 등록 모달
+function registerFromPopup(phone, type, itemId){
+  if(type==='call') dismissCall(itemId); else if(type==='sms') dismissSms(itemId);
+  openCustomerModal(null, { phone });
+}
 
 async function pollPopups(){
   try{
