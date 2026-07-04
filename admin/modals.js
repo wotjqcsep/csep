@@ -108,6 +108,7 @@ function openReceptionModal(){
       <div class="form-group"><label>접수 채널 *</label><select id="r_channel">
         <option value="phone">전화</option><option value="sms">SMS</option><option value="kakao">카카오톡</option><option value="direct">직접등록</option></select></div>
     </div>
+    <div id="custHistory"></div>
     ${field('r_phone','전화번호','')}
     ${area('r_symptom','증상 *','')}
     ${area('r_memo','초기 메모','')}
@@ -132,7 +133,26 @@ function renderCustSelect(){
     ${recPick.open? `<div class="cs-list">${filtered.length? filtered.map(c=>`<div class="cs-item" onmousedown="pickCust(${c.id})"><strong>${esc(c.name)||esc(c.phone)}</strong> ${c.name?`<span style="color:var(--gray-400);font-size:12px">${esc(c.phone)}</span>`:''}${c.company_name?` · ${esc(c.company_name)}`:''}</div>`).join('') : '<div class="cs-item" style="color:var(--gray-400)">검색 결과 없음</div>'}</div>`:''}
   </div>`;
 }
-function pickCust(id){ recPick.customerId=id; recPick.open=false; recPick.search=''; renderCustSelect(); }
+function pickCust(id){
+  recPick.customerId=id; recPick.open=false; recPick.search='';
+  renderCustSelect();
+  const c=state.customers.find(x=>x.id==id);
+  const phoneEl=document.getElementById('r_phone');
+  if(phoneEl && c && !phoneEl.value) phoneEl.value=c.phone||'';   // 전화번호 자동입력
+  renderCustHistory();
+}
+function renderCustHistory(){
+  const el=document.getElementById('custHistory'); if(!el) return;
+  if(!recPick.customerId){ el.innerHTML=''; return; }
+  const past=state.receptions.filter(r=>r.customer_id==recPick.customerId)
+    .sort((a,b)=>(b.received_at||'').localeCompare(a.received_at||''));
+  if(!past.length){ el.innerHTML='<div style="font-size:12px;color:var(--gray-400);margin:2px 0 10px">과거 접수 이력 없음</div>'; return; }
+  el.innerHTML=`<div style="margin:2px 0 12px;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px;background:var(--gray-50)">
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:5px">📋 과거 접수 이력 (${past.length})</div>
+    ${past.slice(0,5).map(r=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--gray-200)"><span class="badge ${r.status}" style="font-size:10px">${statusLabel(r.status)}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join('')}
+    ${past.length>5?`<div style="font-size:11px;color:var(--gray-400);margin-top:4px">외 ${past.length-5}건</div>`:''}
+  </div>`;
+}
 async function saveReception(){
   if(!recPick.customerId){ alert('고객을 선택하세요'); return; }
   const symptom = v('r_symptom'); if(!symptom){ alert('증상을 입력하세요'); return; }
