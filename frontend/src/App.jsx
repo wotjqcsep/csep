@@ -127,9 +127,8 @@ function App() {
         <div className="page-content">
           {currentPage === 'dashboard' && <Dashboard dashboard={data.dashboard} loading={loading} />}
           {currentPage === 'receptions' && <Receptions receptions={data.receptions} {...commonProps} />}
-          {currentPage === 'customers' && <Customers customers={data.customers} {...commonProps} />}
+          {currentPage === 'customers' && <Customers customers={data.customers} computers={data.computers} loading={loading} onRefresh={refresh} />}
           {currentPage === 'engineers' && <Engineers engineers={data.engineers} {...commonProps} />}
-          {currentPage === 'computers' && <Computers computers={data.computers} networkDevices={data.networkDevices} customers={data.customers} loading={loading} onRefresh={refresh} />}
           {currentPage === 'history' && <History jobs={data.jobs} receptions={data.receptions} customers={data.customers} engineers={data.engineers} loading={loading} onRefresh={refresh} />}
           {currentPage === 'sales' && <Sales sales={data.sales} customers={data.customers} engineers={data.engineers} loading={loading} onRefresh={refresh} />}
           {currentPage === 'inventory' && <Inventory inventory={data.inventory} loading={loading} onRefresh={refresh} />}

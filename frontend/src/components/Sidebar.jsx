@@ -18,7 +18,6 @@ const sections = [
     label: '고객',
     items: [
       { id: 'customers', label: '고객 관리', icon: '👥' },
-      { id: 'computers', label: '거래처 관리', icon: '🖥️' },
       { id: 'history', label: '수리 이력', icon: '📋' },
     ],
   },
