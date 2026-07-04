@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CSEP 기사앱</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e2330">
+<style>
+:root{--primary:#3b5bdb;--success:#2f9e44;--warning:#f08c00;--danger:#e03131;--bg:#f1f3f5;--gray-400:#adb5bd;--gray-500:#868e96;--gray-600:#495057}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);color:#343a40;font-size:15px;max-width:520px;margin:0 auto;min-height:100vh}
+.topbar{background:#1e2330;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+.topbar h1{font-size:18px;color:#5b8def}
+.topbar .who{font-size:13px;color:#c9ced8}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #e9ecef;position:sticky;top:52px;z-index:40}
+.tab{flex:1;padding:12px;border:none;background:none;font-size:14px;color:var(--gray-500);cursor:pointer;border-bottom:2px solid transparent}
+.tab.active{color:var(--primary);font-weight:700;border-bottom-color:var(--primary)}
+.content{padding:14px}
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.cust-name{font-size:17px;font-weight:700}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge.assigned{background:#fff3bf;color:#e67700}
+.badge.in_progress{background:#d3f9d8;color:#2b8a3e}
+.badge.completed{background:#e9ecef;color:#868e96}
+.info-line{font-size:13px;color:var(--gray-600);margin:3px 0}
+.info-line a{color:var(--primary);text-decoration:none}
+.symptom{background:var(--bg);border-radius:8px;padding:10px;margin:8px 0;font-size:14px}
+.btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.btn-ghost{background:#f1f3f5;color:var(--gray-600)}
+.empty{text-align:center;padding:60px 20px;color:var(--gray-400)}
+/* 로그인 */
+.login{padding:40px 24px;text-align:center}
+.login h2{font-size:24px;color:var(--primary);margin-bottom:6px}
+.login p{color:var(--gray-500);margin-bottom:30px;font-size:14px}
+.eng-btn{display:block;width:100%;padding:16px;margin-bottom:10px;border:1px solid #dee2e6;border-radius:12px;background:#fff;font-size:16px;cursor:pointer;text-align:left}
+.eng-btn:hover{border-color:var(--primary)}
+.eng-btn .role{float:right;font-size:12px;color:var(--warning)}
+/* 모달 */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:100}
+.sheet{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;padding:22px}
+.sheet h3{font-size:18px;margin-bottom:16px}
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:13px;color:var(--gray-600);margin-bottom:5px}
+.fg input,.fg textarea{width:100%;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px;font-size:15px;font-family:inherit}
+.fg textarea{min-height:80px;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+</head>
+<body>
+<div id="app"><div class="empty">불러오는 중...</div></div>
+
+<script>
+const API='/api';
+const S={ engineer:null, tab:'active', receptions:[], modalRec:null };
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const won=n=>'₩'+(Number(n)||0).toLocaleString();
+async function api(m,u,b){const o={method:m,headers:{'Content-Type':'application/json'}};if(b)o.body=JSON.stringify(b);const r=await fetch(API+u,o);if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.status);return r.json();}
+
+// ── 로그인 ──
+async function renderLogin(){
+  let engineers=[];
+  try{ engineers=await api('GET','/engineers'); }catch(e){}
+  document.getElementById('app').innerHTML=`
+    <div class="login">
+      <h2>CSEP 기사앱</h2><p>본인 이름을 선택하세요</p>
+      ${engineers.length? engineers.map(e=>`<button class="eng-btn" onclick="login(${e.id},${e.is_admin})">${esc(e.name)}${e.is_admin?'<span class="role">대표</span>':''}</button>`).join('') : '<p style="color:var(--gray-400)">등록된 기사가 없습니다.<br>관리자 화면에서 기사를 먼저 추가하세요.</p>'}
+    </div>`;
+}
+async function login(id,isAdmin){
+  let password=null;
+  if(isAdmin){ password=prompt('대표 비밀번호:'); if(password===null)return; }
+  try{
+    const e=await api('POST','/engineer-login',{engineer_id:id,password});
+    S.engineer=e; localStorage.setItem('csep_eng',JSON.stringify(e));
+    connectSSE(); loadReceptions(true);
+  }catch(err){ alert(err.message); }
+}
+function logout(){ localStorage.removeItem('csep_eng'); S.engineer=null; renderLogin(); }
+
+// ── 데이터 ──
+async function loadReceptions(showLoading){
+  if(!S.engineer)return;
+  try{
+    const all = S.engineer.is_admin && S.tab==='all' ? '?all=1' : '';
+    S.receptions = await api('GET',`/engineer/${S.engineer.id}/receptions${all}`);
+    render();
+  }catch(e){ if(showLoading)document.getElementById('app').innerHTML='<div class="empty">서버 연결 실패</div>'; }
+}
+
+// ── 렌더 ──
+function render(){
+  if(!S.engineer)return renderLogin();
+  const isAdmin=S.engineer.is_admin;
+  const active=S.receptions.filter(r=>r.status==='assigned'||r.status==='in_progress');
+  const done=S.receptions.filter(r=>r.status==='completed');
+  const list = S.tab==='done'? done : (S.tab==='all'? S.receptions : active);
+  document.getElementById('app').innerHTML=`
+    <div class="topbar"><h1>CSEP 기사앱</h1><span class="who">${esc(S.engineer.name)}${isAdmin?' (대표)':''} · <a onclick="logout()" style="color:#5b8def;cursor:pointer">로그아웃</a></span></div>
+    <div class="tabs">
+      <button class="tab ${S.tab==='active'?'active':''}" onclick="setTab('active')">진행 작업 (${active.length})</button>
+      <button class="tab ${S.tab==='done'?'active':''}" onclick="setTab('done')">완료 (${done.length})</button>
+      ${isAdmin?`<button class="tab ${S.tab==='all'?'active':''}" onclick="setTab('all')">전체</button>`:''}
+    </div>
+    <div class="content">
+      ${list.length? list.map(cardHtml).join('') : '<div class="empty">작업이 없습니다</div>'}
+    </div>`;
+}
+function cardHtml(r){
+  const st={assigned:'배정',in_progress:'진행중',completed:'완료'}[r.status]||r.status;
+  return `<div class="card">
+    <div class="card-head">
+      <div><div class="cust-name">${esc(r.customer_name)||'고객'}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
+      <span class="badge ${r.status}">${st}</span>
+    </div>
+    ${r.customer_phone?`<div class="info-line">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
+    ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>`:''}
+    <div class="symptom">${esc(r.symptom)||'(증상 없음)'}</div>
+    ${r.status==='completed'&&r.work_description?`<div class="info-line">✅ ${esc(r.work_description)} · ${won(r.total_cost)}</div>`:''}
+    ${r.status==='assigned'?`<button class="btn btn-primary" onclick="startWork(${r.id})">작업 시작</button>`:''}
+    ${r.status==='in_progress'?`<button class="btn btn-success" onclick="openComplete(${r.id})">작업 완료 입력</button>`:''}
+  </div>`;
+}
+function setTab(t){ S.tab=t; loadReceptions(); }
+
+// ── 작업 시작/완료 ──
+async function startWork(id){ await api('PUT',`/engineer/receptions/${id}/start`); loadReceptions(); }
+function openComplete(id){
+  const r=S.receptions.find(x=>x.id==id);
+  document.getElementById('app').insertAdjacentHTML('beforeend',`
+    <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+      <div class="sheet">
+        <h3>작업 완료 - ${esc(r.customer_name)||'고객'}</h3>
+        <div class="fg"><label>작업 내용 *</label><textarea id="w_desc" placeholder="처리한 작업을 입력하세요"></textarea></div>
+        <div class="fg"><label>사용 부품</label><input id="w_parts" placeholder="예: SSD 500GB"></div>
+        <div class="row2">
+          <div class="fg"><label>부품비</label><input id="w_cparts" type="number" value="0"></div>
+          <div class="fg"><label>공임비</label><input id="w_clabor" type="number" value="0"></div>
+        </div>
+        <button class="btn btn-success" onclick="submitComplete(${id})">완료 처리</button>
+        <button class="btn btn-ghost" onclick="closeSheet()">취소</button>
+      </div>
+    </div>`);
+}
+function closeSheet(){ const o=document.getElementById('ov'); if(o)o.remove(); }
+async function submitComplete(id){
+  const g=x=>document.getElementById(x).value;
+  const desc=g('w_desc'); if(!desc){ alert('작업 내용을 입력하세요'); return; }
+  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('w_parts'), cost_parts:Number(g('w_cparts'))||0, cost_labor:Number(g('w_clabor'))||0 });
+  closeSheet(); loadReceptions();
+}
+
+// ── SSE ──
+function connectSSE(){
+  if(!S.engineer)return;
+  try{
+    const es=new EventSource(`${API}/engineer-stream/${S.engineer.id}`);
+    es.addEventListener('new_assignment',()=>{ loadReceptions(); if(navigator.vibrate)navigator.vibrate(400); });
+    es.onerror=()=>{ es.close(); setTimeout(connectSSE,5000); };
+  }catch(e){}
+}
+
+// ── 초기화 ──
+(function init(){
+  const saved=localStorage.getItem('csep_eng');
+  if(saved){ try{ S.engineer=JSON.parse(saved); connectSSE(); loadReceptions(true); return; }catch(e){} }
+  renderLogin();
+})();
+setInterval(()=>{ if(S.engineer)loadReceptions(); }, 15000);
+</script>
+</body>
+</html>

@@ -206,6 +206,16 @@ async function initDB() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+  // 기존 테이블(옛 스키마) 대비 누락 컬럼 보강
+  await pool.query(`
+    ALTER TABLE engineers ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
+    ALTER TABLE engineers ADD COLUMN IF NOT EXISTS password TEXT;
+    ALTER TABLE engineers ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'idle';
+    ALTER TABLE engineers ADD COLUMN IF NOT EXISTS location TEXT;
+    ALTER TABLE engineers ADD COLUMN IF NOT EXISTS total_jobs INTEGER DEFAULT 0;
+    ALTER TABLE engineers ADD COLUMN IF NOT EXISTS total_revenue DOUBLE PRECISION DEFAULT 0;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS solution TEXT;
+  `);
   console.log('DB 초기화 완료');
 }
 
@@ -404,8 +414,10 @@ app.put('/api/receptions/:id/assign', wrap(async (req, res) => {
     `UPDATE receptions SET assigned_engineer_id=$1, status='assigned', assigned_at=NOW() WHERE id=$2 RETURNING *`,
     [engineerId, req.params.id]
   );
-  // jobs 생성
-  await pool.query('INSERT INTO jobs (reception_id, engineer_id, status) VALUES ($1,$2,$3)', [req.params.id, engineerId, 'assigned']);
+  // jobs 생성 (이미 있으면 기사만 갱신 — 재배정 시 중복 방지)
+  const existJob = await pool.query('SELECT id FROM jobs WHERE reception_id=$1', [req.params.id]);
+  if (existJob.rows[0]) await pool.query('UPDATE jobs SET engineer_id=$1 WHERE reception_id=$2', [engineerId, req.params.id]);
+  else await pool.query('INSERT INTO jobs (reception_id, engineer_id, status) VALUES ($1,$2,$3)', [req.params.id, engineerId, 'assigned']);
   const cust = await pool.query('SELECT name FROM customers WHERE id=$1', [rows[0].customer_id]);
   // 기사에게 알림
   await sendPushToEngineer(engineerId, '새 작업 배정', `${cust.rows[0]?.name || '고객'} - ${rows[0].symptom || ''}`);
@@ -672,6 +684,59 @@ app.post('/api/push-subscribe', wrap(async (req, res) => {
   const { engineer_id, subscription } = req.body;
   await pool.query('INSERT INTO push_subscriptions (engineer_id, subscription) VALUES ($1,$2)', [engineer_id, JSON.stringify(subscription)]);
   res.json({ ok: true });
+}));
+
+// ============================================================
+//  기사앱 전용 API
+// ============================================================
+// 기사 로그인 (이름 선택 / 대표는 비번 확인)
+app.post('/api/engineer-login', wrap(async (req, res) => {
+  const { engineer_id, password } = req.body;
+  const { rows } = await pool.query('SELECT * FROM engineers WHERE id=$1', [engineer_id]);
+  const e = rows[0];
+  if (!e) return res.status(404).json({ error: '기사 없음' });
+  if (e.is_admin && e.password && e.password !== password) return res.status(401).json({ error: '비밀번호 오류' });
+  res.json({ id: e.id, name: e.name, is_admin: e.is_admin });
+}));
+
+// 기사의 배정 작업 (고객정보 조인). 대표(all=1)는 전체
+app.get('/api/engineer/:id/receptions', wrap(async (req, res) => {
+  const all = req.query.all === '1';
+  const params = all ? [] : [req.params.id];
+  const where = all ? '' : 'WHERE r.assigned_engineer_id=$1';
+  const { rows } = await pool.query(`
+    SELECT r.*, c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address,
+           c.company_name AS customer_company,
+           j.id AS job_id, j.work_description, j.parts_used, j.cost_parts, j.cost_labor, j.total_cost
+    FROM receptions r
+    LEFT JOIN customers c ON c.id=r.customer_id
+    LEFT JOIN jobs j ON j.reception_id=r.id
+    ${where}
+    ORDER BY r.received_at DESC`, params);
+  res.json(rows);
+}));
+
+// 작업 시작
+app.put('/api/engineer/receptions/:id/start', wrap(async (req, res) => {
+  const { rows } = await pool.query(`UPDATE receptions SET status='in_progress' WHERE id=$1 RETURNING *`, [req.params.id]);
+  await pool.query(`UPDATE jobs SET status='in_progress', started_at=NOW() WHERE reception_id=$1`, [req.params.id]);
+  broadcastAdmin('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 작업 완료 (결과 입력) → 접수+작업+기사실적 갱신, 관리자 실시간 알림
+app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
+  const b = req.body;
+  const total = (Number(b.cost_parts) || 0) + (Number(b.cost_labor) || 0);
+  const { rows } = await pool.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2 WHERE id=$1 RETURNING *`, [req.params.id, b.work_description || '']);
+  await pool.query(
+    `UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6 WHERE reception_id=$1`,
+    [req.params.id, b.work_description || '', b.parts_used || '', Number(b.cost_parts) || 0, Number(b.cost_labor) || 0, total]
+  );
+  const eng = rows[0].assigned_engineer_id;
+  if (eng) await pool.query('UPDATE engineers SET total_jobs=total_jobs+1, total_revenue=total_revenue+$2 WHERE id=$1', [eng, total]);
+  broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
+  res.json(rows[0]);
 }));
 
 // ============================================================
