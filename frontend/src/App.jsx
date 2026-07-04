@@ -67,29 +67,37 @@ function App() {
     }
   }
 
-  // 수신 전화 폴링 (2초마다)
+  // 수신 전화 폴링 (3초마다, 변경시만 업데이트)
   useEffect(() => {
     const pollCalls = async () => {
       try {
         const res = await getPendingCalls()
-        setIncomingCalls(res.data)
+        setIncomingCalls(prev => {
+          const next = res.data
+          if (JSON.stringify(prev) === JSON.stringify(next)) return prev
+          return next
+        })
       } catch {}
     }
     pollCalls()
-    const interval = setInterval(pollCalls, 2000)
+    const interval = setInterval(pollCalls, 3000)
     return () => clearInterval(interval)
   }, [])
 
-  // 수신 SMS 폴링 (2초마다)
+  // 수신 SMS 폴링 (3초마다, 변경시만 업데이트)
   useEffect(() => {
     const pollSms = async () => {
       try {
         const res = await getPendingSms()
-        setIncomingSms(res.data)
+        setIncomingSms(prev => {
+          const next = res.data
+          if (JSON.stringify(prev) === JSON.stringify(next)) return prev
+          return next
+        })
       } catch {}
     }
     pollSms()
-    const interval = setInterval(pollSms, 2000)
+    const interval = setInterval(pollSms, 3000)
     return () => clearInterval(interval)
   }, [])
 
