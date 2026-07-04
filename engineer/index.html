@@ -21,6 +21,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 .card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
 .cust-name{font-size:17px;font-weight:700}
 .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge.new{background:#e7f5ff;color:#1971c2}
 .badge.assigned{background:#fff3bf;color:#e67700}
 .badge.in_progress{background:#d3f9d8;color:#2b8a3e}
 .badge.completed{background:#e9ecef;color:#868e96}
@@ -55,7 +56,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'active', receptions:[], modalRec:null };
+const S={ engineer:null, tab:'active', receptions:[], engineers:[], modalRec:null };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString();
 async function api(m,u,b){const o={method:m,headers:{'Content-Type':'application/json'}};if(b)o.body=JSON.stringify(b);const r=await fetch(API+u,o);if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.status);return r.json();}
@@ -85,32 +86,40 @@ function logout(){ localStorage.removeItem('csep_eng'); S.engineer=null; renderL
 async function loadReceptions(showLoading){
   if(!S.engineer)return;
   try{
-    const all = S.engineer.is_admin && S.tab==='all' ? '?all=1' : '';
+    const all = S.engineer.is_admin ? '?all=1' : '';   // 대표는 전체 조회 (미배정·전체 탭용)
     S.receptions = await api('GET',`/engineer/${S.engineer.id}/receptions${all}`);
+    if(S.engineer.is_admin && !S.engineers.length){ try{ S.engineers = await api('GET','/engineers'); }catch(e){} }
     render();
   }catch(e){ if(showLoading)document.getElementById('app').innerHTML='<div class="empty">서버 연결 실패</div>'; }
 }
+function engName(id){ const e=S.engineers.find(x=>x.id==id); return e?e.name:(id?`기사${id}`:'-'); }
 
 // ── 렌더 ──
 function render(){
   if(!S.engineer)return renderLogin();
-  const isAdmin=S.engineer.is_admin;
-  const active=S.receptions.filter(r=>r.status==='assigned'||r.status==='in_progress');
+  const isAdmin=S.engineer.is_admin, myId=S.engineer.id;
+  const mine=S.receptions.filter(r=>r.assigned_engineer_id==myId&&(r.status==='assigned'||r.status==='in_progress'));
+  const unassigned=S.receptions.filter(r=>r.status==='new');
   const done=S.receptions.filter(r=>r.status==='completed');
-  const list = S.tab==='done'? done : (S.tab==='all'? S.receptions : active);
+  const all=S.receptions;
+  let list;
+  if(S.tab==='unassigned')list=unassigned; else if(S.tab==='all')list=all; else if(S.tab==='done')list=done; else list=mine;
+  const tabs = isAdmin
+    ? [['active',`내 작업 (${mine.length})`],['unassigned',`미배정 (${unassigned.length})`],['all',`전체 (${all.length})`],['done',`완료 (${done.length})`]]
+    : [['active',`진행 작업 (${mine.length})`],['done',`완료 (${done.length})`]];
   document.getElementById('app').innerHTML=`
-    <div class="topbar"><h1>CSEP 기사앱</h1><span class="who">${esc(S.engineer.name)}${isAdmin?' (대표)':''} · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
+    <div class="topbar"><h1>CSEP 기사앱</h1><span class="who">${esc(S.engineer.name)}${isAdmin?' · 대표':''} · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
     <div class="tabs">
-      <button class="tab ${S.tab==='active'?'active':''}" onclick="setTab('active')">진행 작업 (${active.length})</button>
-      <button class="tab ${S.tab==='done'?'active':''}" onclick="setTab('done')">완료 (${done.length})</button>
-      ${isAdmin?`<button class="tab ${S.tab==='all'?'active':''}" onclick="setTab('all')">전체</button>`:''}
+      ${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}
     </div>
     <div class="content">
-      ${list.length? list.map(cardHtml).join('') : '<div class="empty">작업이 없습니다</div>'}
+      ${list.length? list.map(r=>cardHtml(r,S.tab)).join('') : '<div class="empty">작업이 없습니다</div>'}
     </div>`;
 }
-function cardHtml(r){
-  const st={assigned:'배정',in_progress:'진행중',completed:'완료'}[r.status]||r.status;
+function cardHtml(r,mode){
+  const st={new:'신규',assigned:'배정',in_progress:'진행중',completed:'완료'}[r.status]||r.status;
+  const mine=r.assigned_engineer_id==S.engineer.id;
+  const engLine = (mode==='all'&&r.assigned_engineer_id)?`<div class="info-line">👷 담당: ${esc(engName(r.assigned_engineer_id))}</div>`:'';
   return `<div class="card">
     <div class="card-head">
       <div><div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
@@ -118,13 +127,40 @@ function cardHtml(r){
     </div>
     ${r.customer_phone?`<div class="info-line">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
     ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>`:''}
+    ${engLine}
     <div class="symptom">${esc(r.symptom)||'(증상 없음)'}</div>
     ${r.status==='completed'&&r.work_description?`<div class="info-line">✅ ${esc(r.work_description)} · ${won(r.total_cost)}</div>`:''}
-    ${r.status==='assigned'?`<button class="btn btn-primary" onclick="startWork(${r.id})">작업 시작</button>`:''}
-    ${r.status==='in_progress'?`<button class="btn btn-success" onclick="openComplete(${r.id})">작업 완료 입력</button>`:''}
+    ${r.status==='new'&&S.engineer.is_admin?`<button class="btn btn-primary" onclick="openAssign(${r.id})">기사 배정</button>`:''}
+    ${r.status==='assigned'&&mine?`<button class="btn btn-primary" onclick="startWork(${r.id})">작업 시작</button>`:''}
+    ${r.status==='in_progress'&&mine?`<button class="btn btn-success" onclick="openComplete(${r.id})">작업 완료 입력</button>`:''}
   </div>`;
 }
-function setTab(t){ S.tab=t; loadReceptions(); }
+function setTab(t){ S.tab=t; render(); }
+
+// ── 대표: 기사 배정 (현장) ──
+function openAssign(id){
+  const r=S.receptions.find(x=>x.id==id);
+  document.getElementById('app').insertAdjacentHTML('beforeend',`
+    <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+      <div class="sheet">
+        <h3>기사 배정 - ${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</h3>
+        <div class="symptom">${esc(r.symptom)||'(증상 없음)'}</div>
+        <div class="fg"><label>배정할 기사</label>
+          <select id="a_eng" style="width:100%;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px;font-size:15px">
+            <option value="">선택하세요</option>
+            ${S.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}
+          </select></div>
+        <button class="btn btn-primary" onclick="doAssign(${id})">배정</button>
+        <button class="btn btn-ghost" onclick="closeSheet()">취소</button>
+      </div>
+    </div>`);
+}
+async function doAssign(id){
+  const eng=document.getElementById('a_eng').value;
+  if(!eng){ alert('기사를 선택하세요'); return; }
+  await api('PUT',`/receptions/${id}/assign?engineer_id=${eng}`);
+  closeSheet(); loadReceptions();
+}
 
 // ── 작업 시작/완료 ──
 async function startWork(id){ await api('PUT',`/engineer/receptions/${id}/start`); loadReceptions(); }
