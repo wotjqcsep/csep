@@ -38,24 +38,27 @@ function App() {
   const loadAll = async () => {
     try {
       setLoading(true)
-      const [dashboard, receptions, engineers, customers, computers, networkDevices, jobs, sales, inventory, payments, stats] = await Promise.all([
+      const results = await Promise.allSettled([
         getDashboard(), getReceptions(), getEngineers(), getCustomers(),
         getComputers(), getNetworkDevices(), getJobs(), getSales(), getInventory(), getPayments(), getStats(),
       ])
+      const [dashboard, receptions, engineers, customers, computers, networkDevices, jobs, sales, inventory, payments, stats] = results
+      const get = (r, fallback) => r.status === 'fulfilled' ? r.value.data : fallback
       setData({
-        dashboard: dashboard.data,
-        receptions: receptions.data,
-        engineers: engineers.data,
-        customers: customers.data,
-        computers: computers.data,
-        networkDevices: networkDevices.data,
-        jobs: jobs.data,
-        sales: sales.data,
-        inventory: inventory.data,
-        payments: payments.data,
-        stats: stats.data,
+        dashboard: get(dashboard, null),
+        receptions: get(receptions, []),
+        engineers: get(engineers, []),
+        customers: get(customers, []),
+        computers: get(computers, []),
+        networkDevices: get(networkDevices, []),
+        jobs: get(jobs, []),
+        sales: get(sales, []),
+        inventory: get(inventory, []),
+        payments: get(payments, []),
+        stats: get(stats, null),
       })
-      setError(null)
+      const failed = results.filter(r => r.status === 'rejected')
+      setError(failed.length === results.length ? '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인하세요.' : null)
     } catch (err) {
       setError('서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인하세요.')
     } finally {
