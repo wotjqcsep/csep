@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSEP — 컴퓨터 A/S ERP</title>
+<style>
+:root{
+  --primary:#3b5bdb; --primary-light:#e3f2fd; --success:#2f9e44; --warning:#f08c00;
+  --danger:#e03131; --gray-50:#f8f9fa; --gray-100:#f1f3f5; --gray-200:#e9ecef;
+  --gray-300:#dee2e6; --gray-400:#adb5bd; --gray-500:#868e96; --gray-600:#495057; --gray-700:#343a40;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--gray-100);color:var(--gray-700);font-size:14px}
+.app{display:flex;min-height:100vh}
+/* 사이드바 */
+.sidebar{width:210px;background:#1e2330;color:#c9ced8;flex-shrink:0;display:flex;flex-direction:column;position:fixed;height:100vh;overflow-y:auto}
+.sidebar-header{padding:20px 18px;border-bottom:1px solid #2b3140}
+.sidebar-header h2{color:#5b8def;font-size:22px;font-weight:800}
+.sidebar-header span{font-size:11px;color:#6b7280}
+.nav-section{padding:8px 0}
+.nav-section-label{padding:8px 18px 4px;font-size:11px;color:#6b7280;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 18px;border:none;background:none;color:#c9ced8;cursor:pointer;font-size:14px;text-align:left}
+.nav-item:hover{background:#2b3140}
+.nav-item.active{background:#2d3a5f;color:#fff;border-left:3px solid var(--primary)}
+.nav-icon{font-size:16px}
+/* 메인 */
+.main{margin-left:210px;flex:1;display:flex;flex-direction:column;min-width:0}
+.header{background:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--gray-200);position:sticky;top:0;z-index:50}
+.header h1{font-size:18px}
+.header .right{display:flex;gap:12px;align-items:center;font-size:12px;color:var(--gray-500)}
+.server-status{color:var(--success)}
+.page{padding:24px}
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.page-header h2{font-size:20px}
+/* 버튼 */
+.btn{background:var(--primary);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px}
+.btn:hover{opacity:.9}
+.btn-sm{padding:4px 10px;font-size:12px;border-radius:6px}
+.btn-secondary{background:var(--gray-200);color:var(--gray-700)}
+.btn-success{background:var(--success)}
+.btn-danger{background:var(--danger)}
+/* 통계 카드 */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px}
+.stat-card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.stat-label{font-size:12px;color:var(--gray-500);margin-bottom:6px}
+.stat-value{font-size:28px;font-weight:700}
+/* 필터바 */
+.filter-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filter-btn{padding:7px 14px;border-radius:20px;border:1px solid var(--gray-300);background:#fff;cursor:pointer;font-size:13px}
+.filter-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.search-input{padding:8px 14px;border-radius:20px;border:1px solid var(--gray-300);font-size:13px;min-width:220px}
+select,input,textarea{font-family:inherit;font-size:14px}
+/* 테이블 */
+.table-container{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.table{width:100%;border-collapse:collapse}
+.table th{background:var(--gray-50);padding:11px 14px;text-align:left;font-size:12px;color:var(--gray-500);border-bottom:1px solid var(--gray-200)}
+.table td{padding:11px 14px;border-bottom:1px solid var(--gray-100);font-size:13px}
+.table tr:hover{background:var(--gray-50)}
+.empty-state{text-align:center;padding:40px;color:var(--gray-400)}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge.new{background:#e7f5ff;color:#1971c2}
+.badge.assigned{background:#fff3bf;color:#e67700}
+.badge.in_progress{background:#d3f9d8;color:#2b8a3e}
+.badge.completed{background:var(--gray-200);color:var(--gray-600)}
+.outstanding{color:var(--danger);font-weight:600}
+/* 분할 레이아웃 */
+.split{display:grid;grid-template-columns:1fr 380px;gap:16px}
+.detail-panel{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.06);align-self:start;position:sticky;top:80px;max-height:calc(100vh-100px);overflow-y:auto}
+.detail-panel h3{font-size:16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.detail-row{display:flex;padding:6px 0;border-bottom:1px solid var(--gray-100)}
+.detail-label{width:90px;color:var(--gray-500);font-size:12px;flex-shrink:0}
+.detail-value{flex:1;font-size:13px}
+.tabs{display:flex;border-bottom:2px solid var(--gray-200);margin-bottom:12px}
+.tab{padding:7px 15px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--gray-500);border-bottom:2px solid transparent;margin-bottom:-2px}
+.tab.active{color:var(--primary);font-weight:700;border-bottom-color:var(--primary)}
+/* 모달 */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+.modal.wide{max-width:640px}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--gray-200)}
+.modal-head h3{font-size:17px}
+.modal-close{border:none;background:none;font-size:22px;cursor:pointer;color:var(--gray-400)}
+.modal-body{padding:22px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:13px;margin-bottom:5px;color:var(--gray-600)}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px}
+.form-group textarea{min-height:70px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.form-section{margin:14px 0 8px;font-size:13px;font-weight:600;color:var(--gray-600);border-top:1px solid var(--gray-200);padding-top:10px}
+.loading{text-align:center;padding:60px;color:var(--gray-400)}
+/* 검색 드롭다운 */
+.cs-wrap{position:relative}
+.cs-box{display:flex;align-items:center;gap:6px;border:1px solid var(--gray-300);border-radius:8px;padding:8px 10px;background:#fff;cursor:text;min-height:38px}
+.cs-box input{border:none;outline:none;flex:1;font-size:14px}
+.cs-list{position:absolute;top:100%;left:0;right:0;z-index:100;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;margin-top:2px}
+.cs-item{padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--gray-100)}
+.cs-item:hover{background:var(--gray-50)}
+/* 팝업 (전화/SMS) */
+.popup-stack{position:fixed;right:20px;bottom:20px;z-index:300;display:flex;flex-direction:column;gap:10px;width:340px}
+.popup{background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);overflow:hidden;border-left:4px solid var(--primary)}
+.popup.sms{border-left-color:var(--success)}
+.popup-head{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;background:var(--gray-50)}
+.popup-body{padding:14px 16px}
+.chip{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;background:var(--gray-200)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-header"><h2>CSEP</h2><span>컴퓨터 A/S ERP</span></div>
+    <nav id="nav"></nav>
+  </aside>
+  <main class="main">
+    <header class="header">
+      <h1 id="pageTitle">대시보드</h1>
+      <div class="right">
+        <button class="btn-sm btn-secondary" onclick="testCall()">📞 수신 테스트</button>
+        <span class="server-status" id="srvStatus">● 서버 연결</span>
+        <span>관리자</span>
+      </div>
+    </header>
+    <div class="page" id="page"><div class="loading">불러오는 중...</div></div>
+  </main>
+</div>
+<div class="popup-stack" id="popups"></div>
+<div id="modalRoot"></div>
+
+<script>
+const API = '/api';
+const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null };
+const MENUS = [
+  { sec:'현황', items:[['dashboard','📊','대시보드']] },
+  { sec:'접수 / 현장', items:[['receptions','📞','접수 관리'],['engineers','🔧','기사 관리']] },
+  { sec:'고객', items:[['customers','👥','고객 관리'],['history','📋','수리 이력']] },
+  { sec:'ERP', items:[['sales','🛒','판매 관리'],['inventory','📦','재고 관리'],['payments','💳','결제 관리']] },
+  { sec:'분석', items:[['stats','📈','통계']] },
+];
+const TITLES = { dashboard:'대시보드', receptions:'접수 관리', engineers:'기사 관리', customers:'고객 관리', history:'수리 이력', sales:'판매 관리', inventory:'재고 관리', payments:'결제 관리', stats:'통계' };
+const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
+
+// ── API 헬퍼 ──
+async function api(method, url, body){
+  const opt = { method, headers:{'Content-Type':'application/json'} };
+  if(body) opt.body = JSON.stringify(body);
+  const r = await fetch(API+url, opt);
+  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || r.status);
+  return r.json();
+}
+const digits = s => (s||'').replace(/\D/g,'');
+const won = n => '₩'+(Number(n)||0).toLocaleString();
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ── 데이터 로딩 (백그라운드) ──
+let firstLoad = true;
+async function loadAll(showLoading){
+  if(showLoading && firstLoad) document.getElementById('page').innerHTML='<div class="loading">불러오는 중...</div>';
+  const jobs = [
+    ['dashboard','/dashboard'],['customers','/customers'],['computers','/computers'],['engineers','/engineers'],
+    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],
+  ];
+  const results = await Promise.allSettled(jobs.map(([,u])=>api('GET',u)));
+  let anyOk=false;
+  results.forEach((r,i)=>{ if(r.status==='fulfilled'){ state[jobs[i][0]] = r.value; anyOk=true; } });
+  document.getElementById('srvStatus').textContent = anyOk ? '● 서버 연결' : '● 연결 끊김';
+  document.getElementById('srvStatus').style.color = anyOk ? 'var(--success)' : 'var(--danger)';
+  if(firstLoad){ firstLoad=false; render(); } else if(!document.querySelector('.modal-overlay')) render();
+}
+
+// ── 네비게이션 ──
+function renderNav(){
+  document.getElementById('nav').innerHTML = MENUS.map(m=>`
+    <div class="nav-section"><div class="nav-section-label">${m.sec}</div>
+      ${m.items.map(([id,icon,label])=>`<button class="nav-item ${state.page===id?'active':''}" onclick="go('${id}')"><span class="nav-icon">${icon}</span><span>${label}</span></button>`).join('')}
+    </div>`).join('');
+}
+function go(page){ state.page=page; document.getElementById('pageTitle').textContent=TITLES[page]; renderNav(); render(); }
+
+// ── 렌더 라우터 ──
+function render(){
+  renderNav();
+  const el = document.getElementById('page');
+  const r = { dashboard:renderDashboard, receptions:renderReceptions, engineers:renderEngineers, customers:renderCustomers, history:renderHistory, sales:renderSales, inventory:renderInventory, payments:renderPayments, stats:renderStats }[state.page];
+  el.innerHTML = r ? r() : '준비 중';
+}
+
+// ── 대시보드 ──
+function renderDashboard(){
+  const d = state.dashboard; if(!d) return '<div class="loading">불러오는 중...</div>';
+  const eng = d.engineers||[];
+  return `
+  <div class="stat-grid">
+    ${statCard('오늘 신규 접수', d.today_new)}
+    ${statCard('배정 대기', d.assigned_pending, d.assigned_pending>0?'var(--warning)':'')}
+    ${statCard('진행 중', d.in_progress, 'var(--success)')}
+    ${statCard('오늘 완료', d.completed_today, 'var(--gray-500)')}
+    ${statCard('총 미수금', won(d.total_outstanding), d.total_outstanding>0?'var(--danger)':'', 20)}
+    ${statCard('재고 부족', (d.low_stock_count||0)+'종', d.low_stock_count>0?'var(--danger)':'', 22)}
+  </div>
+  <div class="split" style="grid-template-columns:1fr 1fr">
+    <div class="detail-panel" style="position:static">
+      <h3>기사 현황</h3>
+      ${eng.length? eng.map(e=>`<div class="detail-row"><span class="detail-value"><strong>${esc(e.name)}</strong></span><span class="detail-value" style="text-align:right"><span class="chip">${statusLabel(e.status)}</span></span></div>`).join('') : '<div class="empty-state">기사 없음</div>'}
+    </div>
+    <div class="detail-panel" style="position:static">
+      <h3>대기 접수</h3>
+      ${(d.pending_receptions||[]).length? d.pending_receptions.map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} - ${esc(r.symptom||'')}</span><span><span class="badge ${r.status}">${statusLabel(r.status)}</span></span></div>`).join('') : '<div class="empty-state">대기 접수 없음</div>'}
+    </div>
+  </div>`;
+}
+function statCard(label,value,color,size){ return `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value" style="${color?`color:${color};`:''}${size?`font-size:${size}px;`:''}">${value}</div></div>`; }
+function statusLabel(s){ return {idle:'대기',on_the_way:'출동',working:'작업중',off_duty:'퇴근',new:'신규',assigned:'배정',in_progress:'진행중',completed:'완료'}[s]||s; }
+function custName(id){ return (state.customers.find(c=>c.id==id)||{}).name || (id?`고객${id}`:'-'); }
+function engName(id){ return (state.engineers.find(e=>e.id==id)||{}).name || '-'; }
+
+// (페이지 렌더러/모달은 app.js, modals.js)
+</script>
+<script src="app.js"></script>
+<script src="modals.js"></script>
+</body>
+</html>

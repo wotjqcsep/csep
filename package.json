@@ -1,0 +1,18 @@
+{
+  "name": "csep",
+  "version": "1.0.0",
+  "description": "컴퓨터 A/S ERP - 접수/기사/고객/SMS·전화 관리",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "firebase-admin": "^12.0.0",
+    "pg": "^8.13.1",
+    "web-push": "^3.6.7"
+  }
+}
