@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getDashboard, getReceptions, getEngineers, getCustomers, getComputers, getJobs, getSales, getInventory, getPayments, getStats, getNetworkDevices, getPendingCalls, notifyIncomingCall, getPendingSms } from './api'
 import IncomingCallPopup from './components/IncomingCallPopup'
 import IncomingSmsPopup from './components/IncomingSmsPopup'
@@ -30,14 +30,15 @@ function App() {
     payments: [],
     stats: null,
   })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [incomingCalls, setIncomingCalls] = useState([])
   const [incomingSms, setIncomingSms] = useState([])
+  const initialLoad = useRef(true)
 
-  const loadAll = async () => {
+  const loadAll = async (showLoading = false) => {
     try {
-      setLoading(true)
+      if (showLoading) setLoading(true)
       const results = await Promise.allSettled([
         getDashboard(), getReceptions(), getEngineers(), getCustomers(),
         getComputers(), getNetworkDevices(), getJobs(), getSales(), getInventory(), getPayments(), getStats(),
@@ -62,7 +63,7 @@ function App() {
     } catch (err) {
       setError('서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인하세요.')
     } finally {
-      setLoading(false)
+      if (initialLoad.current) { setLoading(false); initialLoad.current = false }
     }
   }
 
@@ -93,12 +94,12 @@ function App() {
   }, [])
 
   useEffect(() => {
-    loadAll()
-    const interval = setInterval(loadAll, 10000)
+    loadAll(true)
+    const interval = setInterval(() => loadAll(false), 30000)
     return () => clearInterval(interval)
   }, [])
 
-  const refresh = loadAll
+  const refresh = () => loadAll(true)
 
   const commonProps = { loading, onRefresh: refresh, engineers: data.engineers, customers: data.customers }
 
