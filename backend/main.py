@@ -20,7 +20,7 @@ app.add_middleware(
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL, sslmode="require")
+    return psycopg2.connect(DATABASE_URL)
 
 def db_exec(sql, params=None, fetch=None):
     conn = get_conn()
@@ -153,7 +153,10 @@ def init_db():
     finally:
         conn.close()
 
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"DB 초기화 실패 (나중에 재시도): {e}")
 
 # 수신 전화/SMS 는 임시 메모리 (재시작 시 초기화 - 의도된 동작)
 incoming_calls_db = []
