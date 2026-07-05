@@ -226,6 +226,23 @@ async function initDB() {
       read_engineer BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS schedules (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      engineer_id INTEGER REFERENCES engineers(id) ON DELETE SET NULL,
+      date TEXT,
+      memo TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id SERIAL PRIMARY KEY,
+      engineer_id INTEGER REFERENCES engineers(id) ON DELETE CASCADE,
+      start_date TEXT,
+      end_date TEXT,
+      reason TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
   // 결과 프리셋 기본값 시드 (비어있을 때만)
   const pc = await pool.query('SELECT count(*) FROM result_presets');
@@ -739,6 +756,46 @@ async function cleanupOldPhotos() {
     if (r.rowCount) console.log('오래된 작업사진 정리:', r.rowCount);
   } catch (e) {}
 }
+
+// ============================================================
+//  일정 (예약)
+// ============================================================
+app.get('/api/schedules', wrap(async (req, res) => {
+  const { month } = req.query; // YYYY-MM
+  if (month) return res.json((await pool.query("SELECT * FROM schedules WHERE date LIKE $1 ORDER BY date, id", [month + '%'])).rows);
+  res.json((await pool.query('SELECT * FROM schedules ORDER BY date, id')).rows);
+}));
+app.post('/api/schedules', wrap(async (req, res) => {
+  const b = req.body;
+  const { rows } = await pool.query('INSERT INTO schedules (title, engineer_id, date, memo) VALUES ($1,$2,$3,$4) RETURNING *', [b.title, b.engineer_id || null, b.date, b.memo || null]);
+  broadcastAdmin('schedule_update', rows[0]);
+  res.json(rows[0]);
+}));
+app.delete('/api/schedules/:id', wrap(async (req, res) => {
+  await pool.query('DELETE FROM schedules WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+}));
+
+// ============================================================
+//  휴가 신청/승인
+// ============================================================
+app.get('/api/leave-requests', wrap(async (req, res) => {
+  const { engineer_id } = req.query;
+  if (engineer_id) return res.json((await pool.query('SELECT * FROM leave_requests WHERE engineer_id=$1 ORDER BY id DESC', [engineer_id])).rows);
+  res.json((await pool.query('SELECT lr.*, e.name AS engineer_name FROM leave_requests lr LEFT JOIN engineers e ON e.id=lr.engineer_id ORDER BY lr.id DESC')).rows);
+}));
+app.post('/api/leave-requests', wrap(async (req, res) => {
+  const b = req.body;
+  const { rows } = await pool.query('INSERT INTO leave_requests (engineer_id, start_date, end_date, reason, status) VALUES ($1,$2,$3,$4,$5) RETURNING *', [b.engineer_id, b.start_date, b.end_date, b.reason || null, 'pending']);
+  broadcastAdmin('leave_update', rows[0]);
+  res.json(rows[0]);
+}));
+app.put('/api/leave-requests/:id/status', wrap(async (req, res) => {
+  const status = req.query.status || req.body.status;
+  const { rows } = await pool.query('UPDATE leave_requests SET status=$1 WHERE id=$2 RETURNING *', [status, req.params.id]);
+  if (rows[0] && rows[0].engineer_id) notifyEngineer(rows[0].engineer_id, 'leave_result', rows[0]);
+  res.json(rows[0]);
+}));
 
 // ============================================================
 //  작업별 채팅 (기사 ↔ 관리자)

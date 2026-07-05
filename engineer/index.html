@@ -56,7 +56,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, modalRec:null };
+const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], modalRec:null };
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString();
@@ -122,7 +122,12 @@ function render(){
       ${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}
     </div>
     <div class="content">
-      ${isAdmin?`<div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn btn-primary" style="margin:0" onclick="openWorkOrder()">+ 작업지시</button><button class="btn btn-ghost" style="margin:0" onclick="openStats()">📊 기사별 실적</button></div>`:''}
+      ${isAdmin?`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" style="margin:0;width:auto;flex:1;min-width:110px" onclick="openWorkOrder()">+ 작업지시</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;flex:1;min-width:80px" onclick="openStats()">📊 실적</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;flex:1;min-width:80px" onclick="openSchedule()">📅 일정</button>
+        <button class="btn btn-ghost" style="margin:0;width:auto;flex:1;min-width:80px" onclick="openLeaveAdmin()">🏖️ 휴가</button>
+      </div>`:`<button class="btn btn-ghost" style="margin:0 0 12px" onclick="openLeaveMy()">🏖️ 휴가 신청</button>`}
       ${list.length? list.map(r=>cardHtml(r,S.tab)).join('') : '<div class="empty">작업이 없습니다</div>'}
     </div>`;
 }
@@ -164,6 +169,81 @@ function openStats(){
         ${es.length?es.map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f3f5"><div><strong>${esc(e.name)}</strong><div style="font-size:12px;color:var(--gray-500)">완료 ${e.completed_jobs} / 전체 ${e.total_jobs}건</div></div><div style="font-weight:700;color:var(--primary)">${won(e.revenue)}</div></div>`).join(''):'<div class="empty">데이터 없음</div>'}
         <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
       </div></div>`);
+}
+
+// ── 대표: 일정 (달력) ──
+let schedState={ ym:new Date().toISOString().slice(0,7), sel:null };
+async function loadSchedules(){ try{ S.schedules=await api('GET',`/schedules?month=${schedState.ym}`); }catch(e){ S.schedules=[]; } }
+async function openSchedule(){ schedState={ ym:new Date().toISOString().slice(0,7), sel:null }; await loadSchedules(); renderScheduleSheet(); }
+async function shiftMonth(d){ const [y,m]=schedState.ym.split('-').map(Number); const nd=new Date(y,m-1+d,1); schedState.ym=nd.toISOString().slice(0,7); schedState.sel=null; await loadSchedules(); renderScheduleSheet(); }
+function renderScheduleSheet(){
+  const [y,m]=schedState.ym.split('-').map(Number);
+  const startDow=new Date(y,m-1,1).getDay(); const days=new Date(y,m,0).getDate();
+  const byDate={}; (S.schedules||[]).forEach(s=>{ (byDate[s.date]=byDate[s.date]||[]).push(s); });
+  let cells=''; for(let i=0;i<startDow;i++) cells+='<div></div>';
+  for(let d=1;d<=days;d++){ const ds=`${schedState.ym}-${String(d).padStart(2,'0')}`; const cnt=(byDate[ds]||[]).length; const seld=schedState.sel===ds;
+    cells+=`<div onclick="schedState.sel='${ds}';renderScheduleSheet()" style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-size:13px;${seld?'background:var(--primary);color:#fff':cnt?'background:#e7f5ff':''}">${d}${cnt?`<span style="font-size:9px;${seld?'':'color:var(--primary)'}">●${cnt}</span>`:''}</div>`; }
+  const selList=schedState.sel?(byDate[schedState.sel]||[]):[];
+  const html=`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><button onclick="shiftMonth(-1)" style="border:none;background:none;font-size:18px;cursor:pointer">◀</button><h3 style="margin:0">📅 ${y}년 ${m}월</h3><button onclick="shiftMonth(1)" style="border:none;background:none;font-size:18px;cursor:pointer">▶</button></div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:11px;color:var(--gray-500);margin-bottom:4px">${['일','월','화','수','목','금','토'].map(d=>`<div>${d}</div>`).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">${cells}</div>
+      ${schedState.sel?`<div style="margin-top:12px"><div style="font-size:13px;font-weight:600;margin-bottom:6px">${schedState.sel} 일정</div>
+        ${selList.length?selList.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px"><span>${esc(s.title)}${s.engineer_id?` · ${esc(engName(s.engineer_id))}`:''}</span><button onclick="delSchedule(${s.id})" style="border:none;background:none;color:var(--danger);cursor:pointer;font-size:13px">삭제</button></div>`).join(''):'<div style="color:var(--gray-400);font-size:13px">일정 없음</div>'}
+        <button class="btn btn-primary" onclick="openAddSchedule()" style="margin-top:6px">+ 일정 추가</button></div>`:'<div style="margin-top:10px;color:var(--gray-400);font-size:13px;text-align:center">날짜를 선택하세요</div>'}
+      <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
+    </div></div>`;
+  const ex=document.getElementById('ov'); if(ex)ex.outerHTML=html; else document.getElementById('app').insertAdjacentHTML('beforeend',html);
+}
+function openAddSchedule(){
+  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
+    <div class="sheet"><h3>일정 추가 (${schedState.sel})</h3>
+      <div class="fg"><label>제목 *</label><input id="sc_title" placeholder="예: 정기점검 방문"></div>
+      <div class="fg"><label>담당 기사</label><select id="sc_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">전체</option>${S.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div>
+      <div class="fg"><label>메모</label><textarea id="sc_memo"></textarea></div>
+      <button class="btn btn-primary" onclick="submitSchedule()">저장</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('ov2').remove()">취소</button>
+    </div></div>`);
+}
+async function submitSchedule(){
+  const title=document.getElementById('sc_title').value.trim(); if(!title){alert('제목을 입력하세요');return;}
+  await api('POST','/schedules',{title,engineer_id:document.getElementById('sc_eng').value||null,date:schedState.sel,memo:document.getElementById('sc_memo').value});
+  document.getElementById('ov2').remove(); await loadSchedules(); renderScheduleSheet();
+}
+async function delSchedule(id){ await api('DELETE','/schedules/'+id); await loadSchedules(); renderScheduleSheet(); }
+
+// ── 휴가 (대표 승인 / 기사 신청) ──
+async function openLeaveAdmin(){
+  let leaves=[]; try{ leaves=await api('GET','/leave-requests'); }catch(e){}
+  const lb={pending:['대기','assigned'],approved:['승인','in_progress'],rejected:['반려','completed']};
+  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet"><h3>🏖️ 휴가 신청 관리</h3>
+      ${leaves.length?leaves.map(l=>`<div style="padding:10px;border:1px solid #eee;border-radius:8px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><strong>${esc(l.engineer_name)||esc(engName(l.engineer_id))}</strong><span class="badge ${(lb[l.status]||[])[1]}">${(lb[l.status]||[l.status])[0]}</span></div>
+        <div style="font-size:13px;color:var(--gray-600);margin:4px 0">${l.start_date} ~ ${l.end_date}${l.reason?` · ${esc(l.reason)}`:''}</div>
+        ${l.status==='pending'?`<div style="display:flex;gap:6px"><button class="btn btn-success" style="margin:0" onclick="setLeave(${l.id},'approved')">승인</button><button class="btn btn-ghost" style="margin:0" onclick="setLeave(${l.id},'rejected')">반려</button></div>`:''}
+      </div>`).join(''):'<div class="empty">휴가 신청이 없습니다</div>'}
+      <button class="btn btn-ghost" onclick="closeSheet()">닫기</button></div></div>`);
+}
+async function setLeave(id,status){ await api('PUT',`/leave-requests/${id}/status?status=${status}`); closeSheet(); openLeaveAdmin(); }
+async function openLeaveMy(){
+  let mine=[]; try{ mine=await api('GET',`/leave-requests?engineer_id=${S.engineer.id}`); }catch(e){}
+  const lb={pending:['대기','assigned'],approved:['승인','in_progress'],rejected:['반려','completed']};
+  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet"><h3>🏖️ 휴가 신청</h3>
+      <div class="row2"><div class="fg"><label>시작일</label><input type="date" id="lv_start"></div><div class="fg"><label>종료일</label><input type="date" id="lv_end"></div></div>
+      <div class="fg"><label>사유</label><input id="lv_reason" placeholder="선택"></div>
+      <button class="btn btn-primary" onclick="submitLeave()">신청</button>
+      <div style="margin-top:14px;font-size:13px;font-weight:600">내 신청 내역</div>
+      ${mine.length?mine.map(l=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px"><span>${l.start_date}~${l.end_date}</span><span class="badge ${(lb[l.status]||[])[1]}">${(lb[l.status]||[l.status])[0]}</span></div>`).join(''):'<div style="color:var(--gray-400);font-size:13px;padding:6px 0">내역 없음</div>'}
+      <button class="btn btn-ghost" onclick="closeSheet()">닫기</button></div></div>`);
+}
+async function submitLeave(){
+  const s=document.getElementById('lv_start').value, e=document.getElementById('lv_end').value;
+  if(!s||!e){ alert('날짜를 선택하세요'); return; }
+  await api('POST','/leave-requests',{engineer_id:S.engineer.id,start_date:s,end_date:e,reason:document.getElementById('lv_reason').value});
+  closeSheet(); alert('휴가 신청 완료');
 }
 
 // ── 대표: 기사 배정 (현장) ──
