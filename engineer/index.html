@@ -138,6 +138,7 @@ function cardHtml(r,mode){
     ${engLine}
     <div class="symptom">${esc(r.symptom)||'(증상 없음)'}</div>
     ${r.status==='completed'&&r.work_description?`<div class="info-line">✅ ${esc(r.work_description)} · ${won(r.total_cost)}</div>`:''}
+    ${r.status==='completed'?`<button class="btn btn-ghost" onclick="openPhotos(${r.id})">📷 작업 사진</button>`:''}
     ${r.status==='new'&&S.engineer.is_admin?`<button class="btn btn-primary" onclick="openAssign(${r.id})">기사 배정</button>`:''}
     ${r.status==='assigned'&&mine?`<button class="btn btn-primary" onclick="startWork(${r.id})">작업 시작</button>`:''}
     ${r.status==='in_progress'&&mine?`<button class="btn btn-success" onclick="openComplete(${r.id})">작업 완료 입력</button>`:''}
@@ -216,6 +217,7 @@ async function submitWorkOrder(){
 async function startWork(id){ await api('PUT',`/engineer/receptions/${id}/start`); loadReceptions(); }
 function openComplete(id){
   const r=S.receptions.find(x=>x.id==id);
+  completePhotos=[];
   document.getElementById('app').insertAdjacentHTML('beforeend',`
     <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
       <div class="sheet">
@@ -230,6 +232,10 @@ function openComplete(id){
           <div class="fg"><label>부품비</label><input id="w_cparts" type="number" value="0"></div>
           <div class="fg"><label>공임비</label><input id="w_clabor" type="number" value="0"></div>
         </div>
+        <div class="fg"><label>작업 사진 (수리 전/후)</label>
+          <input type="file" id="w_photo" accept="image/*" capture="environment" onchange="addCompletePhoto(this)" style="font-size:13px">
+          <div id="w_photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+        </div>
         <button class="btn btn-success" onclick="submitComplete(${id})">완료 처리</button>
         <button class="btn btn-ghost" onclick="closeSheet()">취소</button>
       </div>
@@ -238,10 +244,39 @@ function openComplete(id){
 function closeSheet(){ const o=document.getElementById('ov'); if(o)o.remove(); }
 // 프리셋/부품 칩 → 입력칸에 추가
 function appendField(id,text){ const el=document.getElementById(id); if(!el)return; el.value = el.value ? (el.value.replace(/\s*$/,'').replace(/,\s*$/,'')+', '+text) : text; }
+
+// ── 작업 사진 (촬영/압축/미리보기) ──
+let completePhotos=[];
+function compressImage(file,cb){
+  const reader=new FileReader();
+  reader.onload=e=>{ const img=new Image(); img.onload=()=>{
+    const max=1000; let w=img.width,h=img.height;
+    if(w>max||h>max){ if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
+    const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+    cb(c.toDataURL('image/jpeg',0.6));
+  }; img.src=e.target.result; };
+  reader.readAsDataURL(file);
+}
+function addCompletePhoto(input){ const f=input.files&&input.files[0]; if(!f)return; compressImage(f,d=>{ completePhotos.push(d); renderCompletePhotos(); }); input.value=''; }
+function renderCompletePhotos(){ const el=document.getElementById('w_photos'); if(!el)return;
+  el.innerHTML=completePhotos.map((p,i)=>`<div style="position:relative"><img src="${p}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6"><span onclick="completePhotos.splice(${i},1);renderCompletePhotos()" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border-radius:50%;width:18px;height:18px;text-align:center;line-height:18px;font-size:12px;cursor:pointer">×</span></div>`).join('');
+}
+async function openPhotos(id){
+  let photos=[]; try{ photos=await api('GET',`/receptions/${id}/photos`); }catch(e){}
+  document.getElementById('app').insertAdjacentHTML('beforeend',`
+    <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+      <div class="sheet"><h3>작업 사진 (${photos.length})</h3>
+        ${photos.length? photos.map(p=>`<img src="${p.photo}" style="width:100%;border-radius:10px;margin-bottom:8px">`).join('') : '<div class="empty">사진이 없습니다</div>'}
+        <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
+      </div>
+    </div>`);
+}
 async function submitComplete(id){
   const g=x=>document.getElementById(x).value;
   const desc=g('w_desc'); if(!desc){ alert('작업 내용을 입력하세요'); return; }
   await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('w_parts'), cost_parts:Number(g('w_cparts'))||0, cost_labor:Number(g('w_clabor'))||0 });
+  for(const p of completePhotos){ try{ await api('POST',`/receptions/${id}/photos`,{photo:p}); }catch(e){} }
+  completePhotos=[];
   closeSheet(); loadReceptions();
 }
 

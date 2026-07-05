@@ -210,6 +210,12 @@ async function initDB() {
       text TEXT NOT NULL,
       sort INTEGER DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS work_photos (
+      id SERIAL PRIMARY KEY,
+      reception_id INTEGER REFERENCES receptions(id) ON DELETE CASCADE,
+      photo TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
   // 결과 프리셋 기본값 시드 (비어있을 때만)
   const pc = await pool.query('SELECT count(*) FROM result_presets');
@@ -704,6 +710,27 @@ app.post('/api/push-subscribe', wrap(async (req, res) => {
 }));
 
 // ============================================================
+//  작업 사진 (수리 전/후) — base64, 20일 후 자동정리
+// ============================================================
+app.get('/api/receptions/:id/photos', wrap(async (req, res) => {
+  res.json((await pool.query('SELECT id, photo, created_at FROM work_photos WHERE reception_id=$1 ORDER BY id', [req.params.id])).rows);
+}));
+app.post('/api/receptions/:id/photos', wrap(async (req, res) => {
+  const { rows } = await pool.query('INSERT INTO work_photos (reception_id, photo) VALUES ($1,$2) RETURNING id', [req.params.id, req.body.photo]);
+  res.json({ id: rows[0].id });
+}));
+app.delete('/api/work-photos/:id', wrap(async (req, res) => {
+  await pool.query('DELETE FROM work_photos WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+}));
+async function cleanupOldPhotos() {
+  try {
+    const r = await pool.query("DELETE FROM work_photos WHERE created_at < NOW() - INTERVAL '20 days'");
+    if (r.rowCount) console.log('오래된 작업사진 정리:', r.rowCount);
+  } catch (e) {}
+}
+
+// ============================================================
 //  결과 프리셋 (완료 입력 빠르게)
 // ============================================================
 app.get('/api/result-presets', wrap(async (req, res) => {
@@ -777,5 +804,6 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../admin/index.html')));
 
 initDB()
+  .then(() => { cleanupOldPhotos(); setInterval(cleanupOldPhotos, 24 * 60 * 60 * 1000); })
   .then(() => app.listen(PORT, () => console.log(`CSEP 서버 실행: http://localhost:${PORT}`)))
   .catch(e => { console.error('DB 초기화 실패:', e.message); app.listen(PORT, () => console.log(`CSEP 서버 실행(DB오류): http://localhost:${PORT}`)); });
