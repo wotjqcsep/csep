@@ -217,7 +217,9 @@ function renderProcessing(){
       <div class="card">
         <div style="font-weight:700;margin-bottom:8px">📝 처리 결과 입력</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${S.presets.map((p,i)=>`<span onclick="appendField('p_desc',S.presets[${i}].text)" style="padding:5px 10px;background:#e7f5ff;color:#1971c2;border-radius:14px;font-size:12px;cursor:pointer">✓ ${esc(p.text)}</span>`).join('')}</div>
-        <div class="fg"><label>처리 내용 *</label><textarea id="p_desc" placeholder="처리 내용을 입력하세요">${esc(r.work_description||'')}</textarea></div>
+        <div class="fg"><label>처리 내용 *</label>
+          <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="p_desc" placeholder="처리 내용을 입력하세요" style="flex:1">${esc(r.work_description||'')}</textarea><button id="mic_p_desc" onclick="startVoice('p_desc',true)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:44px;font-size:20px;cursor:pointer">🎤</button></div>
+        </div>
         <div class="fg"><label>교체 부품 (없으면 빈칸, 직접입력 가능)</label><input id="p_parts" value="${esc(r.parts_used||'')}">
           ${S.parts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.parts.slice(0,12).map((p,i)=>`<span onclick="appendField('p_parts',S.parts[${i}].part_name)" style="padding:5px 10px;background:#f1f3f5;border-radius:14px;font-size:12px;cursor:pointer">+ ${esc(p.part_name)}</span>`).join('')}</div>`:''}
         </div>
@@ -289,11 +291,14 @@ function renderWoTab(){
     <div class="fg"><label>고객 검색 *</label>
       ${sel?`<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px"><span><strong>${esc(sel.name)||esc(sel.phone)}</strong>${sel.name?` ${esc(sel.phone)}`:''}</span><button onclick="woState.customerId='';renderWoTab()" style="border:none;background:none;font-size:18px;color:var(--gray-400);cursor:pointer">×</button></div>`
         :`<input id="woT_search" placeholder="이름·전화 검색" value="${esc(woState.search||'')}" oninput="woState.search=this.value;renderWoTab();var i=document.getElementById('woT_search');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}">
-          ${filtered.length?`<div style="border:1px solid #eee;border-radius:9px;margin-top:4px;max-height:200px;overflow-y:auto">${filtered.map(c=>`<div onmousedown="woState.customerId='${c.id}';woState.search='';renderWoTab()" style="padding:10px 12px;border-bottom:1px solid #f1f3f5;cursor:pointer"><strong>${esc(c.name)||esc(c.phone)}</strong>${c.company_name?` · ${esc(c.company_name)}`:''}<div style="font-size:12px;color:var(--gray-400)">${esc(c.phone)}${c.address?' · '+esc(c.address):''}</div></div>`).join('')}</div>`:(woState.search?'<div style="color:var(--gray-400);padding:8px 4px">검색 결과 없음</div>':'')}`}
+          ${filtered.length?`<div style="border:1px solid #eee;border-radius:9px;margin-top:4px;max-height:200px;overflow-y:auto">${filtered.map(c=>`<div onmousedown="woState.customerId='${c.id}';woState.search='';renderWoTab()" style="padding:10px 12px;border-bottom:1px solid #f1f3f5;cursor:pointer"><strong>${esc(c.name)||esc(c.phone)}</strong>${c.company_name?` · ${esc(c.company_name)}`:''}<div style="font-size:12px;color:var(--gray-400)">${esc(c.phone)}${c.address?' · '+esc(c.address):''}</div></div>`).join('')}</div>`:(woState.search?'<div style="color:var(--gray-400);padding:8px 4px">검색 결과 없음</div>':'')}
+          <button class="btn btn-ghost" style="margin-top:8px" onclick="openCustomerAdd('')">🧑 새 고객 등록 (음성)</button>`}
     </div>
     ${sel?`
     ${comps.length?`<div class="fg"><label>장비 (선택)</label><select id="woT_comp" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
-    <div class="fg"><label>작업 내용 / 증상 *</label><textarea id="woT_symptom" placeholder="작업 지시 내용"></textarea></div>
+    <div class="fg"><label>작업 내용 / 증상 *</label>
+      <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="woT_symptom" placeholder="작업 지시 내용" style="flex:1"></textarea><button id="mic_woT_symptom" onclick="startVoice('woT_symptom',true)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:44px;font-size:20px;cursor:pointer">🎤</button></div>
+    </div>
     <div class="fg"><label>담당 기사 *</label><select id="woT_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''}>${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
     <button class="btn btn-primary" onclick="submitWoTab()">작업지시 + 배정</button>`:''}`;
 }
@@ -668,7 +673,69 @@ async function registerIncoming(id){
   const c=S.incomingCalls.find(x=>x.id==id); if(!c) return;
   await dismissIncoming(id);
   if(c.customer){ S.tab='wo'; woState={customerId:String(c.customer.id),search:''}; render(); }
-  else { alert('미등록 번호입니다. 고객 관리(관리자)에서 먼저 등록하거나, 작업지시에서 고객을 검색하세요.'); S.tab='wo'; woState={customerId:'',search:c.phone}; render(); }
+  else { openCustomerAdd(c.phone); }   // 미등록 → 현장 고객 등록(음성)
+}
+
+// ── 🎤 음성 입력 (말 → 글자) — APK는 네이티브, 브라우저는 웹 음성인식 ──
+async function startVoice(targetId, append){
+  const el=document.getElementById(targetId); if(!el) return;
+  const btn=document.getElementById('mic_'+targetId);
+  const set=t=>{ if(btn) btn.textContent=t; };
+  const put=t=>{ if(t) el.value = (append && el.value) ? (el.value.trim()+' '+t) : t; };
+  // ① Capacitor 네이티브 음성인식
+  const cap=window.Capacitor;
+  if(cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.SpeechRecognition){
+    const SR=cap.Plugins.SpeechRecognition;
+    try{
+      const perm=await SR.requestPermissions();
+      set('🔴');
+      const res=await SR.start({ language:'ko-KR', maxResults:1, partialResults:false, popup:false });
+      set('🎤');
+      put((res && res.matches && res.matches[0]) || '');
+    }catch(e){ set('🎤'); console.log('네이티브 음성 실패:', e); alert('음성 인식을 사용하려면 마이크 권한을 허용하세요.'); }
+    return;
+  }
+  // ② 브라우저 웹 음성인식
+  const WSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!WSR){ alert('이 기기는 음성 입력을 지원하지 않습니다.'); return; }
+  set('🔴');
+  const rec=new WSR(); rec.lang='ko-KR'; rec.interimResults=false; rec.maxAlternatives=1;
+  rec.onresult=e=>put(e.results[0][0].transcript);
+  rec.onerror=e=>console.log('음성오류', e.error);
+  rec.onend=()=>set('🎤');
+  try{ rec.start(); }catch(e){ set('🎤'); }
+}
+function micField(id, label, val, placeholder){
+  return `<div class="fg"><label>${label}</label>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input id="${id}" value="${esc(val)||''}" placeholder="${placeholder||''}" style="flex:1">
+      <button id="mic_${id}" onclick="startVoice('${id}',true)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:42px;font-size:20px;cursor:pointer">🎤</button>
+    </div></div>`;
+}
+
+// ── 대표: 현장 고객 등록 (음성) ──
+function openCustomerAdd(prefillPhone){
+  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet"><h3>🧑 현장 고객 등록</h3>
+      <div style="font-size:12px;color:var(--gray-500);margin-bottom:8px">🎤 버튼을 누르고 말하면 자동 입력됩니다 (운전 중엔 음성 추천)</div>
+      <div class="fg"><label>고객 구분</label><select id="ca_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="personal">개인</option><option value="business">기업</option></select></div>
+      ${micField('ca_name','고객명 (선택)','','예: 홍길동')}
+      ${micField('ca_phone','전화번호 *',prefillPhone||'','')}
+      ${micField('ca_addr','주소','','예: 천안시 서북구...')}
+      ${micField('ca_memo','메모','','증상·특이사항')}
+      <button class="btn btn-primary" onclick="saveCustomerAdd()">저장 + 작업지시</button>
+      <button class="btn btn-ghost" onclick="closeSheet()">취소</button>
+    </div></div>`);
+}
+async function saveCustomerAdd(){
+  const g=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  const phone=g('ca_phone'); if(!phone){ alert('전화번호를 입력하세요'); return; }
+  const memo=g('ca_memo');
+  const cust=await api('POST','/customers',{ name:g('ca_name'), phone, customer_type:g('ca_type'), address:g('ca_addr'), memo });
+  closeSheet();
+  if(!S.customers.some(c=>c.id==cust.id)) S.customers.push(cust);
+  S.tab='wo'; woState={customerId:String(cust.id),search:''}; render();
+  setTimeout(()=>{ const s=document.getElementById('woT_symptom'); if(s&&memo)s.value=memo; }, 120);
 }
 
 // ── SSE ──
