@@ -56,7 +56,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, modalRec:null };
+const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, modalRec:null };
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString();
@@ -96,6 +96,7 @@ async function loadReceptions(showLoading){
       if(!S.engineers.length){ try{ S.engineers = await api('GET','/engineers'); }catch(e){} }
       if(!S.customers.length){ try{ S.customers = await api('GET','/customers'); }catch(e){} }
       if(!S.computers.length){ try{ S.computers = await api('GET','/computers'); }catch(e){} }
+      try{ S.stats = await api('GET','/stats'); }catch(e){}
     }
     render();
   }catch(e){ if(showLoading)document.getElementById('app').innerHTML='<div class="empty">서버 연결 실패</div>'; }
@@ -121,7 +122,7 @@ function render(){
       ${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}
     </div>
     <div class="content">
-      ${isAdmin?`<button class="btn btn-primary" onclick="openWorkOrder()" style="margin:0 0 12px">+ 작업지시 등록</button>`:''}
+      ${isAdmin?`<div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn btn-primary" style="margin:0" onclick="openWorkOrder()">+ 작업지시</button><button class="btn btn-ghost" style="margin:0" onclick="openStats()">📊 기사별 실적</button></div>`:''}
       ${list.length? list.map(r=>cardHtml(r,S.tab)).join('') : '<div class="empty">작업이 없습니다</div>'}
     </div>`;
 }
@@ -149,6 +150,21 @@ function cardHtml(r,mode){
 function setTab(t){ S.tab=t; render(); }
 // 지도 길찾기 (고객 주소 → 카카오맵)
 function openMapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address) window.open('https://map.kakao.com/?q='+encodeURIComponent(r.customer_address),'_blank'); }
+// 대표: 기사별 실적
+function openStats(){
+  const st=S.stats, es=st?st.engineer_stats:[];
+  document.getElementById('app').insertAdjacentHTML('beforeend',`
+    <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+      <div class="sheet"><h3>📊 기사별 실적</h3>
+        ${st?`<div style="display:flex;gap:8px;margin-bottom:14px">
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--gray-500)">총 매출</div><div style="font-size:18px;font-weight:700">${won(st.total_revenue)}</div></div>
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--gray-500)">완료 작업</div><div style="font-size:18px;font-weight:700">${st.completed_jobs}건</div></div>
+          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--gray-500)">미수금</div><div style="font-size:18px;font-weight:700;color:var(--danger)">${won(st.total_outstanding)}</div></div>
+        </div>`:''}
+        ${es.length?es.map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f3f5"><div><strong>${esc(e.name)}</strong><div style="font-size:12px;color:var(--gray-500)">완료 ${e.completed_jobs} / 전체 ${e.total_jobs}건</div></div><div style="font-weight:700;color:var(--primary)">${won(e.revenue)}</div></div>`).join(''):'<div class="empty">데이터 없음</div>'}
+        <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
+      </div></div>`);
+}
 
 // ── 대표: 기사 배정 (현장) ──
 function openAssign(id){
