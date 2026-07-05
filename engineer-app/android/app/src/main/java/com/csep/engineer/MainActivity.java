@@ -26,6 +26,7 @@ public class MainActivity extends BridgeActivity {
         List<String> need = new ArrayList<>();
         String[] perms = {
                 Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.READ_CALL_LOG,
                 Manifest.permission.RECEIVE_SMS,
                 Manifest.permission.READ_SMS
         };

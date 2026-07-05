@@ -36,6 +36,7 @@ public class CallReceiver extends BroadcastReceiver {
         if (state == null) return;
         String num = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
         if (num != null && !num.isEmpty()) incomingNumber = num;
+        Log.d(TAG, "state=" + state + " last=" + lastState + " num=" + incomingNumber + " boss=" + isBoss(context));
 
         if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
             boolean wasCall = TelephonyManager.EXTRA_STATE_RINGING.equals(lastState)
@@ -43,9 +44,11 @@ public class CallReceiver extends BroadcastReceiver {
             String phone = incomingNumber;
             lastState = state;
             incomingNumber = null;
-            if (wasCall && phone != null && isBoss(context)) {
-                postIncomingCall(phone);
-                notifyIncoming(context, phone);
+            Log.d(TAG, "IDLE 도달 wasCall=" + wasCall + " phone=" + phone);
+            if (wasCall && isBoss(context)) {
+                String p = (phone == null || phone.isEmpty()) ? "unknown" : phone;
+                postIncomingCall(p);
+                notifyIncoming(context, p);
                 bringForeground(context);
             }
         } else {
@@ -55,7 +58,9 @@ public class CallReceiver extends BroadcastReceiver {
 
     private boolean isBoss(Context ctx) {
         SharedPreferences sp = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
-        return "대표".equals(sp.getString("csep_role", "none"));
+        String role = sp.getString("csep_role", "none");
+        Log.d(TAG, "csep_role=" + role);
+        return "대표".equals(role);
     }
 
     private void postIncomingCall(final String phone) {
