@@ -216,6 +216,16 @@ async function initDB() {
       photo TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS order_messages (
+      id SERIAL PRIMARY KEY,
+      reception_id INTEGER REFERENCES receptions(id) ON DELETE CASCADE,
+      sender TEXT,
+      text TEXT,
+      photo TEXT,
+      read_admin BOOLEAN DEFAULT FALSE,
+      read_engineer BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
   // 결과 프리셋 기본값 시드 (비어있을 때만)
   const pc = await pool.query('SELECT count(*) FROM result_presets');
@@ -729,6 +739,46 @@ async function cleanupOldPhotos() {
     if (r.rowCount) console.log('오래된 작업사진 정리:', r.rowCount);
   } catch (e) {}
 }
+
+// ============================================================
+//  작업별 채팅 (기사 ↔ 관리자)
+// ============================================================
+app.get('/api/receptions/:id/messages', wrap(async (req, res) => {
+  res.json((await pool.query('SELECT * FROM order_messages WHERE reception_id=$1 ORDER BY id', [req.params.id])).rows);
+}));
+app.post('/api/receptions/:id/messages', wrap(async (req, res) => {
+  const { sender, text, photo } = req.body;
+  const { rows } = await pool.query(
+    `INSERT INTO order_messages (reception_id, sender, text, photo, read_admin, read_engineer)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [req.params.id, sender, text || '', photo || null, sender === 'admin', sender === 'engineer']
+  );
+  const rec = await pool.query('SELECT assigned_engineer_id FROM receptions WHERE id=$1', [req.params.id]);
+  const engId = rec.rows[0] && rec.rows[0].assigned_engineer_id;
+  if (sender === 'engineer') {
+    broadcastAdmin('new_message', { reception_id: Number(req.params.id) });
+  } else {
+    if (engId) { notifyEngineer(engId, 'new_message', { reception_id: Number(req.params.id) }); sendPushToEngineer(engId, '새 메시지', text || '사진'); }
+  }
+  res.json(rows[0]);
+}));
+app.post('/api/receptions/:id/messages/read', wrap(async (req, res) => {
+  const side = req.query.side || req.body.side;
+  const col = side === 'admin' ? 'read_admin' : 'read_engineer';
+  await pool.query(`UPDATE order_messages SET ${col}=TRUE WHERE reception_id=$1`, [req.params.id]);
+  res.json({ ok: true });
+}));
+app.get('/api/messages/unread-admin', wrap(async (req, res) => {
+  const { rows } = await pool.query("SELECT reception_id, count(*)::int AS cnt FROM order_messages WHERE sender='engineer' AND read_admin=FALSE GROUP BY reception_id");
+  const map = {}; rows.forEach(r => map[r.reception_id] = r.cnt); res.json(map);
+}));
+app.get('/api/messages/unread-engineer/:engId', wrap(async (req, res) => {
+  const { rows } = await pool.query(
+    "SELECT m.reception_id, count(*)::int AS cnt FROM order_messages m JOIN receptions r ON r.id=m.reception_id WHERE m.sender='admin' AND m.read_engineer=FALSE AND r.assigned_engineer_id=$1 GROUP BY m.reception_id",
+    [req.params.engId]
+  );
+  const map = {}; rows.forEach(r => map[r.reception_id] = r.cnt); res.json(map);
+}));
 
 // ============================================================
 //  결과 프리셋 (완료 입력 빠르게)

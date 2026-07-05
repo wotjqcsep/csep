@@ -56,7 +56,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], modalRec:null };
+const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, modalRec:null };
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString();
@@ -91,6 +91,7 @@ async function loadReceptions(showLoading){
     S.receptions = await api('GET',`/engineer/${S.engineer.id}/receptions${all}`);
     if(!S.presets.length){ try{ S.presets = await api('GET','/result-presets'); }catch(e){} }
     if(!S.parts.length){ try{ S.parts = await api('GET','/inventory'); }catch(e){} }
+    try{ S.chatUnread = await api('GET',`/messages/unread-engineer/${S.engineer.id}`); }catch(e){}
     if(S.engineer.is_admin){
       if(!S.engineers.length){ try{ S.engineers = await api('GET','/engineers'); }catch(e){} }
       if(!S.customers.length){ try{ S.customers = await api('GET','/customers'); }catch(e){} }
@@ -139,6 +140,7 @@ function cardHtml(r,mode){
     <div class="symptom">${esc(r.symptom)||'(증상 없음)'}</div>
     ${r.status==='completed'&&r.work_description?`<div class="info-line">✅ ${esc(r.work_description)} · ${won(r.total_cost)}</div>`:''}
     ${r.status==='completed'?`<button class="btn btn-ghost" onclick="openPhotos(${r.id})">📷 작업 사진</button>`:''}
+    ${r.status!=='new'?`<button class="btn btn-ghost" onclick="openChat(${r.id})">💬 대화${S.chatUnread[r.id]?` <span style="background:var(--danger);color:#fff;border-radius:10px;padding:0 6px;font-size:11px">${S.chatUnread[r.id]}</span>`:''}</button>`:''}
     ${r.status==='new'&&S.engineer.is_admin?`<button class="btn btn-primary" onclick="openAssign(${r.id})">기사 배정</button>`:''}
     ${r.status==='assigned'&&mine?`<button class="btn btn-primary" onclick="startWork(${r.id})">작업 시작</button>`:''}
     ${r.status==='in_progress'&&mine?`<button class="btn btn-success" onclick="openComplete(${r.id})">작업 완료 입력</button>`:''}
@@ -271,6 +273,51 @@ async function openPhotos(id){
       </div>
     </div>`);
 }
+
+// ── 작업별 채팅 ──
+async function openChat(id){
+  S.chatOpen=id;
+  let msgs=[]; try{ msgs=await api('GET',`/receptions/${id}/messages`); }catch(e){}
+  try{ await api('POST',`/receptions/${id}/messages/read?side=engineer`); }catch(e){}
+  S.chatUnread[id]=0;
+  renderChat(id,msgs);
+}
+function closeChat(){ S.chatOpen=null; closeSheet(); render(); }
+function chatBubble(m){
+  const mine=m.sender==='engineer';
+  return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px">
+    <div style="max-width:78%;padding:8px 12px;border-radius:12px;background:${mine?'var(--primary)':'#f1f3f5'};color:${mine?'#fff':'#343a40'};font-size:14px;word-break:break-word">
+      ${m.photo?`<img src="${m.photo}" style="max-width:100%;border-radius:8px;${m.text?'margin-bottom:4px':''}">`:''}
+      ${m.text?esc(m.text):''}
+    </div></div>`;
+}
+function renderChat(id,msgs){
+  const html=`<div class="overlay" id="ov" onclick="if(event.target===this)closeChat()">
+    <div class="sheet" style="display:flex;flex-direction:column;max-height:88vh">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="margin:0">💬 대화</h3><button onclick="closeChat()" style="border:none;background:none;font-size:20px;color:var(--gray-400);cursor:pointer">✕</button></div>
+      <div id="chatBody" style="flex:1;overflow-y:auto;min-height:200px;padding:4px 2px">
+        ${msgs.length?msgs.map(chatBubble).join(''):'<div class="empty">대화가 없습니다</div>'}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;border-top:1px solid #eee;padding-top:8px;margin-top:8px">
+        <label style="cursor:pointer;font-size:22px;line-height:1">📷<input type="file" accept="image/*" capture="environment" onchange="sendChatPhoto(${id},this)" style="display:none"></label>
+        <input id="chatText" placeholder="메시지 입력" style="flex:1;padding:10px 12px;border:1px solid #dee2e6;border-radius:9px;font-size:15px" onkeydown="if(event.key==='Enter')sendChat(${id})">
+        <button class="btn btn-primary" style="width:auto;margin:0;padding:10px 16px" onclick="sendChat(${id})">전송</button>
+      </div>
+    </div></div>`;
+  const ex=document.getElementById('ov'); if(ex)ex.outerHTML=html; else document.getElementById('app').insertAdjacentHTML('beforeend',html);
+  const body=document.getElementById('chatBody'); if(body)body.scrollTop=body.scrollHeight;
+}
+async function sendChat(id){
+  const el=document.getElementById('chatText'); if(!el)return; const text=el.value.trim(); if(!text)return;
+  el.value='';
+  await api('POST',`/receptions/${id}/messages`,{sender:'engineer',text});
+  const msgs=await api('GET',`/receptions/${id}/messages`); renderChat(id,msgs);
+}
+async function sendChatPhoto(id,input){
+  const f=input.files&&input.files[0]; if(!f)return;
+  compressImage(f,async d=>{ await api('POST',`/receptions/${id}/messages`,{sender:'engineer',photo:d}); const msgs=await api('GET',`/receptions/${id}/messages`); renderChat(id,msgs); });
+  input.value='';
+}
 async function submitComplete(id){
   const g=x=>document.getElementById(x).value;
   const desc=g('w_desc'); if(!desc){ alert('작업 내용을 입력하세요'); return; }
@@ -286,6 +333,10 @@ function connectSSE(){
   try{
     const es=new EventSource(`${API}/engineer-stream/${S.engineer.id}`);
     es.addEventListener('new_assignment',()=>{ loadReceptions(); if(navigator.vibrate)navigator.vibrate(400); });
+    es.addEventListener('new_message',e=>{ let d={}; try{d=JSON.parse(e.data);}catch(x){}
+      if(S.chatOpen==d.reception_id){ openChat(d.reception_id); }
+      else { S.chatUnread[d.reception_id]=(S.chatUnread[d.reception_id]||0)+1; if(!document.getElementById('ov'))render(); if(navigator.vibrate)navigator.vibrate(200); }
+    });
     es.onerror=()=>{ es.close(); setTimeout(connectSSE,5000); };
   }catch(e){}
 }

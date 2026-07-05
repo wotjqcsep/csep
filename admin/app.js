@@ -93,6 +93,7 @@ function renderReceptions(){
         ${r.status==='new'?`<button class="btn btn-sm" onclick="openAssignModal(${r.id})">배정</button>`:''}
         ${r.status==='assigned'?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'in_progress')">시작</button>`:''}
         ${r.status==='in_progress'?`<button class="btn btn-sm btn-secondary" onclick="setRecStatus(${r.id},'completed')">완료</button>`:''}
+        ${r.status!=='new'?`<button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬${adminChatUnread[r.id]?`<span style="background:var(--danger);color:#fff;border-radius:8px;padding:0 5px;margin-left:3px;font-size:10px">${adminChatUnread[r.id]}</span>`:''}</button>`:''}
         <button class="btn btn-sm btn-danger" onclick="deleteReception(${r.id})">삭제</button>
       </div></td></tr>`).join('') : '<tr><td colspan="8" class="empty-state">접수가 없습니다</td></tr>'}
     </tbody></table></div>`;

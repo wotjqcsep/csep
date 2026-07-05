@@ -233,6 +233,71 @@ async function saveInventory(id){
   closeModal(); await loadAll();
 }
 
+// ============================================================
+//  작업별 채팅 (관리자 ↔ 기사)
+// ============================================================
+let adminChatUnread={}, adminChatOpen=null;
+async function openAdminChat(recId){
+  adminChatOpen=recId;
+  let msgs=[]; try{ msgs=await api('GET',`/receptions/${recId}/messages`); }catch(e){}
+  try{ await api('POST',`/receptions/${recId}/messages/read?side=admin`); }catch(e){}
+  adminChatUnread[recId]=0;
+  renderAdminChat(recId,msgs);
+}
+function closeAdminChat(){ adminChatOpen=null; closeModal(); renderInto(); }
+function adminChatBubble(m){
+  const mine=m.sender==='admin';
+  return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px">
+    <div style="max-width:78%;padding:8px 12px;border-radius:12px;background:${mine?'var(--primary)':'var(--gray-100)'};color:${mine?'#fff':'var(--gray-700)'};font-size:14px;word-break:break-word">
+      ${m.photo?`<img src="${m.photo}" style="max-width:100%;border-radius:8px;${m.text?'margin-bottom:4px':''}">`:''}
+      ${m.text?esc(m.text):''}
+    </div></div>`;
+}
+function renderAdminChat(recId,msgs){
+  const r=state.receptions.find(x=>x.id==recId)||{};
+  document.getElementById('modalRoot').innerHTML=`
+  <div class="modal-overlay" onclick="if(event.target===this)closeAdminChat()">
+    <div class="modal">
+      <div class="modal-head"><h3>💬 대화 · ${esc(custName(r.customer_id))}</h3><button class="modal-close" onclick="closeAdminChat()">×</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column">
+        <div id="aChatBody" style="max-height:50vh;overflow-y:auto;margin-bottom:10px;min-height:180px">
+          ${msgs.length?msgs.map(adminChatBubble).join(''):'<div class="empty-state">대화가 없습니다</div>'}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;border-top:1px solid var(--gray-200);padding-top:10px">
+          <label style="cursor:pointer;font-size:22px">📷<input type="file" accept="image/*" onchange="sendAdminChatPhoto(${recId},this)" style="display:none"></label>
+          <input id="aChatText" placeholder="메시지 입력" style="flex:1;padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px" onkeydown="if(event.key==='Enter')sendAdminChat(${recId})">
+          <button class="btn" onclick="sendAdminChat(${recId})">전송</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  const b=document.getElementById('aChatBody'); if(b)b.scrollTop=b.scrollHeight;
+}
+async function sendAdminChat(recId){
+  const el=document.getElementById('aChatText'); if(!el)return; const text=el.value.trim(); if(!text)return;
+  el.value='';
+  await api('POST',`/receptions/${recId}/messages`,{sender:'admin',text});
+  renderAdminChat(recId, await api('GET',`/receptions/${recId}/messages`));
+}
+async function sendAdminChatPhoto(recId,input){
+  const f=input.files&&input.files[0]; if(!f)return;
+  const reader=new FileReader();
+  reader.onload=e=>{ const img=new Image(); img.onload=async()=>{
+    const max=1000; let w=img.width,h=img.height;
+    if(w>max||h>max){ if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
+    const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+    await api('POST',`/receptions/${recId}/messages`,{sender:'admin',photo:c.toDataURL('image/jpeg',0.6)});
+    renderAdminChat(recId, await api('GET',`/receptions/${recId}/messages`));
+  }; img.src=e.target.result; };
+  reader.readAsDataURL(f); input.value='';
+}
+async function pollChatUnread(){
+  try{
+    const u=await api('GET','/messages/unread-admin');
+    if(JSON.stringify(u)!==JSON.stringify(adminChatUnread)){ adminChatUnread=u; if(!document.querySelector('.modal-overlay'))renderInto(); }
+  }catch(e){}
+}
+
 // ── 전화 수신 테스트 ──
 async function testCall(){
   const phone = prompt('테스트할 전화번호:', '01012341234');
@@ -299,6 +364,10 @@ function connectSSE(){
     reloadEvents.forEach(ev=>es.addEventListener(ev, ()=>loadAll()));
     es.addEventListener('incoming_call', e=>{ const c=JSON.parse(e.data); pendingCalls.push(c); renderPopups(); });
     es.addEventListener('incoming_sms', e=>{ const s=JSON.parse(e.data); pendingSms.push(s); renderPopups(); });
+    es.addEventListener('new_message', e=>{ let d={}; try{d=JSON.parse(e.data);}catch(x){}
+      if(adminChatOpen==d.reception_id){ openAdminChat(d.reception_id); }
+      else { adminChatUnread[d.reception_id]=(adminChatUnread[d.reception_id]||0)+1; if(!document.querySelector('.modal-overlay'))renderInto(); }
+    });
     es.onerror = ()=>{ es.close(); setTimeout(connectSSE, 5000); };
   }catch(e){}
 }
@@ -311,4 +380,6 @@ loadAll(true);
 setInterval(()=>loadAll(false), 30000);
 pollPopups();
 setInterval(pollPopups, 3000);
+pollChatUnread();
+setInterval(pollChatUnread, 5000);
 connectSSE();
