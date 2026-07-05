@@ -95,6 +95,26 @@ async function sendPushToEngineer(engineer_id, title, body) {
   } catch (e) { console.log('푸시 실패:', e.message); }
 }
 
+// 대표(is_admin) 전원에게 FCM 알림 (백그라운드에서도 뜨도록 notification 페이로드 포함)
+async function sendPushToBosses(title, body, type) {
+  try {
+    if (!admin || !process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) return;
+    const rows = (await pool.query(
+      'SELECT f.fcm_token FROM fcm_tokens f JOIN engineers e ON e.id=f.engineer_id WHERE e.is_admin=TRUE AND f.fcm_token IS NOT NULL'
+    )).rows;
+    for (const r of rows) {
+      try {
+        await admin.messaging().send({
+          token: r.fcm_token,
+          notification: { title, body },
+          data: { type: type || 'incoming_call' },
+          android: { priority: 'high', notification: { channelId: 'csep_incoming', sound: 'default' } },
+        });
+      } catch (e) { console.log('대표 푸시 실패:', e.message); }
+    }
+  } catch (e) { console.log('sendPushToBosses 오류:', e.message); }
+}
+
 // ============================================================
 //  DB 초기화
 // ============================================================
@@ -679,6 +699,8 @@ app.post('/api/incoming-call', wrap(async (req, res) => {
   const call = { id: callCounter++, phone: digits(phone), customer: matched, recent_receptions: recent, received_at: new Date().toISOString(), dismissed: false };
   incomingCalls.push(call);
   broadcastAdmin('incoming_call', call);
+  // 대표 폰에 푸시 (백그라운드에서도 알림)
+  sendPushToBosses('📞 전화 수신', (matched ? (matched.name || phone) : digits(phone)) + ' — 탭하여 등록', 'incoming_call');
   res.json(call);
 }));
 
@@ -707,6 +729,7 @@ app.post('/api/incoming-sms', wrap(async (req, res) => {
   const sms = { id: smsCounter++, phone: digits(b.phone), message: b.message, customer: matched, recent_receptions: recent, received_at: b.received_at || new Date().toISOString(), dismissed: false };
   incomingSms.push(sms);
   broadcastAdmin('incoming_sms', sms);
+  sendPushToBosses('💬 SMS 수신', (matched ? (matched.name || sms.phone) : sms.phone) + ': ' + (b.message || '').slice(0, 30), 'incoming_sms');
   res.json(sms);
 }));
 

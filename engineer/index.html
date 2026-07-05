@@ -610,8 +610,8 @@ async function setupPush(){
       if(perm.receive!=='granted') return;
       PN.addListener('registration', t=>{ api('POST','/fcm-token',{engineer_id:S.engineer.id, fcm_token:t.value}).catch(()=>{}); });
       PN.addListener('registrationError', e=>console.log('푸시 등록오류', e));
-      PN.addListener('pushNotificationReceived', ()=>{ if(navigator.vibrate)navigator.vibrate([300,100,300]); loadReceptions(); });
-      PN.addListener('pushNotificationActionPerformed', ()=>{ loadReceptions(); });
+      PN.addListener('pushNotificationReceived', ()=>{ if(navigator.vibrate)navigator.vibrate([300,100,300]); loadReceptions(); pollIncoming(); });
+      PN.addListener('pushNotificationActionPerformed', ()=>{ loadReceptions(); pollIncoming(); });
       await PN.register();
       console.log('네이티브 FCM 등록 요청 완료');
     }catch(e){ console.log('네이티브 푸시 실패:', e.message); }
@@ -632,7 +632,7 @@ async function setupPush(){
       const d=payload.data||{};
       if(navigator.vibrate)navigator.vibrate([300,100,300]);
       try{ new Notification(d.title||'CSEP', { body:d.body||'' }); }catch(e){}
-      loadReceptions();
+      loadReceptions(); pollIncoming();
     });
   }catch(e){ console.log('푸시 설정 실패:', e.message); }
 }
