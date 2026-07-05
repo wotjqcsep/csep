@@ -123,16 +123,30 @@ function openReceptionModal(){
 function renderCustSelect(){
   const el = document.getElementById('custSelect'); if(!el) return;
   const sel = state.customers.find(c=>c.id==recPick.customerId);
-  const q = recPick.search.toLowerCase();
-  const filtered = state.customers.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.company_name||'').toLowerCase().includes(q));
+  // 선택 완료 상태: 칩만 표시
+  if(sel && !recPick.open){
+    el.innerHTML = `<div class="cs-box"><span style="flex:1">${esc(sel.name)||esc(sel.phone)} ${sel.name?`<span style="color:var(--gray-400);font-size:12px">(${esc(sel.phone)})</span>`:''}</span><button onclick="clearCust()" style="border:none;background:none;cursor:pointer;color:var(--gray-400);font-size:16px">×</button></div>`;
+    return;
+  }
+  // 검색 상태: 입력창은 고정, 목록만 갱신
   el.innerHTML = `<div class="cs-wrap">
-    <div class="cs-box" onclick="recPick.open=true;renderCustSelect();setTimeout(()=>{var i=document.getElementById('csInput');if(i)i.focus()},0)">
-      ${!recPick.open && sel ? `<span style="flex:1">${esc(sel.name)||esc(sel.phone)} ${sel.name?`<span style="color:var(--gray-400);font-size:12px">(${esc(sel.phone)})</span>`:''}</span><button onclick="event.stopPropagation();recPick.customerId='';recPick.search='';renderCustSelect()" style="border:none;background:none;cursor:pointer;color:var(--gray-400);font-size:16px">×</button>`
-        : `<input id="csInput" placeholder="${sel?(esc(sel.name)||esc(sel.phone)):'이름, 전화번호 검색...'}" value="${esc(recPick.search)}" oninput="recPick.search=this.value;recPick.open=true;renderCustSelect();document.getElementById('csInput').focus()">`}
-    </div>
-    ${recPick.open? `<div class="cs-list">${filtered.length? filtered.map(c=>`<div class="cs-item" onmousedown="pickCust(${c.id})"><strong>${esc(c.name)||esc(c.phone)}</strong> ${c.name?`<span style="color:var(--gray-400);font-size:12px">${esc(c.phone)}</span>`:''}${c.company_name?` · ${esc(c.company_name)}`:''}</div>`).join('') : '<div class="cs-item" style="color:var(--gray-400)">검색 결과 없음</div>'}</div>`:''}
+    <div class="cs-box"><input id="csInput" autocomplete="off" placeholder="이름, 전화번호 검색..." value="${esc(recPick.search)}"
+      oninput="onCustInput(this.value)" onfocus="recPick.open=true;updateCustList()" onblur="setTimeout(()=>{recPick.open=false;updateCustList()},180)"></div>
+    <div id="csList" class="cs-list" style="display:none"></div>
   </div>`;
+  const i=document.getElementById('csInput'); if(i)i.focus();
+  updateCustList();
 }
+function onCustInput(val){ recPick.search=val; recPick.open=true; updateCustList(); }
+function updateCustList(){
+  const listEl=document.getElementById('csList'); if(!listEl) return;
+  if(!recPick.open){ listEl.style.display='none'; return; }
+  const q=recPick.search.toLowerCase();
+  const filtered=state.customers.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.company_name||'').toLowerCase().includes(q));
+  listEl.style.display='block';
+  listEl.innerHTML = filtered.length? filtered.slice(0,30).map(c=>`<div class="cs-item" onmousedown="pickCust(${c.id})"><strong>${esc(c.name)||esc(c.phone)}</strong> ${c.name?`<span style="color:var(--gray-400);font-size:12px">${esc(c.phone)}</span>`:''}${c.company_name?` · ${esc(c.company_name)}`:''}</div>`).join('') : '<div class="cs-item" style="color:var(--gray-400)">검색 결과 없음</div>';
+}
+function clearCust(){ recPick.customerId=''; recPick.search=''; recPick.open=true; renderCustSelect(); renderCustHistory(); }
 function pickCust(id){
   recPick.customerId=id; recPick.open=false; recPick.search='';
   renderCustSelect();
