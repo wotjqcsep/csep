@@ -1,0 +1,14 @@
+{
+  "appId": "com.csep.engineer",
+  "appName": "CSEP 기사앱",
+  "webDir": "www",
+  "server": {
+    "url": "https://csep-cf37.onrender.com/engineer",
+    "cleartext": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

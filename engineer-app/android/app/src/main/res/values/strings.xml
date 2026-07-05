@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CSEP 기사앱</string>
+    <string name="title_activity_main">CSEP 기사앱</string>
+    <string name="package_name">com.csep.engineer</string>
+    <string name="custom_url_scheme">com.csep.engineer</string>
+</resources>
