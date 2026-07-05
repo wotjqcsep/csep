@@ -6,6 +6,8 @@
 <title>CSEP 기사앱</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a1f2b">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <style>
 :root{--primary:#3b5bdb;--success:#2f9e44;--warning:#f08c00;--danger:#e03131;--bg:#f1f3f5;--gray-400:#adb5bd;--gray-500:#868e96;--gray-600:#495057}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -78,7 +80,7 @@ async function login(id,isAdmin){
   try{
     const e=await api('POST','/engineer-login',{engineer_id:id,password});
     S.engineer=e; localStorage.setItem('csep_eng',JSON.stringify(e));
-    connectSSE(); loadReceptions(true);
+    connectSSE(); loadReceptions(true); setupPush();
   }catch(err){ alert(err.message); }
 }
 function logout(){ localStorage.removeItem('csep_eng'); S.engineer=null; renderLogin(); }
@@ -587,6 +589,31 @@ async function submitComplete(id){
   closeSheet(); loadReceptions();
 }
 
+// ── FCM 웹푸시 ──
+const FCM_CONFIG={ apiKey:"AIzaSyDfaFRkI54m7T4gvhd9nDGNeahFQtaXJtk", authDomain:"csep-bce3c.firebaseapp.com", projectId:"csep-bce3c", storageBucket:"csep-bce3c.firebasestorage.app", messagingSenderId:"206099383232", appId:"1:206099383232:web:4fea5b4f9a51e7730efe25" };
+const FCM_VAPID="BH9eaAvjygGraocpu6koTSpGRGsejUR_hqbiCSyQzVXjfuQyoWw5Y1lu2edn8BSrPAY7v4EGyme6iQZTPBTJEgQ";
+let fcmMessaging=null;
+async function setupPush(){
+  if(!S.engineer) return;
+  try{
+    if(!('serviceWorker' in navigator) || typeof firebase==='undefined' || !firebase.messaging) return;
+    if(Notification.permission==='denied') return;
+    const perm = Notification.permission==='granted' ? 'granted' : await Notification.requestPermission();
+    if(perm!=='granted') return;
+    if(!firebase.apps.length) firebase.initializeApp(FCM_CONFIG);
+    fcmMessaging = firebase.messaging();
+    const reg = await navigator.serviceWorker.register('/engineer/firebase-messaging-sw.js', { scope:'/engineer/' });
+    const token = await fcmMessaging.getToken({ vapidKey:FCM_VAPID, serviceWorkerRegistration:reg });
+    if(token){ await api('POST','/fcm-token',{ engineer_id:S.engineer.id, fcm_token:token }); console.log('FCM 토큰 등록 완료'); }
+    fcmMessaging.onMessage(payload=>{
+      const d=payload.data||{};
+      if(navigator.vibrate)navigator.vibrate([300,100,300]);
+      try{ new Notification(d.title||'CSEP', { body:d.body||'' }); }catch(e){}
+      loadReceptions();
+    });
+  }catch(e){ console.log('푸시 설정 실패:', e.message); }
+}
+
 // ── SSE ──
 function connectSSE(){
   if(!S.engineer)return;
@@ -604,7 +631,7 @@ function connectSSE(){
 // ── 초기화 ──
 (function init(){
   const saved=localStorage.getItem('csep_eng');
-  if(saved){ try{ S.engineer=JSON.parse(saved); connectSSE(); loadReceptions(true); return; }catch(e){} }
+  if(saved){ try{ S.engineer=JSON.parse(saved); connectSSE(); loadReceptions(true); setupPush(); return; }catch(e){} }
   renderLogin();
 })();
 setInterval(()=>{ if(S.engineer)loadReceptions(); }, 15000);
