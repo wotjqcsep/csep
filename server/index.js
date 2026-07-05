@@ -259,6 +259,9 @@ async function initDB() {
     ALTER TABLE engineers ADD COLUMN IF NOT EXISTS total_jobs INTEGER DEFAULT 0;
     ALTER TABLE engineers ADD COLUMN IF NOT EXISTS total_revenue DOUBLE PRECISION DEFAULT 0;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS solution TEXT;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS reserved_date TEXT;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS customer_request TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS next_visit_parts TEXT;
   `);
   console.log('DB 초기화 완료');
 }
@@ -873,7 +876,7 @@ app.get('/api/engineer/:id/receptions', wrap(async (req, res) => {
   const { rows } = await pool.query(`
     SELECT r.*, c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address,
            c.company_name AS customer_company,
-           j.id AS job_id, j.work_description, j.parts_used, j.cost_parts, j.cost_labor, j.total_cost
+           j.id AS job_id, j.work_description, j.parts_used, j.cost_parts, j.cost_labor, j.total_cost, j.next_visit_parts
     FROM receptions r
     LEFT JOIN customers c ON c.id=r.customer_id
     LEFT JOIN jobs j ON j.reception_id=r.id
@@ -894,14 +897,23 @@ app.put('/api/engineer/receptions/:id/start', wrap(async (req, res) => {
 app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
   const b = req.body;
   const total = (Number(b.cost_parts) || 0) + (Number(b.cost_labor) || 0);
-  const { rows } = await pool.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2 WHERE id=$1 RETURNING *`, [req.params.id, b.work_description || '']);
+  const { rows } = await pool.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2, customer_request=$3, reserved_date=NULL WHERE id=$1 RETURNING *`, [req.params.id, b.work_description || '', b.customer_request || null]);
   await pool.query(
-    `UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6 WHERE reception_id=$1`,
-    [req.params.id, b.work_description || '', b.parts_used || '', Number(b.cost_parts) || 0, Number(b.cost_labor) || 0, total]
+    `UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6, next_visit_parts=$7 WHERE reception_id=$1`,
+    [req.params.id, b.work_description || '', b.parts_used || '', Number(b.cost_parts) || 0, Number(b.cost_labor) || 0, total, b.next_visit_parts || null]
   );
   const eng = rows[0].assigned_engineer_id;
   if (eng) await pool.query('UPDATE engineers SET total_jobs=total_jobs+1, total_revenue=total_revenue+$2 WHERE id=$1', [eng, total]);
   broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
+  res.json(rows[0]);
+}));
+
+// 미처리(예약) — 예약일 지정, 작업 유지
+app.put('/api/engineer/receptions/:id/reserve', wrap(async (req, res) => {
+  const b = req.body;
+  const { rows } = await pool.query(`UPDATE receptions SET reserved_date=$2, status='assigned', customer_request=$3 WHERE id=$1 RETURNING *`, [req.params.id, b.reserved_date || null, b.customer_request || null]);
+  await pool.query(`UPDATE jobs SET work_description=$2, parts_used=$3, next_visit_parts=$4 WHERE reception_id=$1`, [req.params.id, b.work_description || '', b.parts_used || '', b.next_visit_parts || null]);
+  broadcastAdmin('reception_update', rows[0]);
   res.json(rows[0]);
 }));
 

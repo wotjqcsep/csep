@@ -56,7 +56,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], modalRec:null };
+const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], processing:null, statusFilter:'pending', procPhotos:[], procExisting:[], modalRec:null };
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString();
@@ -106,55 +106,218 @@ function engName(id){ const e=S.engineers.find(x=>x.id==id); return e?e.name:(id
 // ── 렌더 ──
 function render(){
   if(!S.engineer)return renderLogin();
+  if(S.processing){ renderProcessing(); return; }
   const isAdmin=S.engineer.is_admin, myId=S.engineer.id;
-  const mine=S.receptions.filter(r=>r.assigned_engineer_id==myId&&(r.status==='assigned'||r.status==='in_progress'));
-  const unassigned=S.receptions.filter(r=>r.status==='new');
+  const notDone=r=>r.status!=='completed';
+  const reserved=r=>r.reserved_date&&notDone(r);
+  const mineActive=S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r));
   const done=S.receptions.filter(r=>r.status==='completed');
-  const all=S.receptions;
-  let list;
-  if(S.tab==='unassigned')list=unassigned; else if(S.tab==='all')list=all; else if(S.tab==='done')list=done; else list=mine;
   const tabs = isAdmin
-    ? [['active',`내 작업 (${mine.length})`],['unassigned',`미배정 (${unassigned.length})`],['all',`전체 (${all.length})`],['done',`완료 (${done.length})`]]
-    : [['active',`진행 작업 (${mine.length})`],['done',`완료 (${done.length})`]];
+    ? [['all','📊 전체현황'],['wo','➕ 작업지시'],['done','📁 완료이력'],['sched','📅 일정관리']]
+    : [['list','📋 작업목록'],['done','📁 완료이력'],['sched','📅 일정']];
+  if(!tabs.some(t=>t[0]===S.tab)) S.tab=tabs[0][0];
+  let content='';
+  if(S.tab==='wo'){ content=`<div id="woTab"></div>`; }
+  else if(S.tab==='sched'){ content=`<div id="schedInline"></div>`; }
+  else if(S.tab==='done'){ const dl=isAdmin?done:done.filter(r=>r.assigned_engineer_id==myId); content=dl.length?dl.map(cardHtml).join(''):'<div class="empty">완료 작업이 없습니다</div>'; }
+  else if(isAdmin){
+    const f=S.statusFilter||'pending';
+    const cnt={pending:S.receptions.filter(r=>notDone(r)&&!reserved(r)).length,reserved:S.receptions.filter(reserved).length,completed:done.length,all:S.receptions.length};
+    const flist=f==='reserved'?S.receptions.filter(reserved):f==='completed'?done:f==='all'?S.receptions:S.receptions.filter(r=>notDone(r)&&!reserved(r));
+    const chips=[['pending','🔴 미처리'],['reserved','🟡 예약'],['completed','🟢 완료'],['all','전체']];
+    content=`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${chips.map(([k,l])=>`<span onclick="S.statusFilter='${k}';render()" style="padding:6px 12px;border-radius:16px;font-size:13px;cursor:pointer;${f===k?'background:var(--primary);color:#fff':'background:#fff;border:1px solid #dee2e6'}">${l} ${cnt[k]}</span>`).join('')}</div>`
+      +(flist.length?flist.map(cardHtml).join(''):'<div class="empty">작업이 없습니다</div>');
+  } else { content=mineActive.length?mineActive.map(cardHtml).join(''):'<div class="empty">작업이 없습니다</div>'; }
+  const soundName=localStorage.getItem('csep_sound')||'noti1';
   document.getElementById('app').innerHTML=`
-    <div class="topbar"><h1>CSEP 기사앱</h1><span class="who">${esc(S.engineer.name)}${isAdmin?' · 대표':''} · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
-    <div class="tabs">
-      ${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}
-    </div>
-    <div class="content">
-      ${isAdmin?`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
-        <button class="btn btn-primary" style="margin:0;width:auto;flex:1;min-width:110px" onclick="openWorkOrder()">+ 작업지시</button>
-        <button class="btn btn-ghost" style="margin:0;width:auto;flex:1;min-width:80px" onclick="openStats()">📊 실적</button>
-        <button class="btn btn-ghost" style="margin:0;width:auto;flex:1;min-width:80px" onclick="openSchedule()">📅 일정</button>
-        <button class="btn btn-ghost" style="margin:0;width:auto;flex:1;min-width:80px" onclick="openLeaveAdmin()">🏖️ 휴가</button>
-      </div>`:`<button class="btn btn-ghost" style="margin:0 0 12px" onclick="openLeaveMy()">🏖️ 휴가 신청</button>`}
-      ${list.length? list.map(r=>cardHtml(r,S.tab)).join('') : '<div class="empty">작업이 없습니다</div>'}
-    </div>`;
+    <div class="topbar"><h1>🔧 현장 기사 앱</h1><span class="who">${esc(S.engineer.name)} ${isAdmin?'대표':'기사'} · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
+    <div class="tabs">${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}</div>
+    <div style="padding:12px 14px 0"><button class="btn" style="margin:0;background:#2b3140;color:#fff" onclick="openSoundPicker()">🔔 알림 소리 선택 (${soundName})</button></div>
+    <div class="content">${content}</div>`;
+  if(S.tab==='wo')renderWoTab();
+  if(S.tab==='sched')renderScheduleInline();
 }
-function cardHtml(r,mode){
-  const st={new:'신규',assigned:'배정',in_progress:'진행중',completed:'완료'}[r.status]||r.status;
-  const mine=r.assigned_engineer_id==S.engineer.id;
-  const engLine = (mode==='all'&&r.assigned_engineer_id)?`<div class="info-line">👷 담당: ${esc(engName(r.assigned_engineer_id))}</div>`:'';
+function setTab(t){ S.tab=t; if(t==='sched'){ schedState={ym:new Date().toISOString().slice(0,7),sel:null}; loadSchedules().then(render); return; } render(); }
+
+function cardHtml(r){
+  const isAdmin=S.engineer.is_admin, mine=r.assigned_engineer_id==S.engineer.id;
+  const isRes=r.reserved_date&&r.status!=='completed';
+  const st=isRes?'예약':({new:'미처리',assigned:'미처리',in_progress:'진행중',completed:'완료'}[r.status]||r.status);
+  const badgeClass=isRes?'assigned':r.status;
   return `<div class="card">
     <div class="card-head">
       <div><div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
-      <span class="badge ${r.status}">${st}</span>
+      <span class="badge ${badgeClass}">● ${st}</span>
     </div>
+    ${isAdmin&&r.assigned_engineer_id?`<div class="info-line">👤 ${esc(engName(r.assigned_engineer_id))}</div>`:''}
     ${r.customer_phone?`<div class="info-line">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
-    ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)} <a onclick="openMapFor(${r.id})" style="color:var(--primary);cursor:pointer;margin-left:4px;font-weight:600">🗺️ 길찾기</a></div>`:''}
-    ${engLine}
-    <div class="symptom">${esc(r.symptom)||'(증상 없음)'}</div>
-    ${r.status==='completed'&&r.work_description?`<div class="info-line">✅ ${esc(r.work_description)} · ${won(r.total_cost)}</div>`:''}
-    ${r.status==='completed'?`<button class="btn btn-ghost" onclick="openPhotos(${r.id})">📷 작업 사진</button>`:''}
-    ${r.status!=='new'?`<button class="btn btn-ghost" onclick="openChat(${r.id})">💬 대화${S.chatUnread[r.id]?` <span style="background:var(--danger);color:#fff;border-radius:10px;padding:0 6px;font-size:11px">${S.chatUnread[r.id]}</span>`:''}</button>`:''}
-    ${r.status==='new'&&S.engineer.is_admin?`<button class="btn btn-primary" onclick="openAssign(${r.id})">기사 배정</button>`:''}
-    ${r.status==='assigned'&&mine?`<button class="btn btn-primary" onclick="startWork(${r.id})">작업 시작</button>`:''}
-    ${r.status==='in_progress'&&mine?`<button class="btn btn-success" onclick="openComplete(${r.id})">작업 완료 입력</button>`:''}
+    ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>`:''}
+    <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
+    ${r.reserved_date&&r.status!=='completed'?`<div class="info-line" style="color:var(--warning)">📅 예약: ${esc(r.reserved_date)}</div>`:''}
+    <div class="info-line" style="color:var(--gray-400);font-size:12px">${(r.received_at||'').slice(0,16).replace('T',' ')}</div>
+    ${r.status==='new'&&isAdmin?`<button class="btn btn-primary" onclick="openAssign(${r.id})">기사 배정</button>`:''}
+    ${r.status!=='new'&&(mine||isAdmin)?`<button class="btn btn-primary" onclick="openProcessing(${r.id})">상세보기 / 처리하기 →</button>`:''}
+    ${r.status!=='new'?`<button class="btn" style="background:#7048e8;color:#fff" onclick="openChat(${r.id})">💬 대화${S.chatUnread[r.id]?` (${S.chatUnread[r.id]})`:''}</button>`:''}
+    ${isAdmin&&r.status!=='completed'&&r.assigned_engineer_id?`<button class="btn btn-ghost" onclick="openAssign(${r.id})">🔁 기사 재배정</button>`:''}
   </div>`;
 }
-function setTab(t){ S.tab=t; render(); }
-// 지도 길찾기 (고객 주소 → 카카오맵)
-function openMapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address) window.open('https://map.kakao.com/?q='+encodeURIComponent(r.customer_address),'_blank'); }
+
+// ── 길찾기 (티맵 / 카카오맵) ──
+function navTmap(addr){ if(addr) window.open('https://apis.openapi.sk.com/tmap/app/routes?name='+encodeURIComponent(addr),'_blank'); }
+function navKakao(addr){ if(addr) window.open('https://map.kakao.com/?q='+encodeURIComponent(addr),'_blank'); }
+
+// ── 알림 소리 선택 (UI, 실제 소리는 APK 푸시에서) ──
+function openSoundPicker(){
+  const cur=localStorage.getItem('csep_sound')||'noti1';
+  const sounds=[['noti1','기본음'],['noti2','벨소리'],['noti3','띵동'],['noti4','알림'],['noti5','차임']];
+  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet"><h3>🔔 알림 소리 선택</h3>
+      ${sounds.map(([k,l])=>`<div onclick="localStorage.setItem('csep_sound','${k}');closeSheet();render()" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid #eee;border-radius:10px;margin-bottom:8px;cursor:pointer;${cur===k?'border-color:var(--primary);background:#e7f5ff':''}"><span>${l}</span>${cur===k?'<span style="color:var(--primary)">✓</span>':''}</div>`).join('')}
+      <div style="font-size:12px;color:var(--gray-400);margin:6px 0">실제 알림음은 앱(APK) 푸시에서 재생됩니다.</div>
+      <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
+    </div></div>`);
+}
+
+// ── 작업 처리 페이지 ──
+async function openProcessing(id){
+  S.processing=id; S.procPhotos=[]; S.procExisting=[];
+  try{ S.procExisting=await api('GET',`/receptions/${id}/photos`); }catch(e){}
+  render();
+}
+function closeProcessing(){ S.processing=null; render(); }
+function renderProcessing(){
+  const r=S.receptions.find(x=>x.id==S.processing); if(!r){ closeProcessing(); return; }
+  const done=r.status==='completed';
+  const addr=r.customer_address||'';
+  document.getElementById('app').innerHTML=`
+    <div class="topbar"><h1>🔧 작업 처리</h1><span class="who"><a onclick="closeProcessing()" style="color:#6b9cff;cursor:pointer">← 목록</a></span></div>
+    <div class="content">
+      <div class="card">
+        <div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>
+        <span class="badge ${done?'completed':'new'}">● ${done?'완료':'미처리'}</span>
+        ${r.customer_phone?`<div class="info-line" style="margin-top:6px">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
+        ${addr?`<div class="info-line">📍 ${esc(addr)}</div>`:''}
+        <div class="row2" style="margin-top:8px">
+          <button class="btn" style="background:#4263eb;color:#fff;margin:0" onclick="navTmap('${esc(addr)}')">🧭 티맵</button>
+          <button class="btn" style="background:#fab005;color:#3d3d00;margin:0" onclick="navKakao('${esc(addr)}')">🗺️ 카카오맵</button>
+        </div>
+      </div>
+      <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
+      <button class="btn btn-ghost" onclick="openHistory(${r.customer_id})" style="border:1px solid var(--warning);color:var(--warning)">🕘 이 거래처 수리/점검 이력 보기</button>
+      ${done?renderProcDone(r):`
+      <div class="card">
+        <div style="font-weight:700;margin-bottom:8px">📝 처리 결과 입력</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${S.presets.map((p,i)=>`<span onclick="appendField('p_desc',S.presets[${i}].text)" style="padding:5px 10px;background:#e7f5ff;color:#1971c2;border-radius:14px;font-size:12px;cursor:pointer">✓ ${esc(p.text)}</span>`).join('')}</div>
+        <div class="fg"><label>처리 내용 *</label><textarea id="p_desc" placeholder="처리 내용을 입력하세요">${esc(r.work_description||'')}</textarea></div>
+        <div class="fg"><label>교체 부품 (없으면 빈칸, 직접입력 가능)</label><input id="p_parts" value="${esc(r.parts_used||'')}">
+          ${S.parts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.parts.slice(0,12).map((p,i)=>`<span onclick="appendField('p_parts',S.parts[${i}].part_name)" style="padding:5px 10px;background:#f1f3f5;border-radius:14px;font-size:12px;cursor:pointer">+ ${esc(p.part_name)}</span>`).join('')}</div>`:''}
+        </div>
+        <div class="fg"><label>다음 방문시 필요 부품 및 조치</label><input id="p_next" value="${esc(r.next_visit_parts||'')}"></div>
+        <div class="fg"><label>고객 요청사항</label><input id="p_req" value="${esc(r.customer_request||'')}"></div>
+        <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="number" value="0"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="number" value="0"></div></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;margin-bottom:8px">📷 작업 사진 (관리자 전송)</div>
+        <div class="row2">
+          <label class="btn btn-success" style="margin:0;text-align:center;cursor:pointer">📸 카메라 촬영<input type="file" accept="image/*" capture="environment" onchange="addProcPhoto(this)" style="display:none"></label>
+          <label class="btn" style="background:#37b24d;color:#fff;margin:0;text-align:center;cursor:pointer">🖼️ 갤러리 선택<input type="file" accept="image/*" onchange="addProcPhoto(this)" style="display:none"></label>
+        </div>
+        <div id="p_photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      </div>
+      <div class="fg"><label>📅 예약 날짜 (미처리 예약 시)</label><input type="date" id="p_resdate" value="${esc(r.reserved_date||'')}"></div>
+      <button class="btn btn-success" onclick="submitProcessing(${r.id})">✅ 처리 완료</button>
+      <button class="btn" style="background:#f76707;color:#fff" onclick="submitReserve(${r.id})">⏳ 미처리 (예약)</button>
+      `}
+      <button class="btn btn-ghost" onclick="closeProcessing()">← 돌아가기</button>
+    </div>`;
+  if(!done) renderProcPhotos();
+}
+function renderProcDone(r){
+  return `<div class="card">
+    <div style="font-weight:700;margin-bottom:6px">✅ 처리 완료</div>
+    ${r.work_description?`<div class="info-line">내용: ${esc(r.work_description)}</div>`:''}
+    ${r.parts_used?`<div class="info-line">부품: ${esc(r.parts_used)}</div>`:''}
+    <div class="info-line">비용: ${won(r.total_cost)}</div>
+    <button class="btn btn-ghost" onclick="openPhotos(${r.id})">📷 작업 사진 보기</button>
+  </div>`;
+}
+function addProcPhoto(input){ const f=input.files&&input.files[0]; if(!f)return; compressImage(f,d=>{ S.procPhotos.push(d); renderProcPhotos(); }); input.value=''; }
+function renderProcPhotos(){ const el=document.getElementById('p_photos'); if(!el)return;
+  el.innerHTML=[...S.procExisting.map(p=>`<img src="${p.photo}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;opacity:.6">`),
+    ...S.procPhotos.map((p,i)=>`<div style="position:relative"><img src="${p}" style="width:64px;height:64px;object-fit:cover;border-radius:8px"><span onclick="S.procPhotos.splice(${i},1);renderProcPhotos()" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border-radius:50%;width:18px;height:18px;text-align:center;line-height:18px;font-size:12px;cursor:pointer">×</span></div>`)].join('');
+}
+async function uploadProcPhotos(id){ for(const p of S.procPhotos){ try{ await api('POST',`/receptions/${id}/photos`,{photo:p}); }catch(e){} } S.procPhotos=[]; }
+async function submitProcessing(id){
+  const g=x=>{const el=document.getElementById(x);return el?el.value:'';};
+  const desc=g('p_desc').trim(); if(!desc){ alert('처리 내용을 입력하세요'); return; }
+  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:Number(g('p_cparts'))||0, cost_labor:Number(g('p_clabor'))||0 });
+  await uploadProcPhotos(id);
+  S.processing=null; await loadReceptions(); alert('처리 완료');
+}
+async function submitReserve(id){
+  const g=x=>{const el=document.getElementById(x);return el?el.value:'';};
+  const date=g('p_resdate'); if(!date){ alert('예약 날짜를 선택하세요'); return; }
+  await api('PUT',`/engineer/receptions/${id}/reserve`,{ reserved_date:date, work_description:g('p_desc'), parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req') });
+  await uploadProcPhotos(id);
+  S.processing=null; await loadReceptions(); alert('예약 처리 완료');
+}
+async function openHistory(custId){
+  let hist=[]; try{ hist=(await api('GET',`/receptions`)).filter(r=>r.customer_id==custId); }catch(e){}
+  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet"><h3>🕘 거래처 이력 (${hist.length})</h3>
+      ${hist.length?hist.map(r=>`<div style="padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px"><span class="badge ${r.status}">${({new:'미처리',assigned:'배정',in_progress:'진행중',completed:'완료'})[r.status]||r.status}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join(''):'<div class="empty">이력 없음</div>'}
+      <button class="btn btn-ghost" onclick="closeSheet()">닫기</button></div></div>`);
+}
+
+// ── 작업지시 탭 (대표) ──
+function renderWoTab(){
+  const el=document.getElementById('woTab'); if(!el)return;
+  const sel=S.customers.find(c=>c.id==woState.customerId);
+  const q=(woState.search||'').toLowerCase();
+  const filtered=woState.customerId?[]:S.customers.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)).slice(0,8);
+  const comps=woState.customerId?S.computers.filter(c=>c.customer_id==woState.customerId):[];
+  el.innerHTML=`
+    <div class="fg"><label>고객 검색 *</label>
+      ${sel?`<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px"><span><strong>${esc(sel.name)||esc(sel.phone)}</strong>${sel.name?` ${esc(sel.phone)}`:''}</span><button onclick="woState.customerId='';renderWoTab()" style="border:none;background:none;font-size:18px;color:var(--gray-400);cursor:pointer">×</button></div>`
+        :`<input id="woT_search" placeholder="이름·전화 검색" value="${esc(woState.search||'')}" oninput="woState.search=this.value;renderWoTab();var i=document.getElementById('woT_search');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}">
+          ${filtered.length?`<div style="border:1px solid #eee;border-radius:9px;margin-top:4px;max-height:200px;overflow-y:auto">${filtered.map(c=>`<div onmousedown="woState.customerId='${c.id}';woState.search='';renderWoTab()" style="padding:10px 12px;border-bottom:1px solid #f1f3f5;cursor:pointer"><strong>${esc(c.name)||esc(c.phone)}</strong>${c.company_name?` · ${esc(c.company_name)}`:''}<div style="font-size:12px;color:var(--gray-400)">${esc(c.phone)}${c.address?' · '+esc(c.address):''}</div></div>`).join('')}</div>`:(woState.search?'<div style="color:var(--gray-400);padding:8px 4px">검색 결과 없음</div>':'')}`}
+    </div>
+    ${sel?`
+    ${comps.length?`<div class="fg"><label>장비 (선택)</label><select id="woT_comp" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
+    <div class="fg"><label>작업 내용 / 증상 *</label><textarea id="woT_symptom" placeholder="작업 지시 내용"></textarea></div>
+    <div class="fg"><label>담당 기사 *</label><select id="woT_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''}>${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
+    <button class="btn btn-primary" onclick="submitWoTab()">작업지시 + 배정</button>`:''}`;
+}
+async function submitWoTab(){
+  const symptom=document.getElementById('woT_symptom').value.trim(); if(!symptom){ alert('작업 내용을 입력하세요'); return; }
+  const engId=document.getElementById('woT_eng').value; if(!engId){ alert('담당 기사를 선택하세요'); return; }
+  const compEl=document.getElementById('woT_comp'); const cid=compEl&&compEl.value?Number(compEl.value):null;
+  const rec=await api('POST','/receptions',{customer_id:Number(woState.customerId),computer_id:cid,reception_channel:'direct',symptom});
+  await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${engId}`);
+  woState={customerId:'',search:''}; alert('작업지시 완료'); S.tab='all'; await loadReceptions();
+}
+
+// ── 일정 탭 (인라인 달력) ──
+function renderScheduleInline(){
+  const el=document.getElementById('schedInline'); if(!el)return;
+  const [y,m]=schedState.ym.split('-').map(Number);
+  const startDow=new Date(y,m-1,1).getDay(); const days=new Date(y,m,0).getDate();
+  const byDate={}; (S.schedules||[]).forEach(s=>{ (byDate[s.date]=byDate[s.date]||[]).push(s); });
+  let cells=''; for(let i=0;i<startDow;i++) cells+='<div></div>';
+  for(let d=1;d<=days;d++){ const ds=`${schedState.ym}-${String(d).padStart(2,'0')}`; const cnt=(byDate[ds]||[]).length; const seld=schedState.sel===ds;
+    cells+=`<div onclick="schedState.sel='${ds}';renderScheduleInline()" style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-size:13px;${seld?'background:var(--primary);color:#fff':cnt?'background:#e7f5ff':''}">${d}${cnt?`<span style="font-size:9px;${seld?'':'color:var(--primary)'}">●${cnt}</span>`:''}</div>`; }
+  const selList=schedState.sel?(byDate[schedState.sel]||[]):[];
+  el.innerHTML=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><button onclick="shiftMonth(-1)" style="border:none;background:none;font-size:18px;cursor:pointer">◀</button><strong>${y}년 ${m}월</strong><button onclick="shiftMonth(1)" style="border:none;background:none;font-size:18px;cursor:pointer">▶</button></div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:11px;color:var(--gray-500);margin-bottom:4px">${['일','월','화','수','목','금','토'].map(d=>`<div>${d}</div>`).join('')}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">${cells}</div>
+    ${schedState.sel?`<div style="margin-top:12px"><div style="font-size:13px;font-weight:600;margin-bottom:6px">${schedState.sel}</div>
+      ${selList.length?selList.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px"><span>${esc(s.title)}${s.engineer_id?` · ${esc(engName(s.engineer_id))}`:''}</span><button onclick="delScheduleInline(${s.id})" style="border:none;background:none;color:var(--danger);cursor:pointer;font-size:13px">삭제</button></div>`).join(''):'<div style="color:var(--gray-400);font-size:13px">일정 없음</div>'}
+      ${S.engineer.is_admin?`<button class="btn btn-primary" onclick="openAddSchedule()">+ 일정 추가</button>`:''}</div>`:'<div style="margin-top:10px;color:var(--gray-400);font-size:13px;text-align:center">날짜를 선택하세요</div>'}
+  </div>
+  ${S.engineer.is_admin?`<button class="btn btn-ghost" onclick="openLeaveAdmin()">🏖️ 휴가 신청 관리</button>`:`<button class="btn btn-ghost" onclick="openLeaveMy()">🏖️ 휴가 신청</button>`}`;
+}
+async function delScheduleInline(id){ await api('DELETE','/schedules/'+id); await loadSchedules(); renderScheduleInline(); }
 // 대표: 기사별 실적
 function openStats(){
   const st=S.stats, es=st?st.engineer_stats:[];
@@ -175,7 +338,8 @@ function openStats(){
 let schedState={ ym:new Date().toISOString().slice(0,7), sel:null };
 async function loadSchedules(){ try{ S.schedules=await api('GET',`/schedules?month=${schedState.ym}`); }catch(e){ S.schedules=[]; } }
 async function openSchedule(){ schedState={ ym:new Date().toISOString().slice(0,7), sel:null }; await loadSchedules(); renderScheduleSheet(); }
-async function shiftMonth(d){ const [y,m]=schedState.ym.split('-').map(Number); const nd=new Date(y,m-1+d,1); schedState.ym=nd.toISOString().slice(0,7); schedState.sel=null; await loadSchedules(); renderScheduleSheet(); }
+function reSched(){ if(document.getElementById('schedInline'))renderScheduleInline(); else renderScheduleSheet(); }
+async function shiftMonth(d){ const [y,m]=schedState.ym.split('-').map(Number); const nd=new Date(y,m-1+d,1); schedState.ym=nd.toISOString().slice(0,7); schedState.sel=null; await loadSchedules(); reSched(); }
 function renderScheduleSheet(){
   const [y,m]=schedState.ym.split('-').map(Number);
   const startDow=new Date(y,m-1,1).getDay(); const days=new Date(y,m,0).getDate();
@@ -209,9 +373,9 @@ function openAddSchedule(){
 async function submitSchedule(){
   const title=document.getElementById('sc_title').value.trim(); if(!title){alert('제목을 입력하세요');return;}
   await api('POST','/schedules',{title,engineer_id:document.getElementById('sc_eng').value||null,date:schedState.sel,memo:document.getElementById('sc_memo').value});
-  document.getElementById('ov2').remove(); await loadSchedules(); renderScheduleSheet();
+  document.getElementById('ov2').remove(); await loadSchedules(); reSched();
 }
-async function delSchedule(id){ await api('DELETE','/schedules/'+id); await loadSchedules(); renderScheduleSheet(); }
+async function delSchedule(id){ await api('DELETE','/schedules/'+id); await loadSchedules(); reSched(); }
 
 // ── 휴가 (대표 승인 / 기사 신청) ──
 async function openLeaveAdmin(){
