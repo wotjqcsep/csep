@@ -81,8 +81,9 @@ async function sendPushToEngineer(engineer_id, title, body) {
     if (fcm.rows[0] && admin && process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
       await admin.messaging().send({
         token: fcm.rows[0].fcm_token,
-        data: { title, body, sound: 'noti1', channelId: 'engineer_ch1' },
-        android: { priority: 'high' },
+        notification: { title, body },   // 백그라운드에서도 알림 표시
+        data: { type: 'engineer' },
+        android: { priority: 'high', notification: { channelId: 'csep_incoming', sound: 'default' } },
       });
       return;
     }
