@@ -79,11 +79,11 @@ async function sendPushToEngineer(engineer_id, title, body) {
   try {
     const fcm = await pool.query('SELECT fcm_token FROM fcm_tokens WHERE engineer_id=$1', [engineer_id]);
     if (fcm.rows[0] && admin && process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+      // data-only → 앱의 MyFCMService가 커스텀 소리 재생 + 무음 알림
       await admin.messaging().send({
         token: fcm.rows[0].fcm_token,
-        notification: { title, body },   // 백그라운드에서도 알림 표시
-        data: { type: 'engineer' },
-        android: { priority: 'high', notification: { channelId: 'csep_incoming', sound: 'default' } },
+        data: { title: String(title), body: String(body), type: 'engineer' },
+        android: { priority: 'high' },
       });
       return;
     }
@@ -96,7 +96,7 @@ async function sendPushToEngineer(engineer_id, title, body) {
   } catch (e) { console.log('푸시 실패:', e.message); }
 }
 
-// 대표(is_admin) 전원에게 FCM 알림 (백그라운드에서도 뜨도록 notification 페이로드 포함)
+// 대표(is_admin) 전원에게 FCM (data-only → 앱이 커스텀 소리로 처리)
 async function sendPushToBosses(title, body, type) {
   try {
     if (!admin || !process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) return;
@@ -107,9 +107,8 @@ async function sendPushToBosses(title, body, type) {
       try {
         await admin.messaging().send({
           token: r.fcm_token,
-          notification: { title, body },
-          data: { type: type || 'incoming_call' },
-          android: { priority: 'high', notification: { channelId: 'csep_incoming', sound: 'default' } },
+          data: { title: String(title), body: String(body), type: type || 'incoming_call' },
+          android: { priority: 'high' },
         });
       } catch (e) { console.log('대표 푸시 실패:', e.message); }
     }

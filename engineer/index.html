@@ -181,12 +181,17 @@ function navTmap(addr){ if(addr) window.open('https://apis.openapi.sk.com/tmap/a
 function navKakao(addr){ if(addr) window.open('https://map.kakao.com/?q='+encodeURIComponent(addr),'_blank'); }
 
 // ── 알림 소리 선택 (UI, 실제 소리는 APK 푸시에서) ──
+function pickSound(k){
+  localStorage.setItem('csep_sound',k);
+  try{ const P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Preferences; if(P)P.set({key:'csep_sound',value:k}); }catch(e){}
+  closeSheet(); render();
+}
 function openSoundPicker(){
   const cur=localStorage.getItem('csep_sound')||'noti1';
   const sounds=[['noti1','기본음'],['noti2','벨소리'],['noti3','띵동'],['noti4','알림'],['noti5','차임']];
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🔔 알림 소리 선택</h3>
-      ${sounds.map(([k,l])=>`<div onclick="localStorage.setItem('csep_sound','${k}');closeSheet();render()" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid #eee;border-radius:10px;margin-bottom:8px;cursor:pointer;${cur===k?'border-color:var(--primary);background:#e7f5ff':''}"><span>${l}</span>${cur===k?'<span style="color:var(--primary)">✓</span>':''}</div>`).join('')}
+      ${sounds.map(([k,l])=>`<div onclick="pickSound('${k}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid #eee;border-radius:10px;margin-bottom:8px;cursor:pointer;${cur===k?'border-color:var(--primary);background:#e7f5ff':''}"><span>${l}</span>${cur===k?'<span style="color:var(--primary)">✓</span>':''}</div>`).join('')}
       <div style="font-size:12px;color:var(--gray-400);margin:6px 0">실제 알림음은 앱(APK) 푸시에서 재생됩니다.</div>
       <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
     </div></div>`);
