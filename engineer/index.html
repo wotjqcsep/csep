@@ -107,9 +107,11 @@ async function loadReceptions(showLoading){
       if(!S.computers.length){ try{ S.computers = await api('GET','/computers'); }catch(e){} }
       try{ S.stats = await api('GET','/stats'); }catch(e){}
     }
-    render();
+    if(showLoading || !isEditing()) render();   // 편집 중(음성·작성)엔 화면 안 지움
   }catch(e){ if(showLoading)document.getElementById('app').innerHTML='<div class="empty">서버 연결 실패</div>'; }
 }
+// 편집 중이면 배경 새로고침이 화면을 다시 그리지 않게
+function isEditing(){ return !!S.processing || S.tab==='wo' || !!document.getElementById('ov') || !!document.getElementById('ov2'); }
 function engName(id){ const e=S.engineers.find(x=>x.id==id); return e?e.name:(id?`기사${id}`:'-'); }
 
 // ── 렌더 ──
@@ -160,7 +162,8 @@ function cardHtml(r){
     </div>
     ${isAdmin&&r.assigned_engineer_id?`<div class="info-line">👤 ${esc(engName(r.assigned_engineer_id))}</div>`:''}
     ${r.customer_phone?`<div class="info-line">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
-    ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>`:''}
+    ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>
+      <div style="display:flex;gap:6px;margin:6px 0"><button class="btn" style="flex:1;margin:0;background:#4263eb;color:#fff;padding:8px" onclick="navTmapFor(${r.id})">🧭 티맵</button><button class="btn" style="flex:1;margin:0;background:#fab005;color:#3d3000;padding:8px" onclick="navKakaoFor(${r.id})">🗺️ 카카오맵</button></div>`:''}
     <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
     ${r.reserved_date&&r.status!=='completed'?`<div class="info-line" style="color:var(--warning)">📅 예약: ${esc(r.reserved_date)}</div>`:''}
     <div class="info-line" style="color:var(--gray-400);font-size:12px">${(r.received_at||'').slice(0,16).replace('T',' ')}</div>
@@ -172,6 +175,8 @@ function cardHtml(r){
 }
 
 // ── 길찾기 (티맵 / 카카오맵) ──
+function navTmapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address)navTmap(r.customer_address); else alert('주소가 없습니다'); }
+function navKakaoFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address)navKakao(r.customer_address); else alert('주소가 없습니다'); }
 function navTmap(addr){ if(addr) window.open('https://apis.openapi.sk.com/tmap/app/routes?name='+encodeURIComponent(addr),'_blank'); }
 function navKakao(addr){ if(addr) window.open('https://map.kakao.com/?q='+encodeURIComponent(addr),'_blank'); }
 
@@ -179,7 +184,7 @@ function navKakao(addr){ if(addr) window.open('https://map.kakao.com/?q='+encode
 function openSoundPicker(){
   const cur=localStorage.getItem('csep_sound')||'noti1';
   const sounds=[['noti1','기본음'],['noti2','벨소리'],['noti3','띵동'],['noti4','알림'],['noti5','차임']];
-  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🔔 알림 소리 선택</h3>
       ${sounds.map(([k,l])=>`<div onclick="localStorage.setItem('csep_sound','${k}');closeSheet();render()" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid #eee;border-radius:10px;margin-bottom:8px;cursor:pointer;${cur===k?'border-color:var(--primary);background:#e7f5ff':''}"><span>${l}</span>${cur===k?'<span style="color:var(--primary)">✓</span>':''}</div>`).join('')}
       <div style="font-size:12px;color:var(--gray-400);margin:6px 0">실제 알림음은 앱(APK) 푸시에서 재생됩니다.</div>
@@ -274,7 +279,7 @@ async function submitReserve(id){
 }
 async function openHistory(custId){
   let hist=[]; try{ hist=(await api('GET',`/receptions`)).filter(r=>r.customer_id==custId); }catch(e){}
-  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🕘 거래처 이력 (${hist.length})</h3>
       ${hist.length?hist.map(r=>`<div style="padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px"><span class="badge ${r.status}">${({new:'미처리',assigned:'배정',in_progress:'진행중',completed:'완료'})[r.status]||r.status}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join(''):'<div class="empty">이력 없음</div>'}
       <button class="btn btn-ghost" onclick="closeSheet()">닫기</button></div></div>`);
@@ -335,7 +340,7 @@ async function delScheduleInline(id){ await api('DELETE','/schedules/'+id); awai
 // 대표: 기사별 실적
 function openStats(){
   const st=S.stats, es=st?st.engineer_stats:[];
-  document.getElementById('app').insertAdjacentHTML('beforeend',`
+  document.body.insertAdjacentHTML('beforeend',`
     <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
       <div class="sheet"><h3>📊 기사별 실적</h3>
         ${st?`<div style="display:flex;gap:8px;margin-bottom:14px">
@@ -372,10 +377,10 @@ function renderScheduleSheet(){
         <button class="btn btn-primary" onclick="openAddSchedule()" style="margin-top:6px">+ 일정 추가</button></div>`:'<div style="margin-top:10px;color:var(--gray-400);font-size:13px;text-align:center">날짜를 선택하세요</div>'}
       <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
     </div></div>`;
-  const ex=document.getElementById('ov'); if(ex)ex.outerHTML=html; else document.getElementById('app').insertAdjacentHTML('beforeend',html);
+  const ex=document.getElementById('ov'); if(ex)ex.outerHTML=html; else document.body.insertAdjacentHTML('beforeend',html);
 }
 function openAddSchedule(){
-  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
     <div class="sheet"><h3>일정 추가 (${schedState.sel})</h3>
       <div class="fg"><label>제목 *</label><input id="sc_title" placeholder="예: 정기점검 방문"></div>
       <div class="fg"><label>담당 기사</label><select id="sc_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">전체</option>${S.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div>
@@ -395,7 +400,7 @@ async function delSchedule(id){ await api('DELETE','/schedules/'+id); await load
 async function openLeaveAdmin(){
   let leaves=[]; try{ leaves=await api('GET','/leave-requests'); }catch(e){}
   const lb={pending:['대기','assigned'],approved:['승인','in_progress'],rejected:['반려','completed']};
-  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🏖️ 휴가 신청 관리</h3>
       ${leaves.length?leaves.map(l=>`<div style="padding:10px;border:1px solid #eee;border-radius:8px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;align-items:center"><strong>${esc(l.engineer_name)||esc(engName(l.engineer_id))}</strong><span class="badge ${(lb[l.status]||[])[1]}">${(lb[l.status]||[l.status])[0]}</span></div>
@@ -408,7 +413,7 @@ async function setLeave(id,status){ await api('PUT',`/leave-requests/${id}/statu
 async function openLeaveMy(){
   let mine=[]; try{ mine=await api('GET',`/leave-requests?engineer_id=${S.engineer.id}`); }catch(e){}
   const lb={pending:['대기','assigned'],approved:['승인','in_progress'],rejected:['반려','completed']};
-  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🏖️ 휴가 신청</h3>
       <div class="row2"><div class="fg"><label>시작일</label><input type="date" id="lv_start"></div><div class="fg"><label>종료일</label><input type="date" id="lv_end"></div></div>
       <div class="fg"><label>사유</label><input id="lv_reason" placeholder="선택"></div>
@@ -427,7 +432,7 @@ async function submitLeave(){
 // ── 대표: 기사 배정 (현장) ──
 function openAssign(id){
   const r=S.receptions.find(x=>x.id==id);
-  document.getElementById('app').insertAdjacentHTML('beforeend',`
+  document.body.insertAdjacentHTML('beforeend',`
     <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
       <div class="sheet">
         <h3>기사 배정 - ${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</h3>
@@ -474,7 +479,7 @@ function renderWorkOrderSheet(){
       </div>
     </div>`;
   const existing=document.getElementById('ov');
-  if(existing) existing.outerHTML=html; else document.getElementById('app').insertAdjacentHTML('beforeend',html);
+  if(existing) existing.outerHTML=html; else document.body.insertAdjacentHTML('beforeend',html);
 }
 async function submitWorkOrder(){
   if(!woState.customerId){ alert('고객을 선택하세요'); return; }
@@ -494,7 +499,7 @@ async function startWork(id){ await api('PUT',`/engineer/receptions/${id}/start`
 function openComplete(id){
   const r=S.receptions.find(x=>x.id==id);
   completePhotos=[];
-  document.getElementById('app').insertAdjacentHTML('beforeend',`
+  document.body.insertAdjacentHTML('beforeend',`
     <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
       <div class="sheet">
         <h3>작업 완료 - ${esc(r.customer_name)||'고객'}</h3>
@@ -539,7 +544,7 @@ function renderCompletePhotos(){ const el=document.getElementById('w_photos'); i
 }
 async function openPhotos(id){
   let photos=[]; try{ photos=await api('GET',`/receptions/${id}/photos`); }catch(e){}
-  document.getElementById('app').insertAdjacentHTML('beforeend',`
+  document.body.insertAdjacentHTML('beforeend',`
     <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
       <div class="sheet"><h3>작업 사진 (${photos.length})</h3>
         ${photos.length? photos.map(p=>`<img src="${p.photo}" style="width:100%;border-radius:10px;margin-bottom:8px">`).join('') : '<div class="empty">사진이 없습니다</div>'}
@@ -578,7 +583,7 @@ function renderChat(id,msgs){
         <button class="btn btn-primary" style="width:auto;margin:0;padding:10px 16px" onclick="sendChat(${id})">전송</button>
       </div>
     </div></div>`;
-  const ex=document.getElementById('ov'); if(ex)ex.outerHTML=html; else document.getElementById('app').insertAdjacentHTML('beforeend',html);
+  const ex=document.getElementById('ov'); if(ex)ex.outerHTML=html; else document.body.insertAdjacentHTML('beforeend',html);
   const body=document.getElementById('chatBody'); if(body)body.scrollTop=body.scrollHeight;
 }
 async function sendChat(id){
@@ -715,7 +720,7 @@ function micField(id, label, val, placeholder){
 
 // ── 대표: 현장 고객 등록 (음성) ──
 function openCustomerAdd(prefillPhone){
-  document.getElementById('app').insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🧑 현장 고객 등록</h3>
       <div style="font-size:12px;color:var(--gray-500);margin-bottom:8px">🎤 버튼을 누르고 말하면 자동 입력됩니다 (운전 중엔 음성 추천)</div>
       <div class="fg"><label>고객 구분</label><select id="ca_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="personal">개인</option><option value="business">기업</option></select></div>
