@@ -53,6 +53,11 @@ public class MyFCMService extends MessagingService {
         showNotification(title, body);
     }
 
+    @Override
+    public void onNewToken(String token) {
+        super.onNewToken(token);
+    }
+
     private void playSound(String pref, PowerManager.WakeLock wl) {
         int rawResId;
         switch (pref) {
