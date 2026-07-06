@@ -74,13 +74,33 @@ function broadcastAdmin(event, data) {
   adminClients.forEach(res => { try { res.write(msg); } catch (e) { adminClients.delete(res); } });
 }
 
+// 무효(죽은) FCM 토큰이면 DB에서 삭제
+function isDeadToken(e) {
+  const c = e && e.code || '';
+  return c === 'messaging/registration-token-not-registered'
+      || c === 'messaging/invalid-registration-token'
+      || c === 'messaging/invalid-argument'
+      || /not.?found/i.test(e && e.message || '');
+}
+async function fcmSend(token, msg) {
+  try {
+    await admin.messaging().send(msg);
+    return true;
+  } catch (e) {
+    if (isDeadToken(e)) {
+      try { await pool.query('DELETE FROM fcm_tokens WHERE fcm_token=$1', [token]); console.log('죽은 FCM 토큰 삭제'); } catch (_) {}
+    } else { console.log('FCM 전송 오류:', e.message); }
+    return false;
+  }
+}
+
 // 기사에게 푸시 (FCM 우선, 웹푸시 폴백)
 async function sendPushToEngineer(engineer_id, title, body) {
   try {
     const fcm = await pool.query('SELECT fcm_token FROM fcm_tokens WHERE engineer_id=$1', [engineer_id]);
     if (fcm.rows[0] && admin && process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
       // data-only → 앱의 MyFCMService가 커스텀 소리 재생 + 무음 알림
-      await admin.messaging().send({
+      await fcmSend(fcm.rows[0].fcm_token, {
         token: fcm.rows[0].fcm_token,
         data: { title: String(title), body: String(body), type: 'engineer' },
         android: { priority: 'high' },
@@ -104,13 +124,11 @@ async function sendPushToBosses(title, body, type) {
       'SELECT f.fcm_token FROM fcm_tokens f JOIN engineers e ON e.id=f.engineer_id WHERE e.is_admin=TRUE AND f.fcm_token IS NOT NULL'
     )).rows;
     for (const r of rows) {
-      try {
-        await admin.messaging().send({
-          token: r.fcm_token,
-          data: { title: String(title), body: String(body), type: type || 'incoming_call' },
-          android: { priority: 'high' },
-        });
-      } catch (e) { console.log('대표 푸시 실패:', e.message); }
+      await fcmSend(r.fcm_token, {
+        token: r.fcm_token,
+        data: { title: String(title), body: String(body), type: type || 'incoming_call' },
+        android: { priority: 'high' },
+      });
     }
   } catch (e) { console.log('sendPushToBosses 오류:', e.message); }
 }
