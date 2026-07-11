@@ -621,8 +621,8 @@ async function setupPush(){
   if(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()){
     try{
       const PN=window.Capacitor.Plugins.PushNotifications;
-      const perm=await PN.requestPermissions();
-      if(perm.receive!=='granted'){ await PN.register().catch(()=>{}); return; }
+      await PN.requestPermissions().catch(()=>{});
+      // 알림 표시 권한과 무관하게 토큰은 항상 등록되어야 함 (데이터 전용 FCM은 앱이 직접 소리/배너 처리)
       // 리스너를 register() 전에 확실히 부착 (경쟁 조건 방지)
       await PN.addListener('registration', t=>{ console.log('FCM 토큰 수신'); api('POST','/fcm-token',{engineer_id:S.engineer.id, fcm_token:t.value}).catch(()=>{}); });
       await PN.addListener('registrationError', e=>console.log('푸시 등록오류', JSON.stringify(e)));
