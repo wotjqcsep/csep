@@ -99,11 +99,10 @@ async function sendPushToEngineer(engineer_id, title, body) {
   try {
     const fcm = await pool.query('SELECT fcm_token FROM fcm_tokens WHERE engineer_id=$1', [engineer_id]);
     if (fcm.rows[0] && admin && process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
-      // data-only → 앱의 MyFCMService가 커스텀 소리 재생 + 무음 알림
+      // data-only → 앱의 MyFCMService가 커스텀 소리 재생 + 무음 알림 (필드서비스 동일)
       await fcmSend(fcm.rows[0].fcm_token, {
         token: fcm.rows[0].fcm_token,
         data: { title: String(title), body: String(body), type: 'engineer' },
-        notification: { title: String(title), body: String(body) },
         android: { priority: 'high' },
       });
       return;
