@@ -76,6 +76,9 @@ const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[]
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString();
+// 금액 입력: 앞자리 0 제거 + 3자리마다 콤마. 저장 시엔 moneyVal()로 숫자만 추출
+function fmtMoney(el){ let v=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,''); el.value=v?Number(v).toLocaleString('en-US'):''; }
+const moneyVal=id=>{ const el=document.getElementById(id); return el?Number((el.value||'').replace(/[^0-9]/g,''))||0:0; };
 async function api(m,u,b){const o={method:m,headers:{'Content-Type':'application/json'}};if(b)o.body=JSON.stringify(b);const r=await fetch(API+u,o);if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.status);return r.json();}
 
 // ── 로그인 ──
@@ -268,7 +271,7 @@ function renderProcessing(){
         </div>
         <div class="fg"><label>다음 방문시 필요 부품 및 조치</label><input id="p_next" value="${esc(r.next_visit_parts||'')}"></div>
         <div class="fg"><label>고객 요청사항</label><input id="p_req" value="${esc(r.customer_request||'')}"></div>
-        <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="number" value="0"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="number" value="0"></div></div>
+        <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div></div>
       </div>
       <div class="card">
         <div style="font-weight:700;margin-bottom:8px">📷 작업 사진 (관리자 전송)</div>
@@ -304,7 +307,7 @@ async function uploadProcPhotos(id){ for(const p of S.procPhotos){ try{ await ap
 async function submitProcessing(id){
   const g=x=>{const el=document.getElementById(x);return el?el.value:'';};
   const desc=g('p_desc').trim(); if(!desc){ alert('처리 내용을 입력하세요'); return; }
-  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:Number(g('p_cparts'))||0, cost_labor:Number(g('p_clabor'))||0 });
+  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:moneyVal('p_cparts'), cost_labor:moneyVal('p_clabor') });
   await uploadProcPhotos(id);
   S.processing=null; await loadReceptions(); alert('처리 완료');
 }
@@ -590,8 +593,8 @@ function openComplete(id){
           ${S.parts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.parts.slice(0,12).map((p,i)=>`<span onclick="appendField('w_parts',S.parts[${i}].part_name)" style="padding:5px 10px;background:#f1f3f5;color:#495057;border-radius:14px;font-size:12px;cursor:pointer">${esc(p.part_name)}</span>`).join('')}</div>`:''}
         </div>
         <div class="row2">
-          <div class="fg"><label>부품비</label><input id="w_cparts" type="number" value="0"></div>
-          <div class="fg"><label>공임비</label><input id="w_clabor" type="number" value="0"></div>
+          <div class="fg"><label>부품비</label><input id="w_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div>
+          <div class="fg"><label>공임비</label><input id="w_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div>
         </div>
         <div class="fg"><label>작업 사진 (수리 전/후)</label>
           <input type="file" id="w_photo" accept="image/*" capture="environment" onchange="addCompletePhoto(this)" style="font-size:13px">
@@ -680,7 +683,7 @@ async function sendChatPhoto(id,input){
 async function submitComplete(id){
   const g=x=>document.getElementById(x).value;
   const desc=g('w_desc'); if(!desc){ alert('작업 내용을 입력하세요'); return; }
-  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('w_parts'), cost_parts:Number(g('w_cparts'))||0, cost_labor:Number(g('w_clabor'))||0 });
+  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('w_parts'), cost_parts:moneyVal('w_cparts'), cost_labor:moneyVal('w_clabor') });
   for(const p of completePhotos){ try{ await api('POST',`/receptions/${id}/photos`,{photo:p}); }catch(e){} }
   completePhotos=[];
   closeSheet(); loadReceptions();
