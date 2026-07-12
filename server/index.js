@@ -520,7 +520,18 @@ app.put('/api/receptions/:id/status', wrap(async (req, res) => {
 }));
 
 app.delete('/api/receptions/:id', wrap(async (req, res) => {
+  // 삭제 전 담당 기사·고객명 조회 → 배정된 기사에게 알림
+  const info = await pool.query(
+    'SELECT r.assigned_engineer_id, c.name FROM receptions r LEFT JOIN customers c ON c.id=r.customer_id WHERE r.id=$1',
+    [req.params.id]
+  );
+  const engId = info.rows[0] && info.rows[0].assigned_engineer_id;
+  const custName = (info.rows[0] && info.rows[0].name) || '고객';
   await pool.query('DELETE FROM receptions WHERE id=$1', [req.params.id]);
+  if (engId) {
+    notifyEngineer(engId, 'reception_deleted', { reception_id: Number(req.params.id) });
+    sendPushToEngineer(engId, '접수 취소', `${custName} 접수가 삭제되었습니다`);
+  }
   res.json({ ok: true });
 }));
 
@@ -766,6 +777,9 @@ app.delete('/api/incoming-sms/:id', wrap(async (req, res) => {
 // ============================================================
 app.post('/api/fcm-token', wrap(async (req, res) => {
   const { engineer_id, fcm_token } = req.body;
+  // 같은 폰(토큰)을 다른 계정에서 쓰던 기록 제거 → 토큰은 현재 로그인한 1명에게만 귀속
+  // (기사로 로그인 시 대표 계정에 남은 토큰 제거 → 수신 테스트는 대표 로그인 때만 울림)
+  await pool.query('DELETE FROM fcm_tokens WHERE fcm_token=$1 AND engineer_id<>$2', [fcm_token, engineer_id]);
   await pool.query(
     `INSERT INTO fcm_tokens (engineer_id, fcm_token, updated_at) VALUES ($1,$2,NOW())
      ON CONFLICT (engineer_id) DO UPDATE SET fcm_token=$2, updated_at=NOW()`,
