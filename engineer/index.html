@@ -195,9 +195,8 @@ async function navKakao(addr){
       else window.open(`https://map.kakao.com/link/to/${enc},${c.lat},${c.lon}`,'_blank');
       return; }
   }catch(e){}
-  if(native) window.location.href=`kakaomap://search?q=${enc}`;
-  else if(/android/i.test(navigator.userAgent)) window.location.href=`intent://search?q=${enc}#Intent;scheme=kakaomap;package=net.daum.android.map;end`;
-  else window.open(`https://map.kakao.com/link/search/${enc}`,'_blank');
+  // 좌표 없음(카카오 키 미설정) → 이전 작동 방식인 웹 지도 링크로 폴백
+  window.open(`https://map.kakao.com/?q=${enc}`,'_blank');
 }
 
 // ── 알림 소리 선택 (UI, 실제 소리는 APK 푸시에서) ──
