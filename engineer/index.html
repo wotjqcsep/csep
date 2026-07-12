@@ -19,9 +19,15 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 .tab{flex:1;padding:12px;border:none;background:none;font-size:14px;color:var(--gray-500);cursor:pointer;border-bottom:2px solid transparent}
 .tab.active{color:var(--primary);font-weight:700;border-bottom-color:var(--primary)}
 .content{padding:14px}
-.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid #e3e7ec;border-left:5px solid var(--gray-400);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.card.st-new{border-left-color:var(--primary)}
+.card.st-assigned{border-left-color:var(--warning)}
+.card.st-in_progress{border-left-color:var(--success)}
+.card.st-completed{border-left-color:var(--gray-400)}
+.card.st-reserved{border-left-color:#f59f00}
+.card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #eceef1}
 .cust-name{font-size:17px;font-weight:700}
+.divider{height:1px;background:#e9ecef;margin:12px 0;border:0}
 .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
 .badge.new{background:#e7f5ff;color:#1971c2}
 .badge.assigned{background:#fff3bf;color:#e67700}
@@ -51,6 +57,14 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 .fg input,.fg textarea{width:100%;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px;font-size:15px;font-family:inherit}
 .fg textarea{min-height:80px;resize:vertical}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* 작업지시 고객 검색 */
+.wo-results{border:1px solid #e3e7ec;border-radius:10px;margin-top:6px;max-height:240px;overflow-y:auto;background:#fff}
+.wo-results .item{padding:12px 14px;border-bottom:1px solid #f1f3f5;cursor:pointer}
+.wo-results .item:last-child{border-bottom:none}
+.wo-results .item:active{background:#eef2ff}
+.wo-hint{padding:12px 4px;color:var(--gray-400);font-size:13px}
+.wo-selected{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--primary);background:#eff3ff;border-radius:10px}
+.sec-label{font-size:13px;font-weight:700;color:var(--gray-600);margin:16px 0 8px;padding-top:14px;border-top:1px solid #e9ecef}
 </style>
 </head>
 <body>
@@ -103,8 +117,7 @@ async function loadReceptions(showLoading){
     try{ S.chatUnread = await api('GET',`/messages/unread-engineer/${S.engineer.id}`); }catch(e){}
     if(S.engineer.is_admin){
       if(!S.engineers.length){ try{ S.engineers = await api('GET','/engineers'); }catch(e){} }
-      if(!S.customers.length){ try{ S.customers = await api('GET','/customers'); }catch(e){} }
-      if(!S.computers.length){ try{ S.computers = await api('GET','/computers'); }catch(e){} }
+      // 고객·컴퓨터는 전체 프리로드 안 함(업체 많아지면 느림) → 작업지시에서 이름으로 서버 검색
       try{ S.stats = await api('GET','/stats'); }catch(e){}
     }
     if(showLoading || !isEditing()) render();   // 편집 중(음성·작성)엔 화면 안 지움
@@ -155,7 +168,8 @@ function cardHtml(r){
   const isRes=r.reserved_date&&r.status!=='completed';
   const st=isRes?'예약':({new:'미처리',assigned:'미처리',in_progress:'진행중',completed:'완료'}[r.status]||r.status);
   const badgeClass=isRes?'assigned':r.status;
-  return `<div class="card">
+  const stClass=isRes?'st-reserved':('st-'+r.status);
+  return `<div class="card ${stClass}">
     <div class="card-head">
       <div><div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
       <span class="badge ${badgeClass}">● ${st}</span>
@@ -309,27 +323,66 @@ async function openHistory(custId){
       <button class="btn btn-ghost" onclick="closeSheet()">닫기</button></div></div>`);
 }
 
-// ── 작업지시 탭 (대표) ──
+// ── 작업지시 탭 (대표) — 이름/전화로 서버 검색 (전체 프리로드 없음) ──
 function renderWoTab(){
   const el=document.getElementById('woTab'); if(!el)return;
-  const sel=S.customers.find(c=>c.id==woState.customerId);
-  const q=(woState.search||'').toLowerCase();
-  const filtered=woState.customerId?[]:S.customers.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)).slice(0,8);
-  const comps=woState.customerId?S.computers.filter(c=>c.customer_id==woState.customerId):[];
+  const sel=woState.customer;
+  const comps=woState.comps||[];
   el.innerHTML=`
     <div class="fg"><label>고객 검색 *</label>
-      ${sel?`<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px"><span><strong>${esc(sel.name)||esc(sel.phone)}</strong>${sel.name?` ${esc(sel.phone)}`:''}</span><button onclick="woState.customerId='';renderWoTab()" style="border:none;background:none;font-size:18px;color:var(--gray-400);cursor:pointer">×</button></div>`
-        :`<input id="woT_search" placeholder="이름·전화 검색" value="${esc(woState.search||'')}" oninput="woState.search=this.value;renderWoTab();var i=document.getElementById('woT_search');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}">
-          ${filtered.length?`<div style="border:1px solid #eee;border-radius:9px;margin-top:4px;max-height:200px;overflow-y:auto">${filtered.map(c=>`<div onmousedown="woState.customerId='${c.id}';woState.search='';renderWoTab()" style="padding:10px 12px;border-bottom:1px solid #f1f3f5;cursor:pointer"><strong>${esc(c.name)||esc(c.phone)}</strong>${c.company_name?` · ${esc(c.company_name)}`:''}<div style="font-size:12px;color:var(--gray-400)">${esc(c.phone)}${c.address?' · '+esc(c.address):''}</div></div>`).join('')}</div>`:(woState.search?'<div style="color:var(--gray-400);padding:8px 4px">검색 결과 없음</div>':'')}
-          <button class="btn btn-ghost" style="margin-top:8px" onclick="openCustomerAdd('')">🧑 새 고객 등록 (음성)</button>`}
+      ${sel?`<div class="wo-selected"><span><strong>${esc(sel.name)||esc(sel.phone)}</strong>${sel.name&&sel.phone?` <span style="color:var(--gray-500);font-size:13px">${esc(sel.phone)}</span>`:''}${sel.address?`<div style="font-size:12px;color:var(--gray-500);margin-top:3px">📍 ${esc(sel.address)}</div>`:''}</span><button onclick="woClear()" style="border:none;background:none;font-size:22px;color:var(--gray-500);cursor:pointer">×</button></div>`
+        :`<input id="woT_search" placeholder="이름 또는 전화번호 입력" value="${esc(woState.search||'')}" oninput="woSearch(this.value)" autocomplete="off" inputmode="search">
+          <div id="woT_results"></div>
+          <button class="btn btn-ghost" style="margin-top:10px" onclick="openCustomerAdd('')">🧑 새 고객 등록 (음성)</button>`}
     </div>
     ${sel?`
     ${comps.length?`<div class="fg"><label>장비 (선택)</label><select id="woT_comp" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
+    <div class="sec-label">📋 작업 지시</div>
     <div class="fg"><label>작업 내용 / 증상 *</label>
-      <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="woT_symptom" placeholder="작업 지시 내용" style="flex:1"></textarea><button id="mic_woT_symptom" onclick="startVoice('woT_symptom',true)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:44px;font-size:20px;cursor:pointer">🎤</button></div>
+      <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="woT_symptom" placeholder="작업 지시 내용" style="flex:1" oninput="woState.symptom=this.value">${esc(woState.symptom||'')}</textarea><button id="mic_woT_symptom" onclick="startVoice('woT_symptom',true)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:44px;font-size:20px;cursor:pointer">🎤</button></div>
     </div>
     <div class="fg"><label>담당 기사 *</label><select id="woT_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''}>${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
     <button class="btn btn-primary" onclick="submitWoTab()">작업지시 + 배정</button>`:''}`;
+  if(!sel){ renderWoResults(); const i=document.getElementById('woT_search'); if(i&&woState.search){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }
+}
+function renderWoResults(){
+  const box=document.getElementById('woT_results'); if(!box)return;
+  const q=(woState.search||'').trim();
+  if(!q){ box.innerHTML=`<div class="wo-hint">이름 또는 전화번호를 입력하면 검색됩니다</div>`; return; }
+  if(woState.searching){ box.innerHTML=`<div class="wo-hint">검색 중…</div>`; return; }
+  const r=woState.results||[];
+  box.innerHTML = r.length
+    ? `<div class="wo-results">${r.map(c=>`<div class="item" onclick="woSelect('${c.id}')"><strong>${esc(c.name)||esc(c.phone)}</strong>${c.company_name?` · ${esc(c.company_name)}`:''}<div style="font-size:12px;color:var(--gray-400)">${esc(c.phone)}${c.address?' · '+esc(c.address):''}</div></div>`).join('')}</div>`
+    : `<div class="wo-hint">검색 결과 없음 — 아래에서 새 고객을 등록하세요</div>`;
+}
+let woSearchTimer=null;
+function woSearch(v){
+  woState.search=v; clearTimeout(woSearchTimer);
+  const q=v.trim();
+  if(!q){ woState.results=[]; woState.searching=false; renderWoResults(); return; }
+  woState.searching=true; renderWoResults();
+  const seq=++woState.searchSeq;
+  woSearchTimer=setTimeout(async()=>{
+    try{ const rows=await api('GET','/customers?search='+encodeURIComponent(q));
+      if(seq!==woState.searchSeq) return;
+      woState.results=(rows||[]).slice(0,15); woState.searching=false; renderWoResults();
+    }catch(e){ if(seq===woState.searchSeq){ woState.searching=false; woState.results=[]; renderWoResults(); } }
+  }, 250);
+}
+async function woSelect(id){
+  const c=(woState.results||[]).find(x=>String(x.id)===String(id)); if(!c)return;
+  woState.customer=c; woState.customerId=String(c.id); woState.comps=[]; woState.results=[]; woState.search='';
+  renderWoTab(); woLoadComps(c.id);
+}
+function woClear(){ const seq=woState.searchSeq||0; woState={customerId:'',customer:null,search:'',results:[],comps:[],symptom:'',searchSeq:seq}; renderWoTab(); }
+async function woLoadComps(id){
+  try{ const comps=await api('GET','/customers/'+id+'/computers'); woState.comps=comps||[]; }catch(e){ woState.comps=[]; }
+  if(String(woState.customerId)===String(id)) renderWoTab();
+}
+// 전화 수신 등록 등에서 고객 객체로 바로 진입
+function woEnterWithCustomer(cust){
+  woState={customerId:String(cust.id),customer:cust,search:'',results:[],comps:[],symptom:'',searchSeq:(woState&&woState.searchSeq)||0};
+  S.tab='wo'; render(); woLoadComps(cust.id);
 }
 async function submitWoTab(){
   const symptom=document.getElementById('woT_symptom').value.trim(); if(!symptom){ alert('작업 내용을 입력하세요'); return; }
@@ -337,7 +390,7 @@ async function submitWoTab(){
   const compEl=document.getElementById('woT_comp'); const cid=compEl&&compEl.value?Number(compEl.value):null;
   const rec=await api('POST','/receptions',{customer_id:Number(woState.customerId),computer_id:cid,reception_channel:'direct',symptom});
   await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${engId}`);
-  woState={customerId:'',search:''}; alert('작업지시 완료'); S.tab='all'; await loadReceptions();
+  woState={customerId:'',customer:null,search:'',results:[],comps:[],symptom:'',searchSeq:(woState.searchSeq||0)}; alert('작업지시 완료'); S.tab='all'; await loadReceptions();
 }
 
 // ── 일정 탭 (인라인 달력) ──
@@ -479,7 +532,7 @@ async function doAssign(id){
 }
 
 // ── 대표: 작업지시 생성 (고객·장비 DB에서 → 기사/본인 배정) ──
-let woState={ customerId:'', search:'' };
+let woState={ customerId:'', customer:null, search:'', results:[], comps:[], symptom:'', searchSeq:0 };
 function openWorkOrder(){ woState={ customerId:'', search:'' }; renderWorkOrderSheet(); }
 function renderWorkOrderSheet(){
   const sel=S.customers.find(c=>c.id==woState.customerId);
@@ -702,7 +755,7 @@ async function dismissIncoming(id){ try{ await api('DELETE','/incoming-call/'+id
 function registerIncoming(id){
   const c=S.incomingCalls.find(x=>x.id==id); if(!c) return;
   // 화면 전환을 먼저 (네트워크 지연과 무관하게 즉시 반응)
-  if(c.customer){ S.tab='wo'; woState={customerId:String(c.customer.id),search:''}; render(); }
+  if(c.customer){ woEnterWithCustomer(c.customer); }   // 등록 고객 → 바로 작업지시
   else { openCustomerAdd(c.phone); }   // 미등록 → 현장 고객 등록(주소·연락처만)
   // 팝업/서버 정리는 백그라운드로 (실패해도 화면 전환엔 영향 없음)
   S.incomingCalls=S.incomingCalls.filter(x=>x.id!=id); renderIncoming();
@@ -766,9 +819,9 @@ async function saveCustomerAdd(){
   const memo=g('ca_memo');
   const cust=await api('POST','/customers',{ name:g('ca_name'), phone, customer_type:g('ca_type'), address:g('ca_addr'), memo });
   closeSheet();
-  if(!S.customers.some(c=>c.id==cust.id)) S.customers.push(cust);
-  S.tab='wo'; woState={customerId:String(cust.id),search:''}; render();
-  setTimeout(()=>{ const s=document.getElementById('woT_symptom'); if(s&&memo)s.value=memo; }, 120);
+  // 등록 직후 바로 작업지시 진입 (증상엔 메모 자동 채움)
+  woState={customerId:String(cust.id),customer:cust,search:'',results:[],comps:[],symptom:memo||'',searchSeq:(woState.searchSeq||0)};
+  S.tab='wo'; render(); woLoadComps(cust.id);
 }
 
 // ── SSE ──
