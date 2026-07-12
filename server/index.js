@@ -79,6 +79,18 @@ function broadcastAdmin(event, data) {
   adminClients.forEach(res => { try { res.write(msg); } catch (e) { adminClients.delete(res); } });
 }
 
+// 접속된 모든 기사(대표 포함)에게 실시간 이벤트 → 접수 목록 동기화
+function broadcastEngineers(event, data) {
+  const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  engineerClients.forEach((res, id) => { try { res.write(msg); } catch (e) { engineerClients.delete(id); } });
+}
+
+// 접수 변경을 PC·기사앱 모두에 동시 반영
+function broadcastReception(event, data) {
+  broadcastAdmin(event, data);
+  broadcastEngineers(event, data);
+}
+
 // 무효(죽은) FCM 토큰이면 DB에서 삭제
 function isDeadToken(e) {
   const c = e && e.code || '';
@@ -494,7 +506,7 @@ app.post('/api/receptions', wrap(async (req, res) => {
      VALUES ($1,$2,$3,$4,$5,$6,'new',NOW()) RETURNING *`,
     [b.customer_id, b.computer_id || null, b.reception_channel, b.reception_phone, b.symptom, b.initial_memo]
   );
-  broadcastAdmin('reception_new', rows[0]);
+  broadcastReception('reception_new', rows[0]);
   res.json(rows[0]);
 }));
 
@@ -512,7 +524,7 @@ app.put('/api/receptions/:id/assign', wrap(async (req, res) => {
   // 기사에게 알림
   await sendPushToEngineer(engineerId, '새 작업 배정', `${cust.rows[0]?.name || '고객'} - ${rows[0].symptom || ''}`);
   notifyEngineer(engineerId, 'new_assignment', rows[0]);
-  broadcastAdmin('reception_update', rows[0]);
+  broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
 
@@ -520,7 +532,7 @@ app.put('/api/receptions/:id/status', wrap(async (req, res) => {
   const status = req.query.status || req.body.status;
   const extra = status === 'completed' ? ', completed_at=NOW()' : '';
   const { rows } = await pool.query(`UPDATE receptions SET status=$1${extra} WHERE id=$2 RETURNING *`, [status, req.params.id]);
-  broadcastAdmin('reception_update', rows[0]);
+  broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
 
@@ -533,10 +545,9 @@ app.delete('/api/receptions/:id', wrap(async (req, res) => {
   const engId = info.rows[0] && info.rows[0].assigned_engineer_id;
   const custName = (info.rows[0] && info.rows[0].name) || '고객';
   await pool.query('DELETE FROM receptions WHERE id=$1', [req.params.id]);
-  if (engId) {
-    notifyEngineer(engId, 'reception_deleted', { reception_id: Number(req.params.id) });
-    sendPushToEngineer(engId, '접수 취소', `${custName} 접수가 삭제되었습니다`);
-  }
+  // PC·기사앱 모두 목록 갱신
+  broadcastReception('reception_deleted', { reception_id: Number(req.params.id) });
+  if (engId) sendPushToEngineer(engId, '접수 취소', `${custName} 접수가 삭제되었습니다`);
   res.json({ ok: true });
 }));
 
@@ -980,7 +991,7 @@ app.get('/api/engineer/:id/receptions', wrap(async (req, res) => {
 app.put('/api/engineer/receptions/:id/start', wrap(async (req, res) => {
   const { rows } = await pool.query(`UPDATE receptions SET status='in_progress' WHERE id=$1 RETURNING *`, [req.params.id]);
   await pool.query(`UPDATE jobs SET status='in_progress', started_at=NOW() WHERE reception_id=$1`, [req.params.id]);
-  broadcastAdmin('reception_update', rows[0]);
+  broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
 
@@ -996,6 +1007,7 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
   const eng = rows[0].assigned_engineer_id;
   if (eng) await pool.query('UPDATE engineers SET total_jobs=total_jobs+1, total_revenue=total_revenue+$2 WHERE id=$1', [eng, total]);
   broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
+  broadcastEngineers('reception_update', rows[0]);
   res.json(rows[0]);
 }));
 
@@ -1004,7 +1016,7 @@ app.put('/api/engineer/receptions/:id/reserve', wrap(async (req, res) => {
   const b = req.body;
   const { rows } = await pool.query(`UPDATE receptions SET reserved_date=$2, status='assigned', customer_request=$3 WHERE id=$1 RETURNING *`, [req.params.id, b.reserved_date || null, b.customer_request || null]);
   await pool.query(`UPDATE jobs SET work_description=$2, parts_used=$3, next_visit_parts=$4 WHERE reception_id=$1`, [req.params.id, b.work_description || '', b.parts_used || '', b.next_visit_parts || null]);
-  broadcastAdmin('reception_update', rows[0]);
+  broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
 

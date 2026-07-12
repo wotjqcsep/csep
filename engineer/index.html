@@ -836,6 +836,10 @@ function connectSSE(){
   try{
     const es=new EventSource(`${API}/engineer-stream/${S.engineer.id}`);
     es.addEventListener('new_assignment',()=>{ loadReceptions(); if(navigator.vibrate)navigator.vibrate(400); });
+    // PC·다른 대표의 접수 생성/배정/상태/삭제 → 목록 실시간 동기화 (편집 중이면 화면 유지)
+    es.addEventListener('reception_new',()=>{ loadReceptions(); });
+    es.addEventListener('reception_update',()=>{ loadReceptions(); });
+    es.addEventListener('reception_deleted',()=>{ loadReceptions(); });
     es.addEventListener('new_message',e=>{ let d={}; try{d=JSON.parse(e.data);}catch(x){}
       if(S.chatOpen==d.reception_id){ openChat(d.reception_id); }
       else { S.chatUnread[d.reception_id]=(S.chatUnread[d.reception_id]||0)+1; if(!document.getElementById('ov'))render(); if(navigator.vibrate)navigator.vibrate(200); }

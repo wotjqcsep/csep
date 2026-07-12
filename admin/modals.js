@@ -374,7 +374,7 @@ async function pollPopups(){
 function connectSSE(){
   try{
     const es = new EventSource(API+'/admin-stream');
-    const reloadEvents = ['reception_new','reception_update','job_update','engineer_update'];
+    const reloadEvents = ['reception_new','reception_update','reception_deleted','job_update','engineer_update'];
     reloadEvents.forEach(ev=>es.addEventListener(ev, ()=>loadAll()));
     es.addEventListener('incoming_call', e=>{ const c=JSON.parse(e.data); pendingCalls.push(c); renderPopups(); });
     es.addEventListener('incoming_sms', e=>{ const s=JSON.parse(e.data); pendingSms.push(s); renderPopups(); });
