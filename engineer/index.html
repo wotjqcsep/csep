@@ -680,11 +680,14 @@ function renderIncoming(){
   }).join('');
 }
 async function dismissIncoming(id){ try{ await api('DELETE','/incoming-call/'+id);}catch(e){} S.incomingCalls=S.incomingCalls.filter(c=>c.id!=id); renderIncoming(); }
-async function registerIncoming(id){
+function registerIncoming(id){
   const c=S.incomingCalls.find(x=>x.id==id); if(!c) return;
-  await dismissIncoming(id);
+  // 화면 전환을 먼저 (네트워크 지연과 무관하게 즉시 반응)
   if(c.customer){ S.tab='wo'; woState={customerId:String(c.customer.id),search:''}; render(); }
-  else { openCustomerAdd(c.phone); }   // 미등록 → 현장 고객 등록(음성)
+  else { openCustomerAdd(c.phone); }   // 미등록 → 현장 고객 등록(주소·연락처만)
+  // 팝업/서버 정리는 백그라운드로 (실패해도 화면 전환엔 영향 없음)
+  S.incomingCalls=S.incomingCalls.filter(x=>x.id!=id); renderIncoming();
+  api('DELETE','/incoming-call/'+id).catch(()=>{});
 }
 
 // ── 🎤 음성 입력 (말 → 글자) — APK는 네이티브, 브라우저는 웹 음성인식 ──

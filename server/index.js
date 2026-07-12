@@ -36,7 +36,12 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(express.static(path.join(__dirname, '../admin')));
-app.use('/engineer', express.static(path.join(__dirname, '../engineer')));
+// engineer HTML은 캐시 금지 (기사앱 APK 웹뷰가 항상 최신 코드 로드)
+app.use('/engineer', express.static(path.join(__dirname, '../engineer'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
+  },
+}));
 
 // 슬립 방지용 경량 헬스체크 (UptimeRobot). 응답 2바이트.
 app.get('/health', (req, res) => {
