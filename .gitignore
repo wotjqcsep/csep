@@ -15,3 +15,7 @@ android_app/**/*.iml
 android_app/captures/
 android_app/.kotlin/
 google-services.json
+
+# APK 서명 키 (절대 커밋 금지 — 별도 백업 필수)
+engineer-app/android/signing.keystore
+engineer-app/android/keystore.properties
