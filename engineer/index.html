@@ -79,6 +79,10 @@ const won=n=>'₩'+(Number(n)||0).toLocaleString();
 // 금액 입력: 앞자리 0 제거 + 3자리마다 콤마. 저장 시엔 moneyVal()로 숫자만 추출
 function fmtMoney(el){ let v=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,''); el.value=v?Number(v).toLocaleString('en-US'):''; }
 const moneyVal=id=>{ const el=document.getElementById(id); return el?Number((el.value||'').replace(/[^0-9]/g,''))||0:0; };
+// 기사·대표 색 구분: 대표=빨강, 기사는 id별 고정 색
+const ENG_PALETTE=['#1971c2','#2f9e44','#e8590c','#6741d9','#0c8599','#c2255c','#5c940d','#1098ad'];
+function engColor(e){ if(!e) return '#868e96'; if(e.is_admin) return '#e03131'; return ENG_PALETTE[(Number(e.id)||0)%ENG_PALETTE.length]; }
+function engColorById(id){ return engColor((S.engineers||[]).find(x=>x.id==id)); }
 async function api(m,u,b){const o={method:m,headers:{'Content-Type':'application/json'}};if(b)o.body=JSON.stringify(b);const r=await fetch(API+u,o);if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.status);return r.json();}
 
 // ── 로그인 ──
@@ -88,7 +92,7 @@ async function renderLogin(){
   document.getElementById('app').innerHTML=`
     <div class="login">
       <h2>CSEP 기사앱</h2><p>본인 이름을 선택하세요</p>
-      ${engineers.length? engineers.map(e=>`<button class="eng-btn" onclick="login(${e.id},${e.is_admin})">${esc(e.name)}${e.is_admin?'<span class="role">대표</span>':''}</button>`).join('') : '<p style="color:var(--gray-400)">등록된 기사가 없습니다.<br>관리자 화면에서 기사를 먼저 추가하세요.</p>'}
+      ${engineers.length? engineers.map(e=>`<button class="eng-btn" style="border-left:6px solid ${engColor(e)}" onclick="login(${e.id},${e.is_admin})"><span style="color:${engColor(e)};font-weight:700">${esc(e.name)}</span><span class="role" style="color:${engColor(e)}">${e.is_admin?'대표':'기사'}</span></button>`).join('') : '<p style="color:var(--gray-400)">등록된 기사가 없습니다.<br>관리자 화면에서 기사를 먼저 추가하세요.</p>'}
     </div>`;
 }
 async function login(id,isAdmin){
@@ -157,7 +161,7 @@ function render(){
   } else { content=mineActive.length?mineActive.map(cardHtml).join(''):'<div class="empty">작업이 없습니다</div>'; }
   const soundName=localStorage.getItem('csep_sound')||'noti1';
   document.getElementById('app').innerHTML=`
-    <div class="topbar"><h1>🔧 현장 기사 앱</h1><span class="who">${esc(S.engineer.name)} ${isAdmin?'대표':'기사'} · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
+    <div class="topbar"><h1>🔧 현장 기사 앱</h1><span class="who"><span style="color:${isAdmin?'#ff6b6b':'#74c0fc'};font-weight:700">${esc(S.engineer.name)} ${isAdmin?'대표':'기사'}</span> · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
     <div class="tabs">${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}</div>
     <div style="padding:12px 14px 0"><button class="btn" style="margin:0;background:#2b3140;color:#fff" onclick="openSoundPicker()">🔔 알림 소리 선택 (${soundName})</button></div>
     <div class="content">${content}</div>`;
@@ -177,7 +181,7 @@ function cardHtml(r){
       <div><div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
       <span class="badge ${badgeClass}">● ${st}</span>
     </div>
-    ${isAdmin&&r.assigned_engineer_id?`<div class="info-line">👤 ${esc(engName(r.assigned_engineer_id))}</div>`:''}
+    ${isAdmin&&r.assigned_engineer_id?`<div class="info-line">👤 <span style="color:${engColorById(r.assigned_engineer_id)};font-weight:700">${esc(engName(r.assigned_engineer_id))}${engColorById(r.assigned_engineer_id)==='#e03131'?' (대표)':''}</span></div>`:''}
     ${r.customer_phone?`<div class="info-line">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
     ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>
       <div style="display:flex;gap:6px;margin:6px 0"><button class="btn" style="flex:1;margin:0;background:#4263eb;color:#fff;padding:8px" onclick="navTmapFor(${r.id})">🧭 티맵</button><button class="btn" style="flex:1;margin:0;background:#fab005;color:#3d3000;padding:8px" onclick="navKakaoFor(${r.id})">🗺️ 카카오맵</button></div>`:''}
@@ -347,7 +351,7 @@ function renderWoTab(){
     <div class="fg"><label>작업 내용 / 증상 *</label>
       <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="woT_symptom" placeholder="작업 지시 내용" style="flex:1" oninput="woState.symptom=this.value">${esc(woState.symptom||'')}</textarea><button id="mic_woT_symptom" onclick="startVoice('woT_symptom',true)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:44px;font-size:20px;cursor:pointer">🎤</button></div>
     </div>
-    <div class="fg"><label>담당 기사 *</label><select id="woT_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''}>${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
+    <div class="fg"><label>담당 기사 *</label><select id="woT_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''} style="color:${engColor(e)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
     <button class="btn btn-primary" onclick="submitWoTab()">작업지시 + 배정</button>`:''}`;
   if(!sel){ renderWoResults(); const i=document.getElementById('woT_search'); if(i&&woState.search){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }
 }
@@ -523,7 +527,7 @@ function openAssign(id){
         <div class="fg"><label>배정할 기사</label>
           <select id="a_eng" style="width:100%;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px;font-size:15px">
             <option value="">선택하세요</option>
-            ${S.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}
+            ${S.engineers.map(e=>`<option value="${e.id}" style="color:${engColor(e)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}
           </select></div>
         <button class="btn btn-primary" onclick="doAssign(${id})">배정</button>
         <button class="btn btn-ghost" onclick="closeSheet()">취소</button>
@@ -556,7 +560,7 @@ function renderWorkOrderSheet(){
         <div class="fg"><label>고객 *</label>${custBlock}</div>
         ${comps.length?`<div class="fg"><label>장비 (선택)</label><select id="wo_comp" style="width:100%;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px;font-size:15px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
         <div class="fg"><label>작업 내용 / 증상 *</label><textarea id="wo_symptom" placeholder="작업 지시 내용을 입력하세요"></textarea></div>
-        <div class="fg"><label>담당 기사 *</label><select id="wo_eng" style="width:100%;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px;font-size:15px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''}>${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
+        <div class="fg"><label>담당 기사 *</label><select id="wo_eng" style="width:100%;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px;font-size:15px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''} style="color:${engColor(e)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
         <button class="btn btn-primary" onclick="submitWorkOrder()">작업지시 + 배정</button>
         <button class="btn btn-ghost" onclick="closeSheet()">취소</button>
       </div>
