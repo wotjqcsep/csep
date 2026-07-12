@@ -844,8 +844,29 @@ function connectSSE(){
   }catch(e){}
 }
 
+// ── 안드로이드 하드웨어 뒤로가기 → 이전 화면 ──
+function handleBack(){
+  // 1) 채팅/모달 열려있으면 닫기
+  if(S.chatOpen){ closeChat(); return true; }
+  if(document.getElementById('ov')||document.getElementById('ov2')){ closeSheet(); return true; }
+  // 2) 작업 처리 화면 → 목록으로
+  if(S.processing){ closeProcessing(); return true; }
+  // 3) 작업지시에서 고객 선택 상태면 선택 해제
+  if(S.tab==='wo' && woState && woState.customer){ woClear(); return true; }
+  // 4) 기본 탭이 아니면 기본 탭으로
+  const home = S.engineer && S.engineer.is_admin ? 'all' : 'list';
+  if(S.engineer && S.tab!==home){ S.tab=home; render(); return true; }
+  return false; // 처리할 게 없으면 기본 동작(앱 종료)
+}
+function setupBackButton(){
+  const App=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App;
+  if(!App||!App.addListener) return;
+  App.addListener('backButton', ()=>{ if(!handleBack()&&App.exitApp) App.exitApp(); });
+}
+
 // ── 초기화 ──
 (function init(){
+  setupBackButton();
   const saved=localStorage.getItem('csep_eng');
   if(saved){ try{ S.engineer=JSON.parse(saved); connectSSE(); loadReceptions(true); setupPush(); setNativeRole(); pollIncoming(); return; }catch(e){} }
   renderLogin();
