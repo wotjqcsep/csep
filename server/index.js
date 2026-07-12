@@ -103,6 +103,7 @@ async function sendPushToEngineer(engineer_id, title, body) {
       await fcmSend(fcm.rows[0].fcm_token, {
         token: fcm.rows[0].fcm_token,
         data: { title: String(title), body: String(body), type: 'engineer' },
+        notification: { title: String(title), body: String(body) },
         android: { priority: 'high' },
       });
       return;
