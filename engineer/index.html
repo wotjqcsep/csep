@@ -177,8 +177,28 @@ function cardHtml(r){
 // ── 길찾기 (티맵 / 카카오맵) ──
 function navTmapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address)navTmap(r.customer_address); else alert('주소가 없습니다'); }
 function navKakaoFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address)navKakao(r.customer_address); else alert('주소가 없습니다'); }
-function navTmap(addr){ if(addr) window.open('https://apis.openapi.sk.com/tmap/app/routes?name='+encodeURIComponent(addr),'_blank'); }
-function navKakao(addr){ if(addr) window.open('https://map.kakao.com/?q='+encodeURIComponent(addr),'_blank'); }
+async function navTmap(addr){
+  if(!addr) return;
+  try{ const c=await (await fetch(`${API}/geocode?address=${encodeURIComponent(addr)}`)).json();
+    if(c.lon&&c.lat){ window.location.href=`tmap://route?goalname=${encodeURIComponent(addr)}&goalx=${c.lon}&goaly=${c.lat}`; return; }
+  }catch(e){}
+  window.location.href=`tmap://search?keyword=${encodeURIComponent(addr)}`;
+}
+async function navKakao(addr){
+  if(!addr) return;
+  const enc=encodeURIComponent(addr);
+  const native=window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform();
+  try{ const c=await (await fetch(`${API}/geocode?address=${encodeURIComponent(addr)}`)).json();
+    if(c.lon&&c.lat){ const ep=`${c.lat},${c.lon}`;
+      if(native) window.location.href=`kakaomap://route?ep=${ep}&by=CAR`;
+      else if(/android/i.test(navigator.userAgent)) window.location.href=`intent://route?ep=${ep}&by=CAR#Intent;scheme=kakaomap;package=net.daum.android.map;end`;
+      else window.open(`https://map.kakao.com/link/to/${enc},${c.lat},${c.lon}`,'_blank');
+      return; }
+  }catch(e){}
+  if(native) window.location.href=`kakaomap://search?q=${enc}`;
+  else if(/android/i.test(navigator.userAgent)) window.location.href=`intent://search?q=${enc}#Intent;scheme=kakaomap;package=net.daum.android.map;end`;
+  else window.open(`https://map.kakao.com/link/search/${enc}`,'_blank');
+}
 
 // ── 알림 소리 선택 (UI, 실제 소리는 APK 푸시에서) ──
 function pickSound(k){

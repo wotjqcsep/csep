@@ -744,6 +744,37 @@ app.get('/api/customer-lookup', wrap(async (req, res) => {
   res.json({ phone: digits(req.query.phone), customer: matched, recent_receptions: recent });
 }));
 
+// 주소 → 좌표 (카카오 로컬 API). 키 없으면 null 반환 → 앱은 검색 스킴으로 폴백 (필드서비스 동일)
+app.get('/api/geocode', async (req, res) => {
+  const { address } = req.query;
+  if (!address) return res.status(400).json({ error: 'address required' });
+  const kakaoKey = process.env.KAKAO_REST_API_KEY;
+  if (!kakaoKey) return res.json({ lon: null, lat: null });
+  const cleanAddress = String(address).replace(/번지/g, '').replace(/\s+/g, ' ').trim();
+  const queries = address === cleanAddress ? [address] : [address, cleanAddress];
+  for (const q of queries) {
+    try {
+      const resp = await fetch(`https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(q)}`,
+        { headers: { 'Authorization': `KakaoAK ${kakaoKey}` } });
+      const data = await resp.json();
+      if (data.documents && data.documents.length > 0) {
+        const { x, y } = data.documents[0];
+        return res.json({ lon: parseFloat(x), lat: parseFloat(y) });
+      }
+    } catch (e) { console.log('[지오코딩 주소] 오류:', e.message); }
+    try {
+      const resp = await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}`,
+        { headers: { 'Authorization': `KakaoAK ${kakaoKey}` } });
+      const data = await resp.json();
+      if (data.documents && data.documents.length > 0) {
+        const { x, y } = data.documents[0];
+        return res.json({ lon: parseFloat(x), lat: parseFloat(y) });
+      }
+    } catch (e) { console.log('[지오코딩 키워드] 오류:', e.message); }
+  }
+  res.json({ lon: null, lat: null });
+});
+
 app.get('/api/incoming-call/pending', wrap(async (req, res) => {
   res.json(incomingCalls.filter(c => !c.dismissed));
 }));
