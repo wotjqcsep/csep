@@ -28,6 +28,7 @@ public class CallReceiver extends BroadcastReceiver {
     private static final String CH = "csep_incoming";
     private static String lastState = TelephonyManager.EXTRA_STATE_IDLE;
     private static String incomingNumber = null;
+    private static boolean sawRinging = false;   // 이번 통화가 '수신'인지 (발신 제외)
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -36,22 +37,27 @@ public class CallReceiver extends BroadcastReceiver {
         if (state == null) return;
         String num = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER);
         if (num != null && !num.isEmpty()) incomingNumber = num;
-        Log.d(TAG, "state=" + state + " last=" + lastState + " num=" + incomingNumber + " boss=" + isBoss(context));
+        Log.d(TAG, "state=" + state + " last=" + lastState + " num=" + incomingNumber + " ring=" + sawRinging + " boss=" + isBoss(context));
 
-        if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
-            boolean wasCall = TelephonyManager.EXTRA_STATE_RINGING.equals(lastState)
-                    || TelephonyManager.EXTRA_STATE_OFFHOOK.equals(lastState);
+        if (TelephonyManager.EXTRA_STATE_RINGING.equals(state)) {
+            // 수신 전화만 RINGING을 거침 → 발신은 여기 안 들어옴
+            sawRinging = true;
+            lastState = state;
+        } else if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
+            boolean wasIncoming = sawRinging;   // RINGING을 거친 통화(=수신)만 반응
             String phone = incomingNumber;
             lastState = state;
             incomingNumber = null;
-            Log.d(TAG, "IDLE 도달 wasCall=" + wasCall + " phone=" + phone);
-            if (wasCall && isBoss(context)) {
+            sawRinging = false;
+            Log.d(TAG, "IDLE 도달 wasIncoming=" + wasIncoming + " phone=" + phone);
+            if (wasIncoming && isBoss(context)) {
                 String p = (phone == null || phone.isEmpty()) ? "unknown" : phone;
                 postIncomingCall(p);
                 notifyIncoming(context, p);
                 bringForeground(context);
             }
         } else {
+            // OFFHOOK (통화중/발신) — sawRinging은 그대로 유지
             lastState = state;
         }
     }
