@@ -79,7 +79,7 @@ function openComputerModal(id, customerId){
       <div class="form-group"><label>장비 종류 *</label><select id="p_type">
         ${Object.entries(DEVICE_TYPES).map(([k,l])=>`<option value="${k}" ${c.device_type===k?'selected':''}>${l}</option>`).join('')}
       </select></div>
-      ${field('p_name','장비명 *',c.name)}
+      ${field('p_name','장비명 (선택)',c.name)}
     </div>
     <div class="form-section">하드웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(추후 스마트폰 AI 사진으로 자동 입력 예정)</span></div>
     <div class="form-row">${field('p_cpu','CPU',c.cpu)}${field('p_ram','RAM',c.ram)}</div>
@@ -123,7 +123,7 @@ async function saveComputer(id){
     notes:v('p_notes'),
   };
   if(!data.customer_id){ alert('거래처 정보가 없습니다'); return; }
-  if(!data.name){ alert('장비명을 입력하세요'); return; }
+  if(!data.name) data.name = '장치';   // 장비명은 선택 — 비우면 기본값(거래처에 귀속)
   if(id) await api('PUT','/computers/'+id, data); else await api('POST','/computers', data);
   closeModal(); await loadAll();
 }
