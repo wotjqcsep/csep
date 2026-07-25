@@ -199,7 +199,9 @@ async function loadAll(showLoading){
   results.forEach((r,i)=>{ if(r.status==='fulfilled'){ state[jobs[i][0]] = r.value; anyOk=true; } });
   document.getElementById('srvStatus').textContent = anyOk ? '● 서버 연결' : '● 연결 끊김';
   document.getElementById('srvStatus').style.color = anyOk ? 'var(--success)' : 'var(--danger)';
-  if(firstLoad){ firstLoad=false; render(); } else if(!document.querySelector('.modal-overlay')) render();
+  // 검색 입력 중이면 배경 새로고침으로 화면을 다시 그리지 않음(포커스 유지)
+  const typing = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('vd-search');
+  if(firstLoad){ firstLoad=false; render(); } else if(!document.querySelector('.modal-overlay') && !typing) render();
 }
 
 // ── 네비게이션 (상단 탭) ──

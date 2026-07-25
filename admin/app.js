@@ -186,6 +186,7 @@ function vendorCard(c){
       <div class="vd-title">${esc(vdName(c))}${sites.length?`<span class="vd-sub">· 현장 ${sites.length}곳</span>`:''}</div>
       <div class="vd-btns">
         <button class="btn btn-sm" style="background:var(--warning)" onclick="openVendorHistory(${c.id})">📋 이력</button>
+        <button class="btn btn-sm" style="background:#0ca678" onclick="openVendorDevices(${c.id})">🖥 장치정보</button>
         <button class="btn btn-sm" style="background:#7048e8" onclick="openSiteModal(${c.id})">🏢 현장추가</button>
         <button class="btn btn-sm" onclick="openCustomerModal(${c.id})">✏ 수정</button>
         <button class="btn btn-sm btn-danger" onclick="deleteVendor(${c.id})">🗑 삭제</button>
@@ -196,15 +197,21 @@ function vendorCard(c){
     ${sites.map(siteCard).join('')}
   </div>`;
 }
-function renderVendors(){
+function vendorResultsHtml(){
   const q=vendorState.search.trim().toLowerCase();
   let list=state.customers;
   if(q) list=list.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q));
+  const shown=list.slice(0,80);
+  return list.length
+    ? shown.map(vendorCard).join('') + (list.length>80?`<div class="empty-state" style="padding:14px">외 ${list.length-80}건 — 검색어를 입력해 좁히세요</div>`:'')
+    : '<div class="empty-state">거래처가 없습니다</div>';
+}
+function renderVendors(){
   return `
   <div class="page-header"><h2>🏢 거래처 검색 (${state.customers.length})</h2><button class="btn" onclick="openCustomerModal()">+ 거래처 등록</button></div>
   <div class="vd-wrap">
-    <input class="vd-search" placeholder="거래처명 입력..." value="${esc(vendorState.search)}" oninput="vendorState.search=this.value;renderInto()">
-    ${list.length? list.map(vendorCard).join('') : '<div class="empty-state">거래처가 없습니다</div>'}
+    <input class="vd-search" placeholder="거래처명 입력..." value="${esc(vendorState.search)}" oninput="vendorState.search=this.value;document.getElementById('vd_results').innerHTML=vendorResultsHtml()">
+    <div id="vd_results">${vendorResultsHtml()}</div>
   </div>`;
 }
 function openSiteModal(customerId, siteId){
@@ -240,6 +247,30 @@ async function openVendorHistory(customerId){
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">닫기</button></div>`;
   modal(`📋 이력 - ${esc(vdName(cust))}`, body, true);
 }
+// 거래처 장치정보 (컴퓨터/NAS/공유기/프린터 등 = computers 재사용)
+async function openVendorDevices(customerId){
+  const cust=state.customers.find(c=>c.id==customerId)||{};
+  modal(`🖥 장치정보 - ${esc(vdName(cust))}`, '<div class="loading">불러오는 중...</div>', true);
+  let comps=[];
+  try{ comps=await api('GET','/customers/'+customerId+'/computers'); }catch(e){}
+  const row = cp => {
+    const specs=[['CPU',cp.cpu],['RAM',cp.ram],['SSD',cp.ssd],['HDD',cp.hdd],['메인보드',cp.motherboard],['GPU',cp.gpu],['OS',cp.os],['Office',cp.office_version],['백신',cp.antivirus],['IP',cp.ip_address],['MAC',cp.mac_address],['프린터',cp.printer],['모니터',cp.monitor],['NAS',cp.nas_name?`${cp.nas_name}${cp.nas_ip?' ('+cp.nas_ip+')':''}`:''],['공유기',cp.router_name?`${cp.router_name}${cp.router_ip?' ('+cp.router_ip+')':''}`:''],['시리얼',cp.serial_number],['보증만료',cp.warranty_expiry],['메모',cp.notes]].filter(([,val])=>val);
+    return `<div style="border:1px solid var(--gray-200);border-radius:9px;padding:11px 13px;margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;${specs.length?'margin-bottom:8px':''}">
+        <div><span class="badge new" style="margin-right:6px">${DEVICE_TYPES[cp.device_type]||cp.device_type}</span><strong>${esc(cp.name)||'(이름없음)'}</strong></div>
+        <div style="display:flex;gap:5px;flex-shrink:0"><button class="btn btn-sm btn-secondary" onclick="openComputerModal(${cp.id},${customerId})">수정</button><button class="btn btn-sm btn-danger" onclick="deleteComputer(${cp.id})">삭제</button></div>
+      </div>
+      ${specs.length?`<div style="font-size:12px;color:var(--gray-600);display:grid;grid-template-columns:1fr 1fr;gap:3px 14px">${specs.map(([k,val])=>`<div><span style="color:var(--gray-400)">${k}</span> ${esc(val)}</div>`).join('')}</div>`:''}
+    </div>`;
+  };
+  const body=`
+    ${comps.length? comps.map(row).join('') : '<div class="empty-state" style="padding:24px">등록된 장치가 없습니다</div>'}
+    <div class="form-actions" style="justify-content:space-between">
+      <button class="btn" onclick="openComputerModal(null,${customerId})">+ 장치 추가</button>
+      <button class="btn btn-secondary" onclick="closeModal()">닫기</button>
+    </div>`;
+  modal(`🖥 장치정보 - ${esc(vdName(cust))}`, body, true);
+}
 
 // ============================================================
 //  작업지시 보내기 (거래처 선택 → 작업지시 전송/배당)
@@ -257,24 +288,22 @@ function woVendorCard(c){
     </div>`).join('')}
   </div>`;
 }
-function renderWorkorders(){
+function woResultsHtml(){
   const q=woListState.search.trim().toLowerCase();
   // 거래처가 많을 수 있으므로 검색어가 있을 때만 목록 렌더 (필드서비스 방식)
-  let body;
-  if(!q){
-    body = `<div class="empty-state" style="padding:50px 20px">🔎 거래처명 또는 전화번호를 입력하면<br>작업지시할 거래처가 표시됩니다</div>`;
-  } else {
-    const list=state.customers.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q));
-    const shown=list.slice(0,50);
-    body = list.length
-      ? shown.map(woVendorCard).join('') + (list.length>50?`<div class="empty-state" style="padding:14px">외 ${list.length-50}건 — 검색어를 더 입력하세요</div>`:'')
-      : `<div class="empty-state">"${esc(woListState.search)}" 검색 결과가 없습니다</div>`;
-  }
+  if(!q) return `<div class="empty-state" style="padding:50px 20px">🔎 거래처명 또는 전화번호를 입력하면<br>작업지시할 거래처가 표시됩니다</div>`;
+  const list=state.customers.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q));
+  const shown=list.slice(0,50);
+  return list.length
+    ? shown.map(woVendorCard).join('') + (list.length>50?`<div class="empty-state" style="padding:14px">외 ${list.length-50}건 — 검색어를 더 입력하세요</div>`:'')
+    : `<div class="empty-state">"${esc(woListState.search)}" 검색 결과가 없습니다</div>`;
+}
+function renderWorkorders(){
   return `
   <div class="page-header"><h2>➕ 작업지시 보내기</h2><button class="btn btn-secondary" onclick="go('engineers')">👷 기사 관리</button></div>
   <div class="vd-wrap">
-    <input class="vd-search" placeholder="거래처명 입력..." value="${esc(woListState.search)}" oninput="woListState.search=this.value;renderInto()" autofocus>
-    ${body}
+    <input class="vd-search" placeholder="거래처명 입력..." value="${esc(woListState.search)}" oninput="woListState.search=this.value;document.getElementById('wo_results').innerHTML=woResultsHtml()">
+    <div id="wo_results">${woResultsHtml()}</div>
   </div>`;
 }
 async function openWorkorderModal(customerId, siteId){
