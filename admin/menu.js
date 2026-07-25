@@ -17,9 +17,8 @@ const MENU_CONFIG = [
     { id: 'receptions', icon: '📋', label: '작업현황' },
     { id: 'engineers',  icon: '🔧', label: '작업지시' },   // 기사·배정 = 작업지시 (동일 기능)
   ]},
-  { section: '고객 · 거래처', items: [
-    { id: 'customers', icon: '👥', label: '고객 · 장비' },
-    { id: 'vendors',   icon: '🏢', label: '거래처등록' },  // 메뉴만(준비 중)
+  { section: '거래처', items: [
+    { id: 'vendors',   icon: '🏢', label: '거래처' },      // 메뉴만(준비 중)
     { id: 'schedule',  icon: '📅', label: '일정표' },      // 메뉴만(준비 중)
   ]},
   { section: '매출 · 정산', items: [
