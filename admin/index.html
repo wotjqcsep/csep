@@ -172,7 +172,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 const API = '/api';
 const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null, sites:[] };
 // MENUS, TITLES 는 menu.js 에서 정의됨 (메뉴 수정은 menu.js 한 곳에서)
-const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
+const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', other:'기타' };
 
 // ── API 헬퍼 ──
 async function api(method, url, body){

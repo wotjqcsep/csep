@@ -15,6 +15,12 @@ function modal(title, bodyHtml, wide){
 function field(id,label,val,type){ return `<div class="form-group"><label>${label}</label><input id="${id}" type="${type||'text'}" value="${esc(val)||''}"></div>`; }
 function area(id,label,val){ return `<div class="form-group"><label>${label}</label><textarea id="${id}">${esc(val)||''}</textarea></div>`; }
 const v = id => { const e=document.getElementById(id); return e?e.value:''; };
+// 선택(목록) + 직접입력 겸용 필드 (datalist)
+function comboField(id,label,val,listId,options){
+  return `<div class="form-group"><label>${label}</label>
+    <input id="${id}" list="${listId}" value="${esc(val)||''}" placeholder="선택 또는 직접 입력" autocomplete="off">
+    <datalist id="${listId}">${options.map(o=>`<option value="${o}"></option>`).join('')}</datalist></div>`;
+}
 
 // ── 고객 추가/수정 ──
 function openCustomerModal(id, prefill){
@@ -46,29 +52,42 @@ async function saveCustomer(id){
 }
 
 // ── 장비 추가/수정 ──
+const OS_OPTS=['Windows XP','Windows 7','Windows 8.1','Windows 10','Windows 11'];
+const OFFICE_OPTS=['Office 2007','Office 2010','Office 2013','Office 2016','Office 2019','Office 2021','Microsoft 365'];
+const CAD_OPTS=['AutoCAD 2018','AutoCAD 2020','AutoCAD 2022','AutoCAD 2024','ZWCAD'];
+const ADOBE_OPTS=['Acrobat Reader','Acrobat Pro','Photoshop','Illustrator','Adobe CC'];
 function openComputerModal(id, customerId){
   const c = id? state.computers.find(x=>x.id==id) : { customer_id:customerId, device_type:'desktop' };
   const isEdit = !!id;
-  const custOptions = state.customers.map(x=>`<option value="${x.id}" ${c.customer_id==x.id?'selected':''}>${esc(x.name)||esc(x.phone)||('고객'+x.id)}</option>`).join('');
+  const cid = c.customer_id;
+  const cust = state.customers.find(x=>x.id==cid) || {};
+  const cname = cust.company_name || cust.name || cust.phone || ('고객'+cid);
   const body = `
+    <div class="form-group"><label>거래처 (고정)</label>
+      <input type="hidden" id="p_cust" value="${cid||''}">
+      <input value="${esc(cname)}" disabled style="background:var(--gray-100);color:var(--gray-600);cursor:not-allowed"></div>
     <div class="form-row">
-      <div class="form-group"><label>고객 *</label><select id="p_cust">${custOptions}</select></div>
       <div class="form-group"><label>장비 종류 *</label><select id="p_type">
         ${Object.entries(DEVICE_TYPES).map(([k,l])=>`<option value="${k}" ${c.device_type===k?'selected':''}>${l}</option>`).join('')}
       </select></div>
+      ${field('p_name','장비명 *',c.name)}
     </div>
-    <div class="form-row">${field('p_name','장비명 *',c.name)}${field('p_serial','시리얼번호',c.serial_number)}</div>
-    <div class="form-section">하드웨어</div>
+    <div class="form-section">하드웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(추후 스마트폰 AI 사진으로 자동 입력 예정)</span></div>
     <div class="form-row">${field('p_cpu','CPU',c.cpu)}${field('p_ram','RAM',c.ram)}</div>
     <div class="form-row">${field('p_ssd','SSD',c.ssd)}${field('p_hdd','HDD',c.hdd)}</div>
     <div class="form-row">${field('p_mb','메인보드',c.motherboard)}${field('p_gpu','GPU',c.gpu)}</div>
     <div class="form-row">${field('p_power','파워',c.power)}${field('p_monitor','모니터',c.monitor)}</div>
-    <div class="form-section">소프트웨어</div>
-    <div class="form-row">${field('p_os','OS',c.os)}${field('p_office','Office',c.office_version)}</div>
-    <div class="form-row">${field('p_av','백신',c.antivirus)}${field('p_printer','프린터',c.printer)}</div>
+    ${field('p_serial','시리얼번호',c.serial_number)}
+    <div class="form-section">소프트웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(설치 확인용 · 선택 또는 직접 입력)</span></div>
+    <div class="form-row">${comboField('p_os','OS',c.os,'os_list',OS_OPTS)}${comboField('p_office','Office',c.office_version,'office_list',OFFICE_OPTS)}</div>
+    <div class="form-row">${comboField('p_cad','캐드(CAD)',c.cad,'cad_list',CAD_OPTS)}${comboField('p_adobe','어도비(Adobe)',c.adobe,'adobe_list',ADOBE_OPTS)}</div>
+    <div class="form-row">${field('p_etc1','기타 프로그램 1',c.etc_program1)}${field('p_etc2','기타 프로그램 2',c.etc_program2)}</div>
     <div class="form-section">네트워크</div>
     <div class="form-row">${field('p_ip','IP주소',c.ip_address)}${field('p_mac','MAC주소',c.mac_address)}</div>
     <div class="form-row">${field('p_pdate','구입일',c.purchase_date,'date')}${field('p_warr','보증만료',c.warranty_expiry,'date')}</div>
+    <div class="form-section">프린터 (없으면 빈칸)</div>
+    <div class="form-row">${field('p_printer','프린터명',c.printer)}${field('p_prmodel','모델',c.printer_model)}</div>
+    ${field('p_prip','프린터 IP',c.printer_ip)}
     <div class="form-section">NAS (없으면 빈칸)</div>
     <div class="form-row">${field('p_nasname','NAS 이름',c.nas_name)}${field('p_nasmodel','모델',c.nas_model)}</div>
     <div class="form-row">${field('p_nasip','NAS IP',c.nas_ip)}${field('p_nascap','총 용량',c.nas_total_capacity)}</div>
@@ -79,19 +98,21 @@ function openComputerModal(id, customerId){
     ${field('p_rtpw','공유기 관리자 PW',c.router_admin_password)}
     ${area('p_notes','메모',c.notes)}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveComputer(${id||'null'})">저장</button></div>`;
-  modal(isEdit?'장비 수정':'장비 추가', body, true);
+  modal(isEdit?'장치 수정':'장치 추가', body, true);
 }
 async function saveComputer(id){
   const data = {
     customer_id:Number(v('p_cust')), name:v('p_name'), device_type:v('p_type'), serial_number:v('p_serial'),
     cpu:v('p_cpu'), ram:v('p_ram'), ssd:v('p_ssd'), hdd:v('p_hdd'), motherboard:v('p_mb'), gpu:v('p_gpu'),
-    power:v('p_power'), monitor:v('p_monitor'), os:v('p_os'), office_version:v('p_office'), antivirus:v('p_av'), printer:v('p_printer'),
+    power:v('p_power'), monitor:v('p_monitor'),
+    os:v('p_os'), office_version:v('p_office'), cad:v('p_cad'), adobe:v('p_adobe'), etc_program1:v('p_etc1'), etc_program2:v('p_etc2'),
     ip_address:v('p_ip'), mac_address:v('p_mac'), purchase_date:v('p_pdate'), warranty_expiry:v('p_warr'),
+    printer:v('p_printer'), printer_model:v('p_prmodel'), printer_ip:v('p_prip'),
     nas_name:v('p_nasname'), nas_model:v('p_nasmodel'), nas_ip:v('p_nasip'), nas_total_capacity:v('p_nascap'), nas_admin_id:v('p_nasid'), nas_admin_password:v('p_naspw'),
     router_name:v('p_rtname'), router_model:v('p_rtmodel'), router_ip:v('p_rtip'), router_admin_id:v('p_rtid'), router_admin_password:v('p_rtpw'),
     notes:v('p_notes'),
   };
-  if(!data.customer_id){ alert('고객을 선택하세요'); return; }
+  if(!data.customer_id){ alert('거래처 정보가 없습니다'); return; }
   if(!data.name){ alert('장비명을 입력하세요'); return; }
   if(id) await api('PUT','/computers/'+id, data); else await api('POST','/computers', data);
   closeModal(); await loadAll();
