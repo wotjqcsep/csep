@@ -29,10 +29,13 @@ const MENU_CONFIG = [
   { section: '분석', items: [
     { id: 'stats', icon: '📈', label: '통계' },
   ]},
+  { section: '관리', items: [
+    { id: 'engineers', icon: '👷', label: '기사 관리', right: true },  // 상단 탭 맨 우측 끝
+  ]},
 ];
 
 // ── 아래는 자동 파생 (건드릴 필요 없음) ──
-const MENUS  = MENU_CONFIG.map(s => ({ sec: s.section, items: s.items.map(i => [i.id, i.icon, i.label]) }));
+const MENUS  = MENU_CONFIG.map(s => ({ sec: s.section, items: s.items.map(i => [i.id, i.icon, i.label, i.right]) }));
 const TITLES = {};
 MENU_CONFIG.forEach(s => s.items.forEach(i => { TITLES[i.id] = i.label; }));
 

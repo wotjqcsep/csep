@@ -208,8 +208,8 @@ async function loadAll(showLoading){
 function renderNav(){
   // MENU_CONFIG 의 모든 항목을 한 줄 탭으로 평탄화
   const items = MENUS.flatMap(m=>m.items);
-  document.getElementById('nav').innerHTML = items.map(([id,icon,label])=>
-    `<button class="tab-item ${state.page===id?'active':''}" onclick="go('${id}')"><span class="tab-icon">${icon}</span><span>${label}</span></button>`
+  document.getElementById('nav').innerHTML = items.map(([id,icon,label,right])=>
+    `<button class="tab-item ${state.page===id?'active':''}"${right?' style="margin-left:auto"':''} onclick="go('${id}')"><span class="tab-icon">${icon}</span><span>${label}</span></button>`
   ).join('');
 }
 function go(page){ state.page=page; renderNav(); render(); }

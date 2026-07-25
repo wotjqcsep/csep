@@ -335,7 +335,7 @@ function woResultsHtml(){
 }
 function renderWorkorders(){
   return `
-  <div class="page-header"><h2>➕ 작업지시 보내기</h2><button class="btn btn-secondary" onclick="go('engineers')">👷 기사 관리</button></div>
+  <div class="page-header"><h2>➕ 작업지시 보내기</h2></div>
   <div class="vd-wrap">
     <input class="vd-search" placeholder="거래처명 입력..." value="${esc(woListState.search)}" oninput="woListState.search=this.value;document.getElementById('wo_results').innerHTML=woResultsHtml()">
     <div id="wo_results">${woResultsHtml()}</div>
