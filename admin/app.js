@@ -138,7 +138,7 @@ function renderReceptions(){
         return `<button class="ws-fbtn" style="background:${on?col:'var(--gray-200)'};color:${on?'#fff':'var(--gray-600)'}" onclick="recState.filter='${s}';renderInto()">${l} ${s==='all'?rs.length:cnt(s)}</button>`; }).join('')}
     </div>
     ${filtered.length
-      ? dates.map(d=>`<div class="ws-date"><span>${fmtRecDate(d)}</span></div>${byDate[d].sort((a,b)=>(b.received_at||'').localeCompare(a.received_at||'')).map(recCard).join('')}`).join('')
+      ? dates.map(d=>`<div class="ws-date"><span>${fmtRecDate(d)}</span></div><div class="ws-grid">${byDate[d].sort((a,b)=>(b.received_at||'').localeCompare(a.received_at||'')).map(recCard).join('')}</div>`).join('')
       : '<div class="empty-state">해당 상태의 작업이 없습니다</div>'}
   </div>`;
 }
