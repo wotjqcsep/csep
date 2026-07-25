@@ -241,11 +241,70 @@ async function openVendorHistory(customerId){
   modal(`📋 이력 - ${esc(vdName(cust))}`, body, true);
 }
 
+// ============================================================
+//  작업지시 보내기 (거래처 선택 → 작업지시 전송/배당)
+// ============================================================
+let woListState = { search:'' };
+function woVendorCard(c){
+  const sites=sitesOf(c.id);
+  const addr=[c.address,c.address_detail].filter(Boolean).join(' ');
+  return `<div class="vd-card" style="cursor:pointer" onclick="openWorkorderModal(${c.id})">
+    <div class="vd-title">${esc(vdName(c))}</div>
+    <div class="vd-row"><span class="ic">📞</span>${esc(c.phone)||'-'}${addr?`<span class="ic" style="margin-left:8px">📍</span>${esc(addr)}`:''}</div>
+    ${sites.map(s=>`<div class="vd-site" style="cursor:pointer" onclick="event.stopPropagation();openWorkorderModal(${c.id},${s.id})">
+      <div class="vd-title"><span class="vd-badge">현장</span> ${esc(s.name)}</div>
+      <div class="vd-row"><span class="ic">📞</span>${esc(s.phone)||'-'}${[s.address,s.address_detail].filter(Boolean).join(' ')?`<span class="ic" style="margin-left:8px">📍</span>${esc([s.address,s.address_detail].filter(Boolean).join(' '))}`:''}</div>
+    </div>`).join('')}
+  </div>`;
+}
+function renderWorkorders(){
+  const q=woListState.search.trim().toLowerCase();
+  let list=state.customers;
+  if(q) list=list.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q));
+  return `
+  <div class="page-header"><h2>➕ 작업지시 보내기</h2><button class="btn btn-secondary" onclick="go('engineers')">👷 기사 관리</button></div>
+  <div class="vd-wrap">
+    <input class="vd-search" placeholder="거래처명 입력..." value="${esc(woListState.search)}" oninput="woListState.search=this.value;renderInto()">
+    ${list.length? list.map(woVendorCard).join('') : '<div class="empty-state">거래처가 없습니다</div>'}
+  </div>`;
+}
+async function openWorkorderModal(customerId, siteId){
+  const cust=state.customers.find(c=>c.id==customerId)||{};
+  const site=siteId? state.sites.find(s=>s.id==siteId):null;
+  const title=site? `${vdName(cust)} · ${site.name}` : vdName(cust);
+  modal(`📋 ${esc(title)}`, '<div class="loading">불러오는 중...</div>', true);
+  let comps=[], hist=[];
+  try{ comps=await api('GET','/customers/'+customerId+'/computers'); }catch(e){}
+  try{ hist=await api('GET','/customers/'+customerId+'/receptions'); }catch(e){}
+  const body=`
+    <div style="color:var(--warning);font-weight:700;margin-bottom:8px">📁 수리/점검 이력 (${hist.length}건)</div>
+    ${hist.length
+      ? `<div style="max-height:150px;overflow-y:auto;margin-bottom:14px;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px">${hist.map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--gray-100)"><span class="badge ${r.status}" style="font-size:10px">${statusLabel(r.status)}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join('')}</div>`
+      : '<div style="text-align:center;color:var(--gray-400);padding:14px 0;margin-bottom:8px">이전 이력이 없습니다</div>'}
+    <div style="color:#7048e8;font-weight:700;margin:6px 0 10px">➕ 작업지시 작성</div>
+    <div class="form-group"><label>장비 선택 (선택사항)</label><select id="wo_comp"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>
+    <div class="form-group"><label>작업 구분 (선택사항)</label><select id="wo_type"><option value="일반">일반</option><option value="점검">점검</option><option value="수리">수리</option><option value="설치">설치</option><option value="기타">기타</option></select></div>
+    <div class="form-group"><label>담당 기사 *</label><select id="wo_eng"><option value="">선택하세요</option>${state.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}</select></div>
+    ${area('wo_symptom','증상 또는 작업 내용 *','')}
+    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-success" onclick="submitWorkorder(${customerId},${siteId||'null'})">📤 작업지시 전송</button></div>`;
+  modal(`📋 ${esc(title)}`, body, true);
+}
+async function submitWorkorder(customerId, siteId){
+  const symptom=v('wo_symptom'); if(!symptom){ alert('증상 또는 작업 내용을 입력하세요'); return; }
+  const eng=v('wo_eng'); if(!eng){ alert('담당 기사를 선택하세요'); return; }
+  const comp=v('wo_comp'); const type=v('wo_type');
+  const site=siteId? state.sites.find(s=>s.id==siteId):null;
+  const memo=[type&&type!=='일반'?`[${type}]`:'', site?`현장:${site.name}`:''].filter(Boolean).join(' ');
+  const rec=await api('POST','/receptions',{ customer_id:customerId, computer_id:comp?Number(comp):null, reception_channel:'direct', symptom, initial_memo:memo });
+  await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
+  closeModal(); alert('작업지시를 전송했습니다.'); await loadAll();
+}
+
 // ── 기사 관리 ──
 function renderEngineers(){
   const es = state.engineers;
   return `
-  <div class="page-header"><h2>작업지시 · 기사 (${es.length}명)</h2><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div>
+  <div class="page-header"><h2>👷 기사 관리 (${es.length}명)</h2><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="go('workorders')">← 작업지시</button><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div></div>
   <div class="table-container"><table class="table">
     <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>액션</th></tr></thead>
     <tbody>${es.length? es.map(e=>`<tr>

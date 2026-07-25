@@ -15,7 +15,7 @@ const MENU_CONFIG = [
   ]},
   { section: '접수 · 현장', items: [
     { id: 'receptions', icon: '📋', label: '작업현황' },
-    { id: 'engineers',  icon: '🔧', label: '작업지시' },   // 기사·배정 = 작업지시 (동일 기능)
+    { id: 'workorders', icon: '🔧', label: '작업지시' },   // 거래처 선택 → 작업지시 전송(배당)
   ]},
   { section: '거래처', items: [
     { id: 'vendors',   icon: '🏢', label: '거래처' },      // 메뉴만(준비 중)
