@@ -5,7 +5,7 @@
 function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
 function modal(title, bodyHtml, wide){
   document.getElementById('modalRoot').innerHTML = `
-  <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-overlay">
     <div class="modal ${wide?'wide':''}">
       <div class="modal-head"><h3>${title}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
       <div class="modal-body">${bodyHtml}</div>
@@ -20,6 +20,47 @@ function comboField(id,label,val,listId,options){
   return `<div class="form-group"><label>${label}</label>
     <input id="${id}" list="${listId}" value="${esc(val)||''}" placeholder="선택 또는 직접 입력" autocomplete="off">
     <datalist id="${listId}">${options.map(o=>`<option value="${o}"></option>`).join('')}</datalist></div>`;
+}
+// 여러 개 입력(RAM/SSD/HDD) — JSON으로 저장. RAM은 합계 자동계산
+const MULTI_SPECS = {
+  ram: { calc:true,  legacy:'note', fields:[{k:'size',ph:'용량(GB)',type:'number',flex:1},{k:'note',ph:'규격/제조사 (선택)',flex:2}] },
+  ssd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량 (예: 512GB)',flex:1},{k:'model',ph:'모델 (선택)',flex:2}] },
+  hdd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량 (예: 2TB)',flex:1},{k:'model',ph:'모델 (선택)',flex:2}] },
+};
+function parseSpecList(kind, raw){
+  if(!raw) return [];
+  try{ const a=JSON.parse(raw); if(Array.isArray(a)) return a; }catch(e){}
+  const k=MULTI_SPECS[kind].legacy; return String(raw).trim()? [{[k]:String(raw)}] : [];
+}
+function multiRow(kind, item){
+  item=item||{}; const cfg=MULTI_SPECS[kind];
+  const inputs=cfg.fields.map(f=>`<input class="ms-${kind}-${f.k}" placeholder="${f.ph}"${f.type?` type="${f.type}" min="0"`:''} value="${esc(item[f.k])||''}" style="flex:${f.flex}"${cfg.calc?` oninput="calcMulti('${kind}')"`:''}>`).join('');
+  return `<div class="ms-${kind}-row" style="display:flex;gap:6px;margin-bottom:6px">${inputs}<button type="button" class="btn btn-sm btn-danger" style="flex:none" onclick="this.parentElement.remove();${cfg.calc?`calcMulti('${kind}')`:''}">−</button></div>`;
+}
+function multiBlock(kind, raw){
+  const cfg=MULTI_SPECS[kind]; const list=parseSpecList(kind, raw);
+  const rows=(list.length?list:[{}]).map(i=>multiRow(kind,i)).join('');
+  return `<div id="ms-${kind}-rows">${rows}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
+      <button type="button" class="btn btn-sm btn-secondary" onclick="addMulti('${kind}')">+ 추가</button>
+      ${cfg.calc?`<span style="font-size:12px;color:var(--gray-500)">합계: <strong id="ms-${kind}-total">-</strong></span>`:''}
+    </div>`;
+}
+function addMulti(kind){ document.getElementById('ms-'+kind+'-rows').insertAdjacentHTML('beforeend', multiRow(kind)); if(MULTI_SPECS[kind].calc) calcMulti(kind); }
+function collectMulti(kind){ const cfg=MULTI_SPECS[kind];
+  return [...document.querySelectorAll('#ms-'+kind+'-rows .ms-'+kind+'-row')].map(r=>{ const o={}; cfg.fields.forEach(f=>o[f.k]=(r.querySelector('.ms-'+kind+'-'+f.k).value||'').trim()); return o; }).filter(o=>Object.values(o).some(x=>x));
+}
+function calcMulti(kind){ if(!MULTI_SPECS[kind].calc) return;
+  const total=[...document.querySelectorAll('#ms-'+kind+'-rows .ms-'+kind+'-size')].reduce((s,el)=>s+(parseFloat(el.value)||0),0);
+  const el=document.getElementById('ms-'+kind+'-total'); if(el) el.textContent = total? total+'GB' : '-';
+}
+// 목록 표시용 요약
+function specSummary(kind, raw){
+  const list=parseSpecList(kind, raw); if(!list.length) return '';
+  if(kind==='ram'){ const total=list.reduce((s,x)=>s+(parseFloat(x.size)||0),0);
+    const parts=list.map(x=>[(x.size?x.size+'GB':''),x.note].filter(Boolean).join(' ')).filter(Boolean).join(' + ');
+    return (total?total+'GB':'')+(parts?' ('+parts+')':''); }
+  return list.map(x=>[x.cap,x.model].filter(Boolean).join(' ')).filter(Boolean).join(', ');
 }
 // 프린터: 여러 대 가능 (프린터명/모델 + IP). DB의 printer 컬럼에 JSON으로 저장
 function parsePrinters(raw){ if(!raw) return []; try{ const a=JSON.parse(raw); return Array.isArray(a)?a:[]; }catch(e){ return raw?[{name:String(raw),ip:''}]:[]; } }
@@ -82,10 +123,12 @@ function openComputerModal(id, customerId){
       ${field('p_name','장비명 (선택)',c.name)}
     </div>
     <div class="form-section">하드웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(추후 스마트폰 AI 사진으로 자동 입력 예정)</span></div>
-    <div class="form-row">${field('p_cpu','CPU',c.cpu)}${field('p_ram','RAM',c.ram)}</div>
-    <div class="form-row">${field('p_ssd','SSD',c.ssd)}${field('p_hdd','HDD',c.hdd)}</div>
-    <div class="form-row">${field('p_mb','메인보드',c.motherboard)}${field('p_gpu','GPU',c.gpu)}</div>
-    <div class="form-row">${field('p_power','파워',c.power)}${field('p_monitor','모니터',c.monitor)}</div>
+    <div class="form-row">${field('p_cpu','CPU',c.cpu)}${field('p_mb','메인보드',c.motherboard)}</div>
+    <div class="form-row">${field('p_gpu','GPU',c.gpu)}${field('p_power','파워',c.power)}</div>
+    ${field('p_monitor','모니터',c.monitor)}
+    <div class="form-group"><label>RAM (모듈별 입력 · 합계 자동계산)</label>${multiBlock('ram',c.ram)}</div>
+    <div class="form-group"><label>SSD (여러 개 가능)</label>${multiBlock('ssd',c.ssd)}</div>
+    <div class="form-group"><label>HDD (여러 개 가능)</label>${multiBlock('hdd',c.hdd)}</div>
     ${field('p_serial','시리얼번호',c.serial_number)}
     <div class="form-section">소프트웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(설치 확인용 · 선택 또는 직접 입력)</span></div>
     <div class="form-row">${comboField('p_os','OS',c.os,'os_list',OS_OPTS)}${comboField('p_office','Office',c.office_version,'office_list',OFFICE_OPTS)}</div>
@@ -109,11 +152,12 @@ function openComputerModal(id, customerId){
     ${area('p_notes','메모',c.notes)}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveComputer(${id||'null'})">저장</button></div>`;
   modal(isEdit?'장치 수정':'장치 추가', body, true);
+  calcMulti('ram');
 }
 async function saveComputer(id){
   const data = {
     customer_id:Number(v('p_cust')), name:v('p_name'), device_type:v('p_type'), serial_number:v('p_serial'),
-    cpu:v('p_cpu'), ram:v('p_ram'), ssd:v('p_ssd'), hdd:v('p_hdd'), motherboard:v('p_mb'), gpu:v('p_gpu'),
+    cpu:v('p_cpu'), ram:JSON.stringify(collectMulti('ram')), ssd:JSON.stringify(collectMulti('ssd')), hdd:JSON.stringify(collectMulti('hdd')), motherboard:v('p_mb'), gpu:v('p_gpu'),
     power:v('p_power'), monitor:v('p_monitor'),
     os:v('p_os'), office_version:v('p_office'), cad:v('p_cad'), adobe:v('p_adobe'), etc_program1:v('p_etc1'), etc_program2:v('p_etc2'),
     ip_address:v('p_ip'), mac_address:v('p_mac'), purchase_date:v('p_pdate'), warranty_expiry:v('p_warr'),
