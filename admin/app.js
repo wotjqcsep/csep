@@ -74,7 +74,7 @@ async function deleteCustomer(id){ if(!confirm('이 고객을 삭제하시겠습
 let recState = { filter:'all' };
 const REC_ST = {
   new:        { l:'미처리', c:'var(--danger)' },
-  assigned:   { l:'배정',   c:'var(--warning)' },
+  assigned:   { l:'미처리', c:'var(--danger)' },   // 배정 개념 없음 — 콜 오면 자동 배당, 미처리로 표시
   in_progress:{ l:'진행중', c:'#1971c2' },
   completed:  { l:'완료',   c:'var(--success)' },
 };
@@ -105,15 +105,14 @@ function recCard(r){
       <div class="ws-name">${esc(custName(r.customer_id))} <span style="font-size:13px;font-weight:400;color:var(--gray-400)">${ch}</span></div>
       <span class="ws-pill" style="background:${st.c}">${st.l}</span>
     </div>
-    <div class="ws-row"><span class="ic">👤</span><span>담당: ${r.assigned_engineer_id?esc(engName(r.assigned_engineer_id)):'<span style="color:var(--gray-400)">미배정</span>'}</span></div>
+    <div class="ws-row"><span class="ic">👤</span><span>담당: ${r.assigned_engineer_id?esc(engName(r.assigned_engineer_id)):'<span style="color:var(--gray-400)">미지정</span>'}</span></div>
     ${r.symptom?`<div class="ws-row"><span class="ic">🔧</span><span>${esc(r.symptom)}</span></div>`:''}
     ${phone?`<div class="ws-row"><span class="ic">📞</span><span>${esc(phone)}</span></div>`:''}
     ${addr?`<div class="ws-row"><span class="ic">📍</span><span>${esc(addr)}</span></div>`:''}
     ${r.reserved_date?`<div class="ws-row"><span class="ic">📅</span><span>예약: ${esc(r.reserved_date)}</span></div>`:''}
     ${(r.solution||r.initial_memo)?`<div class="ws-memo">${esc(r.solution||r.initial_memo)}</div>`:''}
     <div class="ws-actions">
-      ${r.status==='new'?`<button class="btn btn-sm" onclick="openAssignModal(${r.id})">👤 기사 배정</button>`:''}
-      ${r.status==='assigned'?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'in_progress')">▶ 작업 시작</button>`:''}
+      ${(r.status==='new'||r.status==='assigned')?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'in_progress')">▶ 작업 시작</button>`:''}
       ${r.status==='in_progress'?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'completed')">✔ 완료 처리</button>`:''}
       ${r.status!=='new'?`<button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬 대화${adminChatUnread[r.id]?` (${adminChatUnread[r.id]})`:''}</button>`:''}
       <button class="btn btn-sm btn-danger" onclick="deleteReception(${r.id})">✕ 삭제</button>
@@ -123,13 +122,16 @@ function recCard(r){
 }
 function renderReceptions(){
   const rs = state.receptions;
-  const filtered = recState.filter==='all'? rs : rs.filter(r=>r.status===recState.filter);
-  const cnt = s => rs.filter(r=>r.status===s).length;
+  // 배정 개념 없음: new·assigned 모두 '미처리'로 취급
+  const isPending = r => r.status==='new' || r.status==='assigned';
+  const match = r => recState.filter==='new' ? isPending(r) : r.status===recState.filter;
+  const filtered = recState.filter==='all'? rs : rs.filter(match);
+  const cnt = s => s==='new' ? rs.filter(isPending).length : rs.filter(r=>r.status===s).length;
   // 날짜별 그룹 (received_at 기준, 최신순)
   const byDate = {};
   filtered.forEach(r=>{ const d=localDateKey(r.received_at); (byDate[d]=byDate[d]||[]).push(r); });
   const dates = Object.keys(byDate).sort().reverse();
-  const filters = [['all','전체'],['new','미처리'],['assigned','배정'],['in_progress','진행중'],['completed','완료']];
+  const filters = [['all','전체'],['new','미처리'],['in_progress','진행중'],['completed','완료']];
   return `
   <div class="page-header"><h2>📋 전체 작업현황 (${rs.length}건)</h2><button class="btn" onclick="openReceptionModal()">+ 접수 등록</button></div>
   <div class="ws-wrap">
@@ -149,7 +151,7 @@ async function deleteReception(id){ if(!confirm('이 접수를 삭제하시겠�
 function renderEngineers(){
   const es = state.engineers;
   return `
-  <div class="page-header"><h2>기사 · 배정 (${es.length}명)</h2><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div>
+  <div class="page-header"><h2>작업지시 · 기사 (${es.length}명)</h2><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div>
   <div class="table-container"><table class="table">
     <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>액션</th></tr></thead>
     <tbody>${es.length? es.map(e=>`<tr>

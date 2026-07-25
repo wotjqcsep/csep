@@ -115,7 +115,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 @media(max-width:680px){.ws-grid{grid-template-columns:1fr}}
 .ws-card{background:#fff;border:1px solid var(--gray-200);border-left:5px solid var(--gray-400);border-radius:11px;padding:15px 17px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
 .ws-card.new{border-left-color:var(--danger)}
-.ws-card.assigned{border-left-color:var(--warning)}
+.ws-card.assigned{border-left-color:var(--danger)}
 .ws-card.in_progress{border-left-color:#1971c2}
 .ws-card.completed{border-left-color:var(--success)}
 .ws-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:11px}
@@ -216,7 +216,7 @@ function renderDashboard(){
   return `
   <div class="stat-grid">
     ${statCard('오늘 신규 접수', d.today_new)}
-    ${statCard('배정 대기', d.assigned_pending, d.assigned_pending>0?'var(--warning)':'')}
+    ${statCard('미처리', d.assigned_pending, d.assigned_pending>0?'var(--danger)':'')}
     ${statCard('진행 중', d.in_progress, 'var(--success)')}
     ${statCard('오늘 완료', d.completed_today, 'var(--gray-500)')}
     ${statCard('총 미수금', won(d.total_outstanding), d.total_outstanding>0?'var(--danger)':'', 20)}
@@ -234,7 +234,7 @@ function renderDashboard(){
   </div>`;
 }
 function statCard(label,value,color,size){ return `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value" style="${color?`color:${color};`:''}${size?`font-size:${size}px;`:''}">${value}</div></div>`; }
-function statusLabel(s){ return {idle:'대기',on_the_way:'출동',working:'작업중',off_duty:'퇴근',new:'신규',assigned:'배정',in_progress:'진행중',completed:'완료'}[s]||s; }
+function statusLabel(s){ return {idle:'대기',on_the_way:'출동',working:'작업중',off_duty:'퇴근',new:'미처리',assigned:'미처리',in_progress:'진행중',completed:'완료'}[s]||s; }
 function custName(id){ const c=state.customers.find(c=>c.id==id); if(!c) return id?`고객${id}`:'-'; return c.name||c.phone||`고객${c.id}`; }
 function engName(id){ return (state.engineers.find(e=>e.id==id)||{}).name || '-'; }
 

@@ -116,8 +116,8 @@ function openReceptionModal(){
     ${field('r_phone','전화번호','')}
     ${area('r_symptom','증상 *','')}
     ${area('r_memo','초기 메모','')}
-    <div class="form-group"><label>담당 기사 (선택 시 바로 배정)</label><select id="r_eng">
-      <option value="">미배정 (나중에 배정)</option>
+    <div class="form-group"><label>담당 기사</label><select id="r_eng">
+      <option value="">미지정</option>
       ${state.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}${e.is_admin?' (대표)':''} · ${statusLabel(e.status)}</option>`).join('')}
     </select></div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveReception()">접수 등록</button></div>`;
@@ -221,24 +221,6 @@ async function saveReception(){
   const rec = await api('POST','/receptions', { customer_id:customerId, reception_channel:v('r_channel'), reception_phone:v('r_phone'), symptom, initial_memo:v('r_memo') });
   const eng = v('r_eng');
   if(eng) await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);   // 작업지시: 바로 배정
-  closeModal(); await loadAll();
-}
-
-// ── 기사 배정 ──
-function openAssignModal(recId){
-  const r = state.receptions.find(x=>x.id==recId);
-  const body = `
-    <div style="margin-bottom:14px;padding:12px;background:var(--gray-50);border-radius:8px;font-size:13px"><strong>증상:</strong> ${esc(r.symptom)||'-'}</div>
-    <div class="form-group"><label>배정할 기사</label><select id="a_eng">
-      <option value="">선택하세요</option>
-      ${state.engineers.map(e=>`<option value="${e.id}">${esc(e.name)} (${statusLabel(e.status)})</option>`).join('')}
-    </select></div>
-    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="doAssign(${recId})">배정</button></div>`;
-  modal(`기사 배정 - ${esc(custName(r.customer_id))}`, body);
-}
-async function doAssign(recId){
-  const eng = v('a_eng'); if(!eng){ alert('기사를 선택하세요'); return; }
-  await api('PUT',`/receptions/${recId}/assign?engineer_id=${eng}`);
   closeModal(); await loadAll();
 }
 
