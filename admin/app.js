@@ -103,7 +103,10 @@ function recCard(r){
   return `<div class="ws-card ${r.status}">
     <div class="ws-head">
       <div class="ws-name">${esc(custName(r.customer_id))} <span style="font-size:13px;font-weight:400;color:var(--gray-400)">${ch}</span></div>
-      <span class="ws-pill" style="background:${st.c}">${st.l}</span>
+      <div style="display:flex;gap:5px;flex-shrink:0">
+        ${r.reserved_date?`<span class="ws-pill" style="background:var(--warning)">예약</span>`:''}
+        <span class="ws-pill" style="background:${st.c}">${st.l}</span>
+      </div>
     </div>
     <div class="ws-row"><span class="ic">👤</span><span>담당: ${r.assigned_engineer_id?esc(engName(r.assigned_engineer_id)):'<span style="color:var(--gray-400)">미지정</span>'}</span></div>
     ${r.symptom?`<div class="ws-row"><span class="ic">🔧</span><span>${esc(r.symptom)}</span></div>`:''}
@@ -120,28 +123,31 @@ function recCard(r){
     <div class="ws-time">${fmtRecTime(r.received_at)}</div>
   </div>`;
 }
+// 구간 분류: 완료 → 완료칸 / 예약일 있고 미완료 → 예약칸 / 그 외 미완료 → 미처리칸
+function recSection(r){
+  if(r.status==='completed') return 'completed';
+  if(r.reserved_date) return 'reserved';
+  return 'pending';
+}
 function renderReceptions(){
   const rs = state.receptions;
-  // 배정 개념 없음: new·assigned 모두 '미처리'로 취급
-  const isPending = r => r.status==='new' || r.status==='assigned';
-  const match = r => recState.filter==='new' ? isPending(r) : r.status===recState.filter;
-  const filtered = recState.filter==='all'? rs : rs.filter(match);
-  const cnt = s => s==='new' ? rs.filter(isPending).length : rs.filter(r=>r.status===s).length;
-  // 날짜별 그룹 (received_at 기준, 최신순)
-  const byDate = {};
-  filtered.forEach(r=>{ const d=localDateKey(r.received_at); (byDate[d]=byDate[d]||[]).push(r); });
-  const dates = Object.keys(byDate).sort().reverse();
-  const filters = [['all','전체'],['new','미처리'],['in_progress','진행중'],['completed','완료']];
+  const byDesc = (a,b)=>(b.received_at||'').localeCompare(a.received_at||'');  // 처리(접수) 날짜순, 최신 위
+  const pending   = rs.filter(r=>recSection(r)==='pending').sort(byDesc);
+  const reserved  = rs.filter(r=>recSection(r)==='reserved').sort(byDesc);
+  const completed = rs.filter(r=>recSection(r)==='completed').sort(byDesc);
+  // 구간 헤더(구분선) + 2열 카드
+  const section = (title, color, list) => list.length
+    ? `<div class="ws-sec"><span style="background:${color}">${title} ${list.length}</span></div><div class="ws-grid">${list.map(recCard).join('')}</div>`
+    : '';
+  const body = [
+    section('🔴 미처리', 'var(--danger)',  pending),
+    section('🟡 예약',   'var(--warning)', reserved),
+    section('🟢 완료',   'var(--success)', completed),   // 맨 아래
+  ].join('');
   return `
   <div class="page-header"><h2>📋 전체 작업현황 (${rs.length}건)</h2><button class="btn" onclick="openReceptionModal()">+ 접수 등록</button></div>
   <div class="ws-wrap">
-    <div class="ws-filter">
-      ${filters.map(([s,l])=>{ const col=(REC_ST[s]||{}).c||'var(--gray-500)'; const on=recState.filter===s;
-        return `<button class="ws-fbtn" style="background:${on?col:'var(--gray-200)'};color:${on?'#fff':'var(--gray-600)'}" onclick="recState.filter='${s}';renderInto()">${l} ${s==='all'?rs.length:cnt(s)}</button>`; }).join('')}
-    </div>
-    ${filtered.length
-      ? dates.map(d=>`<div class="ws-date"><span>${fmtRecDate(d)}</span></div><div class="ws-grid">${byDate[d].sort((a,b)=>(b.received_at||'').localeCompare(a.received_at||'')).map(recCard).join('')}</div>`).join('')
-      : '<div class="empty-state">해당 상태의 작업이 없습니다</div>'}
+    ${rs.length ? body : '<div class="empty-state">접수가 없습니다</div>'}
   </div>`;
 }
 async function setRecStatus(id,status){ await api('PUT',`/receptions/${id}/status?status=${status}`); await loadAll(); }

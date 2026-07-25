@@ -111,6 +111,11 @@ select,input,textarea{font-family:inherit;font-size:14px}
 .ws-date{display:flex;align-items:center;text-align:center;color:var(--gray-600);font-weight:700;font-size:13px;margin:22px 0 12px}
 .ws-date::before,.ws-date::after{content:'';flex:1;height:1px;background:var(--gray-300)}
 .ws-date span{padding:0 14px}
+/* 구간 구분선 (미처리/예약/완료) */
+.ws-sec{display:flex;align-items:center;text-align:center;margin:24px 0 14px}
+.ws-sec::before,.ws-sec::after{content:'';flex:1;height:2px;background:var(--gray-200)}
+.ws-sec span{margin:0 12px;padding:5px 16px;border-radius:16px;color:#fff;font-weight:800;font-size:14px;white-space:nowrap}
+.ws-sec:first-child{margin-top:4px}
 .ws-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
 @media(max-width:680px){.ws-grid{grid-template-columns:1fr}}
 .ws-card{background:#fff;border:1px solid var(--gray-200);border-left:5px solid var(--gray-400);border-radius:11px;padding:15px 17px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
