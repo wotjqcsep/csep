@@ -259,13 +259,22 @@ function woVendorCard(c){
 }
 function renderWorkorders(){
   const q=woListState.search.trim().toLowerCase();
-  let list=state.customers;
-  if(q) list=list.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q));
+  // 거래처가 많을 수 있으므로 검색어가 있을 때만 목록 렌더 (필드서비스 방식)
+  let body;
+  if(!q){
+    body = `<div class="empty-state" style="padding:50px 20px">🔎 거래처명 또는 전화번호를 입력하면<br>작업지시할 거래처가 표시됩니다</div>`;
+  } else {
+    const list=state.customers.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q));
+    const shown=list.slice(0,50);
+    body = list.length
+      ? shown.map(woVendorCard).join('') + (list.length>50?`<div class="empty-state" style="padding:14px">외 ${list.length-50}건 — 검색어를 더 입력하세요</div>`:'')
+      : `<div class="empty-state">"${esc(woListState.search)}" 검색 결과가 없습니다</div>`;
+  }
   return `
   <div class="page-header"><h2>➕ 작업지시 보내기</h2><button class="btn btn-secondary" onclick="go('engineers')">👷 기사 관리</button></div>
   <div class="vd-wrap">
-    <input class="vd-search" placeholder="거래처명 입력..." value="${esc(woListState.search)}" oninput="woListState.search=this.value;renderInto()">
-    ${list.length? list.map(woVendorCard).join('') : '<div class="empty-state">거래처가 없습니다</div>'}
+    <input class="vd-search" placeholder="거래처명 입력..." value="${esc(woListState.search)}" oninput="woListState.search=this.value;renderInto()" autofocus>
+    ${body}
   </div>`;
 }
 async function openWorkorderModal(customerId, siteId){
