@@ -118,10 +118,10 @@ function recCard(r){
     ${addr?`<div class="ws-row"><span class="ic">📍</span><span>${esc(addr)}</span></div>`:''}
     ${(r.solution||r.initial_memo)?`<div class="ws-memo">${esc(r.solution||r.initial_memo)}</div>`:''}
     <div class="ws-actions">
-      ${(r.status==='new'||r.status==='assigned')?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'in_progress')">▶ 작업 시작</button>`:''}
-      ${r.status==='in_progress'?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'completed')">✔ 완료 처리</button>`:''}
-      ${r.status!=='new'?`<button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬 대화${adminChatUnread[r.id]?` (${adminChatUnread[r.id]})`:''}</button>`:''}
-      <button class="btn btn-sm btn-danger" onclick="deleteReception(${r.id})">✕ 삭제</button>
+      ${r.status!=='completed'?`<button class="btn btn-sm" onclick="openEngineerChange(${r.id})">👤 기사 변경</button>
+      <button class="btn btn-sm" style="background:#7048e8" onclick="openScheduleChange(${r.id})">📅 일정 변경</button>`:''}
+      <button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬 대화${adminChatUnread[r.id]?` (${adminChatUnread[r.id]})`:''}</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteReception(${r.id})">✕ 취소</button>
     </div>
     <div class="ws-time">${fmtRecTime(r.received_at)}</div>
   </div>`;
@@ -154,7 +154,41 @@ function renderReceptions(){
   </div>`;
 }
 async function setRecStatus(id,status){ await api('PUT',`/receptions/${id}/status?status=${status}`); await loadAll(); }
-async function deleteReception(id){ if(!confirm('이 접수를 삭제하시겠습니까?'))return; await api('DELETE','/receptions/'+id); await loadAll(); }
+async function deleteReception(id){ if(!confirm('이 콜을 취소(삭제)하시겠습니까?'))return; await api('DELETE','/receptions/'+id); await loadAll(); }
+// 기사 변경 (재배정)
+function openEngineerChange(recId){
+  const r=state.receptions.find(x=>x.id==recId); if(!r) return;
+  const body=`
+    <div style="margin-bottom:12px;font-size:13px;color:var(--gray-600)">고객: <strong>${esc(custName(r.customer_id))}</strong></div>
+    <div class="form-group"><label>담당 기사</label><select id="ec_eng">
+      <option value="">선택하세요</option>
+      ${state.engineers.map(e=>`<option value="${e.id}" ${r.assigned_engineer_id==e.id?'selected':''}>${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}
+    </select></div>
+    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="doEngineerChange(${recId})">변경</button></div>`;
+  modal(`👤 기사 변경 - ${esc(custName(r.customer_id))}`, body);
+}
+async function doEngineerChange(recId){
+  const eng=v('ec_eng'); if(!eng){ alert('기사를 선택하세요'); return; }
+  await api('PUT',`/receptions/${recId}/assign?engineer_id=${eng}`);
+  closeModal(); await loadAll();
+}
+// 일정(예약일) 변경
+function openScheduleChange(recId){
+  const r=state.receptions.find(x=>x.id==recId); if(!r) return;
+  const body=`
+    <div style="margin-bottom:12px;font-size:13px;color:var(--gray-600)">고객: <strong>${esc(custName(r.customer_id))}</strong></div>
+    <div class="form-group"><label>처리 예정일 (예약일)</label><input type="date" id="sc_date" value="${esc(r.reserved_date)||''}"></div>
+    <div class="form-actions" style="justify-content:space-between">
+      <button class="btn btn-secondary" onclick="doScheduleChange(${recId},true)">예약 해제</button>
+      <div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="closeModal()">닫기</button><button class="btn" onclick="doScheduleChange(${recId},false)">저장</button></div>
+    </div>`;
+  modal(`📅 일정 변경 - ${esc(custName(r.customer_id))}`, body);
+}
+async function doScheduleChange(recId, clear){
+  const date = clear? '' : v('sc_date');
+  await api('PUT',`/receptions/${recId}/reserve`, { reserved_date: date||null });
+  closeModal(); await loadAll();
+}
 
 // ============================================================
 //  거래처 (customers 재사용) + 현장(sites)

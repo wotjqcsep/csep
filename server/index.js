@@ -591,6 +591,15 @@ app.put('/api/receptions/:id/status', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
+// 일정(예약일) 변경 — 관리자 PC
+app.put('/api/receptions/:id/reserve', wrap(async (req, res) => {
+  const date = req.query.date || req.body.reserved_date || null;
+  const { rows } = await pool.query('UPDATE receptions SET reserved_date=$1 WHERE id=$2 RETURNING *', [date || null, req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
 app.delete('/api/receptions/:id', wrap(async (req, res) => {
   // 삭제 전 담당 기사·고객명 조회 → 배정된 기사에게 알림
   const info = await pool.query(
