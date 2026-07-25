@@ -72,31 +72,75 @@ async function deleteCustomer(id){ if(!confirm('이 고객을 삭제하시겠습
 
 // ── 접수 관리 ──
 let recState = { filter:'all' };
+const REC_ST = {
+  new:        { l:'미처리', c:'var(--danger)' },
+  assigned:   { l:'배정',   c:'var(--warning)' },
+  in_progress:{ l:'진행중', c:'#1971c2' },
+  completed:  { l:'완료',   c:'var(--success)' },
+};
+function custObj(id){ return state.customers.find(c=>c.id==id); }
+// received_at("2026-07-25 08:06:28.552316+00") → Date (타임존 보정)
+function recDate(t){
+  if(!t) return null;
+  let s = String(t).replace(' ','T').replace(/\.\d+/,'');
+  if(/[+-]\d{2}$/.test(s)) s += ':00';                        // +00 → +00:00
+  else if(!/([+-]\d{2}:\d{2}|Z)$/.test(s)) s += 'Z';          // 타임존 없으면 UTC 가정
+  const d = new Date(s); return isNaN(d.getTime()) ? null : d;
+}
+function localDateKey(t){ const d=recDate(t); if(!d) return '-'; return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function fmtRecDate(key){
+  if(!key || key==='-') return '날짜 미상';
+  const dt=new Date(key+'T00:00:00'); const wk='일월화수목금토'[dt.getDay()];
+  return `${dt.getFullYear()}년 ${dt.getMonth()+1}월 ${dt.getDate()}일 ${wk}`;
+}
+function fmtRecTime(t){ const d=recDate(t); return d? d.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''; }
+function recCard(r){
+  const c = custObj(r.customer_id) || {};
+  const st = REC_ST[r.status] || { l:r.status, c:'var(--gray-500)' };
+  const phone = r.reception_phone || c.phone || '';
+  const addr = [c.address, c.address_detail].filter(Boolean).join(' ');
+  const ch = ({phone:'📞',sms:'💬',kakao:'💭',direct:'📋'})[r.reception_channel] || '📋';
+  return `<div class="ws-card ${r.status}">
+    <div class="ws-head">
+      <div class="ws-name">${esc(custName(r.customer_id))} <span style="font-size:13px;font-weight:400;color:var(--gray-400)">${ch}</span></div>
+      <span class="ws-pill" style="background:${st.c}">${st.l}</span>
+    </div>
+    <div class="ws-row"><span class="ic">👤</span><span>담당: ${r.assigned_engineer_id?esc(engName(r.assigned_engineer_id)):'<span style="color:var(--gray-400)">미배정</span>'}</span></div>
+    ${r.symptom?`<div class="ws-row"><span class="ic">🔧</span><span>${esc(r.symptom)}</span></div>`:''}
+    ${phone?`<div class="ws-row"><span class="ic">📞</span><span>${esc(phone)}</span></div>`:''}
+    ${addr?`<div class="ws-row"><span class="ic">📍</span><span>${esc(addr)}</span></div>`:''}
+    ${r.reserved_date?`<div class="ws-row"><span class="ic">📅</span><span>예약: ${esc(r.reserved_date)}</span></div>`:''}
+    ${(r.solution||r.initial_memo)?`<div class="ws-memo">${esc(r.solution||r.initial_memo)}</div>`:''}
+    <div class="ws-actions">
+      ${r.status==='new'?`<button class="btn btn-sm" onclick="openAssignModal(${r.id})">👤 기사 배정</button>`:''}
+      ${r.status==='assigned'?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'in_progress')">▶ 작업 시작</button>`:''}
+      ${r.status==='in_progress'?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'completed')">✔ 완료 처리</button>`:''}
+      ${r.status!=='new'?`<button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬 대화${adminChatUnread[r.id]?` (${adminChatUnread[r.id]})`:''}</button>`:''}
+      <button class="btn btn-sm btn-danger" onclick="deleteReception(${r.id})">✕ 삭제</button>
+    </div>
+    <div class="ws-time">${fmtRecTime(r.received_at)}</div>
+  </div>`;
+}
 function renderReceptions(){
   const rs = state.receptions;
   const filtered = recState.filter==='all'? rs : rs.filter(r=>r.status===recState.filter);
   const cnt = s => rs.filter(r=>r.status===s).length;
+  // 날짜별 그룹 (received_at 기준, 최신순)
+  const byDate = {};
+  filtered.forEach(r=>{ const d=localDateKey(r.received_at); (byDate[d]=byDate[d]||[]).push(r); });
+  const dates = Object.keys(byDate).sort().reverse();
+  const filters = [['all','전체'],['new','미처리'],['assigned','배정'],['in_progress','진행중'],['completed','완료']];
   return `
-  <div class="page-header"><h2>접수 관리 (전체 ${rs.length}건)</h2><button class="btn" onclick="openReceptionModal()">+ 접수 등록</button></div>
-  <div class="filter-bar">
-    ${[['all','전체'],['new','신규'],['assigned','배정'],['in_progress','진행중'],['completed','완료']].map(([s,l])=>`<button class="filter-btn ${recState.filter===s?'active':''}" onclick="recState.filter='${s}';renderInto()">${l} (${s==='all'?rs.length:cnt(s)})</button>`).join('')}
-  </div>
-  <div class="table-container"><table class="table">
-    <thead><tr><th>#</th><th>고객</th><th>채널</th><th>증상</th><th>상태</th><th>배정기사</th><th>접수시간</th><th>액션</th></tr></thead>
-    <tbody>${filtered.length? filtered.map(r=>`<tr>
-      <td style="color:var(--gray-400)">${r.id}</td><td><strong>${esc(custName(r.customer_id))}</strong></td>
-      <td>${({phone:'📞',sms:'💬',kakao:'💭',direct:'📋'})[r.reception_channel]||'📋'}</td>
-      <td>${esc(r.symptom)||'-'}</td><td><span class="badge ${r.status}">${statusLabel(r.status)}</span></td>
-      <td>${r.assigned_engineer_id?esc(engName(r.assigned_engineer_id)):'<span style="color:var(--gray-400)">미배정</span>'}</td>
-      <td style="font-size:12px;color:var(--gray-500)">${r.received_at?new Date(r.received_at.replace(' ','T')).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'-'}</td>
-      <td><div style="display:flex;gap:4px">
-        ${r.status==='new'?`<button class="btn btn-sm" onclick="openAssignModal(${r.id})">배정</button>`:''}
-        ${r.status==='assigned'?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'in_progress')">시작</button>`:''}
-        ${r.status==='in_progress'?`<button class="btn btn-sm btn-secondary" onclick="setRecStatus(${r.id},'completed')">완료</button>`:''}
-        ${r.status!=='new'?`<button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬${adminChatUnread[r.id]?`<span style="background:var(--danger);color:#fff;border-radius:8px;padding:0 5px;margin-left:3px;font-size:10px">${adminChatUnread[r.id]}</span>`:''}</button>`:''}
-        <button class="btn btn-sm btn-danger" onclick="deleteReception(${r.id})">삭제</button>
-      </div></td></tr>`).join('') : '<tr><td colspan="8" class="empty-state">접수가 없습니다</td></tr>'}
-    </tbody></table></div>`;
+  <div class="page-header"><h2>📋 전체 작업현황 (${rs.length}건)</h2><button class="btn" onclick="openReceptionModal()">+ 접수 등록</button></div>
+  <div class="ws-wrap">
+    <div class="ws-filter">
+      ${filters.map(([s,l])=>{ const col=(REC_ST[s]||{}).c||'var(--gray-500)'; const on=recState.filter===s;
+        return `<button class="ws-fbtn" style="background:${on?col:'var(--gray-200)'};color:${on?'#fff':'var(--gray-600)'}" onclick="recState.filter='${s}';renderInto()">${l} ${s==='all'?rs.length:cnt(s)}</button>`; }).join('')}
+    </div>
+    ${filtered.length
+      ? dates.map(d=>`<div class="ws-date"><span>${fmtRecDate(d)}</span></div>${byDate[d].sort((a,b)=>(b.received_at||'').localeCompare(a.received_at||'')).map(recCard).join('')}`).join('')
+      : '<div class="empty-state">해당 상태의 작업이 없습니다</div>'}
+  </div>`;
 }
 async function setRecStatus(id,status){ await api('PUT',`/receptions/${id}/status?status=${status}`); await loadAll(); }
 async function deleteReception(id){ if(!confirm('이 접수를 삭제하시겠습니까?'))return; await api('DELETE','/receptions/'+id); await loadAll(); }

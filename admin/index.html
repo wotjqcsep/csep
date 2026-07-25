@@ -104,6 +104,26 @@ select,input,textarea{font-family:inherit;font-size:14px}
 .popup-head{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;background:var(--gray-50)}
 .popup-body{padding:14px 16px}
 .chip{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;background:var(--gray-200)}
+/* 작업현황 카드 (시인성 강화) */
+.ws-wrap{max-width:780px;margin:0 auto}
+.ws-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.ws-fbtn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;color:#fff}
+.ws-date{display:flex;align-items:center;text-align:center;color:var(--gray-600);font-weight:700;font-size:13px;margin:22px 0 12px}
+.ws-date::before,.ws-date::after{content:'';flex:1;height:1px;background:var(--gray-300)}
+.ws-date span{padding:0 14px}
+.ws-card{background:#fff;border:1px solid var(--gray-200);border-left:5px solid var(--gray-400);border-radius:11px;padding:15px 17px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.ws-card.new{border-left-color:var(--danger)}
+.ws-card.assigned{border-left-color:var(--warning)}
+.ws-card.in_progress{border-left-color:#1971c2}
+.ws-card.completed{border-left-color:var(--success)}
+.ws-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:11px}
+.ws-name{font-size:16px;font-weight:800;color:var(--gray-700)}
+.ws-pill{padding:4px 12px;border-radius:13px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}
+.ws-row{display:flex;gap:8px;font-size:13.5px;color:var(--gray-600);margin:4px 0;align-items:flex-start;line-height:1.45}
+.ws-row .ic{width:17px;flex-shrink:0;text-align:center}
+.ws-memo{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:7px;padding:9px 11px;font-size:13px;color:var(--gray-700);margin:9px 0}
+.ws-actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.ws-time{font-size:11px;color:var(--gray-400);margin-top:9px}
 </style>
 </head>
 <body>
