@@ -254,7 +254,8 @@ async function openVendorDevices(customerId){
   let comps=[];
   try{ comps=await api('GET','/customers/'+customerId+'/computers'); }catch(e){}
   const row = cp => {
-    const specs=[['CPU',cp.cpu],['RAM',cp.ram],['SSD',cp.ssd],['HDD',cp.hdd],['메인보드',cp.motherboard],['GPU',cp.gpu],['OS',cp.os],['Office',cp.office_version],['백신',cp.antivirus],['IP',cp.ip_address],['MAC',cp.mac_address],['프린터',cp.printer],['모니터',cp.monitor],['NAS',cp.nas_name?`${cp.nas_name}${cp.nas_ip?' ('+cp.nas_ip+')':''}`:''],['공유기',cp.router_name?`${cp.router_name}${cp.router_ip?' ('+cp.router_ip+')':''}`:''],['시리얼',cp.serial_number],['보증만료',cp.warranty_expiry],['메모',cp.notes]].filter(([,val])=>val);
+    const printers=parsePrinters(cp.printer).map(p=>`${p.name}${p.ip?' ('+p.ip+')':''}`).filter(Boolean).join(', ');
+    const specs=[['CPU',cp.cpu],['RAM',cp.ram],['SSD',cp.ssd],['HDD',cp.hdd],['메인보드',cp.motherboard],['GPU',cp.gpu],['모니터',cp.monitor],['OS',cp.os],['Office',cp.office_version],['CAD',cp.cad],['Adobe',cp.adobe],['기타1',cp.etc_program1],['기타2',cp.etc_program2],['IP',cp.ip_address],['MAC',cp.mac_address],['프린터',printers],['NAS',cp.nas_name?`${cp.nas_name}${cp.nas_ip?' ('+cp.nas_ip+')':''}${cp.nas_partition_info?' · 파티션 '+cp.nas_partition_info:''}`:''],['공유기',cp.router_name?`${cp.router_name}${cp.router_ip?' ('+cp.router_ip+')':''}${cp.router_hub_count?' · 허브 '+cp.router_hub_count:''}`:''],['시리얼',cp.serial_number],['보증만료',cp.warranty_expiry],['메모',cp.notes]].filter(([,val])=>val);
     return `<div style="border:1px solid var(--gray-200);border-radius:9px;padding:11px 13px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;${specs.length?'margin-bottom:8px':''}">
         <div><span class="badge new" style="margin-right:6px">${DEVICE_TYPES[cp.device_type]||cp.device_type}</span><strong>${esc(cp.name)||'(이름없음)'}</strong></div>

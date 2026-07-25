@@ -335,6 +335,7 @@ async function initDB() {
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS etc_program2 TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS printer_model TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS printer_ip TEXT;
+    ALTER TABLE computers ADD COLUMN IF NOT EXISTS router_hub_count TEXT;
   `);
   console.log('DB 초기화 완료');
 }
@@ -459,7 +460,7 @@ app.delete('/api/sites/:id', wrap(async (req, res) => {
 // ============================================================
 //  컴퓨터/장비 (computers)
 // ============================================================
-const COMPUTER_FIELDS = ['customer_id', 'name', 'device_type', 'cpu', 'ram', 'ssd', 'hdd', 'motherboard', 'gpu', 'os', 'os_version', 'office_version', 'antivirus', 'ip_address', 'mac_address', 'serial_number', 'assembled', 'power', 'purchase_date', 'warranty_expiry', 'printer', 'monitor', 'nas_name', 'nas_model', 'nas_ip', 'nas_hdd_count', 'nas_hdd_detail', 'nas_total_capacity', 'nas_partition_info', 'nas_maintenance_period', 'nas_maintenance_notes', 'nas_admin_id', 'nas_admin_password', 'router_name', 'router_model', 'router_ip', 'router_admin_id', 'router_admin_password', 'notes', 'cad', 'adobe', 'etc_program1', 'etc_program2', 'printer_model', 'printer_ip'];
+const COMPUTER_FIELDS = ['customer_id', 'name', 'device_type', 'cpu', 'ram', 'ssd', 'hdd', 'motherboard', 'gpu', 'os', 'os_version', 'office_version', 'antivirus', 'ip_address', 'mac_address', 'serial_number', 'assembled', 'power', 'purchase_date', 'warranty_expiry', 'printer', 'monitor', 'nas_name', 'nas_model', 'nas_ip', 'nas_hdd_count', 'nas_hdd_detail', 'nas_total_capacity', 'nas_partition_info', 'nas_maintenance_period', 'nas_maintenance_notes', 'nas_admin_id', 'nas_admin_password', 'router_name', 'router_model', 'router_ip', 'router_admin_id', 'router_admin_password', 'notes', 'cad', 'adobe', 'etc_program1', 'etc_program2', 'printer_model', 'printer_ip', 'router_hub_count'];
 
 app.get('/api/computers', wrap(async (req, res) => {
   const { customer_id } = req.query;

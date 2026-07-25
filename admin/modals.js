@@ -21,6 +21,15 @@ function comboField(id,label,val,listId,options){
     <input id="${id}" list="${listId}" value="${esc(val)||''}" placeholder="선택 또는 직접 입력" autocomplete="off">
     <datalist id="${listId}">${options.map(o=>`<option value="${o}"></option>`).join('')}</datalist></div>`;
 }
+// 프린터: 여러 대 가능 (프린터명/모델 + IP). DB의 printer 컬럼에 JSON으로 저장
+function parsePrinters(raw){ if(!raw) return []; try{ const a=JSON.parse(raw); return Array.isArray(a)?a:[]; }catch(e){ return raw?[{name:String(raw),ip:''}]:[]; } }
+function printerRowHtml(p){ p=p||{}; return `<div class="printer-row" style="display:flex;gap:6px;margin-bottom:6px">
+    <input class="p-name" placeholder="프린터명/모델" value="${esc(p.name)||''}" style="flex:2">
+    <input class="p-ip" placeholder="IP (선택)" value="${esc(p.ip)||''}" style="flex:1">
+    <button type="button" class="btn btn-sm btn-danger" style="flex:none" onclick="this.parentElement.remove()">−</button>
+  </div>`; }
+function addPrinterRow(){ document.getElementById('printer_rows').insertAdjacentHTML('beforeend', printerRowHtml()); }
+function collectPrinters(){ return [...document.querySelectorAll('#printer_rows .printer-row')].map(r=>({name:r.querySelector('.p-name').value.trim(), ip:r.querySelector('.p-ip').value.trim()})).filter(p=>p.name||p.ip); }
 
 // ── 고객 추가/수정 ──
 function openCustomerModal(id, prefill){
@@ -85,17 +94,18 @@ function openComputerModal(id, customerId){
     <div class="form-section">네트워크</div>
     <div class="form-row">${field('p_ip','IP주소',c.ip_address)}${field('p_mac','MAC주소',c.mac_address)}</div>
     <div class="form-row">${field('p_pdate','구입일',c.purchase_date,'date')}${field('p_warr','보증만료',c.warranty_expiry,'date')}</div>
-    <div class="form-section">프린터 (없으면 빈칸)</div>
-    <div class="form-row">${field('p_printer','프린터명',c.printer)}${field('p_prmodel','모델',c.printer_model)}</div>
-    ${field('p_prip','프린터 IP',c.printer_ip)}
+    <div class="form-section">프린터 (여러 대 가능 · 없으면 빈칸)</div>
+    <div id="printer_rows">${(parsePrinters(c.printer).length?parsePrinters(c.printer):[{}]).map(printerRowHtml).join('')}</div>
+    <button type="button" class="btn btn-sm btn-secondary" onclick="addPrinterRow()">+ 프린터 추가</button>
     <div class="form-section">NAS (없으면 빈칸)</div>
     <div class="form-row">${field('p_nasname','NAS 이름',c.nas_name)}${field('p_nasmodel','모델',c.nas_model)}</div>
     <div class="form-row">${field('p_nasip','NAS IP',c.nas_ip)}${field('p_nascap','총 용량',c.nas_total_capacity)}</div>
+    <div class="form-row">${field('p_naspart','파티션',c.nas_partition_info)}${field('p_nashdd','하드 갯수',c.nas_hdd_count)}</div>
     <div class="form-row">${field('p_nasid','관리자 ID',c.nas_admin_id)}${field('p_naspw','관리자 PW',c.nas_admin_password)}</div>
     <div class="form-section">공유기 (없으면 빈칸)</div>
     <div class="form-row">${field('p_rtname','공유기 이름',c.router_name)}${field('p_rtmodel','모델',c.router_model)}</div>
-    <div class="form-row">${field('p_rtip','공유기 IP',c.router_ip)}${field('p_rtid','관리자 ID',c.router_admin_id)}</div>
-    ${field('p_rtpw','공유기 관리자 PW',c.router_admin_password)}
+    <div class="form-row">${field('p_rtip','공유기 IP',c.router_ip)}${field('p_rthub','허브 연결 갯수',c.router_hub_count)}</div>
+    <div class="form-row">${field('p_rtid','관리자 ID',c.router_admin_id)}${field('p_rtpw','공유기 관리자 PW',c.router_admin_password)}</div>
     ${area('p_notes','메모',c.notes)}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveComputer(${id||'null'})">저장</button></div>`;
   modal(isEdit?'장치 수정':'장치 추가', body, true);
@@ -107,9 +117,9 @@ async function saveComputer(id){
     power:v('p_power'), monitor:v('p_monitor'),
     os:v('p_os'), office_version:v('p_office'), cad:v('p_cad'), adobe:v('p_adobe'), etc_program1:v('p_etc1'), etc_program2:v('p_etc2'),
     ip_address:v('p_ip'), mac_address:v('p_mac'), purchase_date:v('p_pdate'), warranty_expiry:v('p_warr'),
-    printer:v('p_printer'), printer_model:v('p_prmodel'), printer_ip:v('p_prip'),
-    nas_name:v('p_nasname'), nas_model:v('p_nasmodel'), nas_ip:v('p_nasip'), nas_total_capacity:v('p_nascap'), nas_admin_id:v('p_nasid'), nas_admin_password:v('p_naspw'),
-    router_name:v('p_rtname'), router_model:v('p_rtmodel'), router_ip:v('p_rtip'), router_admin_id:v('p_rtid'), router_admin_password:v('p_rtpw'),
+    printer:JSON.stringify(collectPrinters()),
+    nas_name:v('p_nasname'), nas_model:v('p_nasmodel'), nas_ip:v('p_nasip'), nas_total_capacity:v('p_nascap'), nas_partition_info:v('p_naspart'), nas_hdd_count:v('p_nashdd'), nas_admin_id:v('p_nasid'), nas_admin_password:v('p_naspw'),
+    router_name:v('p_rtname'), router_model:v('p_rtmodel'), router_ip:v('p_rtip'), router_hub_count:v('p_rthub'), router_admin_id:v('p_rtid'), router_admin_password:v('p_rtpw'),
     notes:v('p_notes'),
   };
   if(!data.customer_id){ alert('거래처 정보가 없습니다'); return; }
