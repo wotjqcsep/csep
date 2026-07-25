@@ -94,6 +94,7 @@ function fmtRecDate(key){
   return `${dt.getFullYear()}년 ${dt.getMonth()+1}월 ${dt.getDate()}일 ${wk}`;
 }
 function fmtRecTime(t){ const d=recDate(t); return d? d.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''; }
+function fmtRecDay(t){ const d=recDate(t); return d? `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : (t? String(t).slice(5,10) : ''); }
 function recCard(r){
   const c = custObj(r.customer_id) || {};
   const st = REC_ST[r.status] || { l:r.status, c:'var(--gray-500)' };
@@ -103,16 +104,18 @@ function recCard(r){
   return `<div class="ws-card ${r.status}">
     <div class="ws-head">
       <div class="ws-name">${esc(custName(r.customer_id))} <span style="font-size:13px;font-weight:400;color:var(--gray-400)">${ch}</span></div>
-      <div style="display:flex;gap:5px;flex-shrink:0">
-        ${r.reserved_date?`<span class="ws-pill" style="background:var(--warning)">예약</span>`:''}
-        <span class="ws-pill" style="background:${st.c}">${st.l}</span>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="display:flex;gap:5px;justify-content:flex-end">
+          ${r.reserved_date?`<span class="ws-pill" style="background:var(--warning)">예약</span>`:''}
+          <span class="ws-pill" style="background:${st.c}">${st.l}</span>
+        </div>
+        ${r.reserved_date?`<div style="font-size:11px;color:var(--gray-500);margin-top:4px">접수 ${fmtRecDay(r.received_at)} · 처리예정 <strong style="color:var(--warning)">${esc(r.reserved_date)}</strong></div>`:''}
       </div>
     </div>
     <div class="ws-row"><span class="ic">👤</span><span>담당: ${r.assigned_engineer_id?esc(engName(r.assigned_engineer_id)):'<span style="color:var(--gray-400)">미지정</span>'}</span></div>
     ${r.symptom?`<div class="ws-row"><span class="ic">🔧</span><span>${esc(r.symptom)}</span></div>`:''}
     ${phone?`<div class="ws-row"><span class="ic">📞</span><span>${esc(phone)}</span></div>`:''}
     ${addr?`<div class="ws-row"><span class="ic">📍</span><span>${esc(addr)}</span></div>`:''}
-    ${r.reserved_date?`<div class="ws-row"><span class="ic">📅</span><span>예약: ${esc(r.reserved_date)}</span></div>`:''}
     ${(r.solution||r.initial_memo)?`<div class="ws-memo">${esc(r.solution||r.initial_memo)}</div>`:''}
     <div class="ws-actions">
       ${(r.status==='new'||r.status==='assigned')?`<button class="btn btn-sm btn-success" onclick="setRecStatus(${r.id},'in_progress')">▶ 작업 시작</button>`:''}
