@@ -15,8 +15,7 @@ const MENU_CONFIG = [
   ]},
   { section: '접수 · 현장', items: [
     { id: 'receptions', icon: '📞', label: '접수 관리' },
-    { id: 'workorders', icon: '🔧', label: '작업지시' },   // 메뉴만(준비 중)
-    { id: 'engineers',  icon: '👷', label: '기사 · 배정' },
+    { id: 'engineers',  icon: '🔧', label: '작업지시' },   // 기사·배정 = 작업지시 (동일 기능)
     { id: 'history',    icon: '📋', label: '수리 이력' },
   ]},
   { section: '고객 · 거래처', items: [
