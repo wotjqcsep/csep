@@ -198,6 +198,18 @@ async function initDB() {
       notes TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS sites (
+      id SERIAL PRIMARY KEY,
+      customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      contact_person TEXT,
+      phone TEXT,
+      address TEXT,
+      address_detail TEXT,
+      status TEXT DEFAULT 'active',
+      memo TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
     CREATE TABLE IF NOT EXISTS receptions (
       id SERIAL PRIMARY KEY,
       customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
@@ -400,6 +412,42 @@ app.get('/api/customers/:id/computers', wrap(async (req, res) => {
 
 app.get('/api/customers/:id/receptions', wrap(async (req, res) => {
   res.json((await pool.query('SELECT * FROM receptions WHERE customer_id=$1 ORDER BY received_at DESC', [req.params.id])).rows);
+}));
+
+// ============================================================
+//  현장 (sites) — 거래처(고객)에 딸린 지점/설치장소
+// ============================================================
+app.get('/api/sites', wrap(async (req, res) => {
+  const { customer_id } = req.query;
+  if (customer_id) return res.json((await pool.query('SELECT * FROM sites WHERE customer_id=$1 ORDER BY id', [customer_id])).rows);
+  res.json((await pool.query('SELECT * FROM sites ORDER BY id')).rows);
+}));
+
+app.post('/api/sites', wrap(async (req, res) => {
+  const b = req.body;
+  const { rows } = await pool.query(
+    `INSERT INTO sites (customer_id, name, contact_person, phone, address, address_detail, status, memo)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [b.customer_id, b.name, b.contact_person, b.phone, b.address, b.address_detail, b.status || 'active', b.memo]
+  );
+  res.json(rows[0]);
+}));
+
+app.put('/api/sites/:id', wrap(async (req, res) => {
+  const b = req.body;
+  const fields = ['name', 'contact_person', 'phone', 'address', 'address_detail', 'status', 'memo'];
+  const sets = [], vals = [];
+  fields.forEach(f => { if (b[f] !== undefined) { vals.push(b[f]); sets.push(`${f}=$${vals.length}`); } });
+  if (!sets.length) { const { rows } = await pool.query('SELECT * FROM sites WHERE id=$1', [req.params.id]); return res.json(rows[0]); }
+  vals.push(req.params.id);
+  const { rows } = await pool.query(`UPDATE sites SET ${sets.join(',')} WHERE id=$${vals.length} RETURNING *`, vals);
+  if (!rows[0]) return res.status(404).json({ error: '현장 없음' });
+  res.json(rows[0]);
+}));
+
+app.delete('/api/sites/:id', wrap(async (req, res) => {
+  await pool.query('DELETE FROM sites WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
 }));
 
 // ============================================================

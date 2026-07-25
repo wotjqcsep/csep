@@ -156,6 +156,91 @@ function renderReceptions(){
 async function setRecStatus(id,status){ await api('PUT',`/receptions/${id}/status?status=${status}`); await loadAll(); }
 async function deleteReception(id){ if(!confirm('이 접수를 삭제하시겠습니까?'))return; await api('DELETE','/receptions/'+id); await loadAll(); }
 
+// ============================================================
+//  거래처 (customers 재사용) + 현장(sites)
+// ============================================================
+let vendorState = { search:'' };
+function sitesOf(cid){ return (state.sites||[]).filter(s=>s.customer_id==cid); }
+function vdName(c){ return c.company_name || c.name || c.phone || ('거래처'+c.id); }
+function siteStatusBadge(s){ const off=s.status==='inactive'; return `<span class="vd-sbadge" style="background:${off?'var(--gray-200)':'#e7f5ff'};color:${off?'var(--gray-600)':'#1971c2'}">${off?'해지':'사용'}</span>`; }
+function siteCard(s){
+  const addr=[s.address,s.address_detail].filter(Boolean).join(' ');
+  return `<div class="vd-site">
+    <div class="vd-head">
+      <div class="vd-title"><span class="vd-badge">현장</span> ${esc(s.name)} ${siteStatusBadge(s)}</div>
+      <div class="vd-btns">
+        <button class="btn btn-sm" style="background:var(--warning)" onclick="openVendorHistory(${s.customer_id})">📋 이력</button>
+        <button class="btn btn-sm" onclick="openSiteModal(${s.customer_id},${s.id})">✏ 수정</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteSite(${s.id})">🗑 삭제</button>
+      </div>
+    </div>
+    <div class="vd-row"><span class="ic">📞</span>${esc(s.phone)||'-'}<span class="ic" style="margin-left:8px">👤</span>${esc(s.contact_person)||'-'}</div>
+    ${addr?`<div class="vd-row"><span class="ic">📍</span>${esc(addr)}</div>`:''}
+  </div>`;
+}
+function vendorCard(c){
+  const sites=sitesOf(c.id);
+  const addr=[c.address,c.address_detail].filter(Boolean).join(' ');
+  return `<div class="vd-card">
+    <div class="vd-head">
+      <div class="vd-title">${esc(vdName(c))}${sites.length?`<span class="vd-sub">· 현장 ${sites.length}곳</span>`:''}</div>
+      <div class="vd-btns">
+        <button class="btn btn-sm" style="background:var(--warning)" onclick="openVendorHistory(${c.id})">📋 이력</button>
+        <button class="btn btn-sm" style="background:#7048e8" onclick="openSiteModal(${c.id})">🏢 현장추가</button>
+        <button class="btn btn-sm" onclick="openCustomerModal(${c.id})">✏ 수정</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteVendor(${c.id})">🗑 삭제</button>
+      </div>
+    </div>
+    <div class="vd-row"><span class="ic">📞</span>${esc(c.phone)||'-'}<span class="ic" style="margin-left:8px">👤</span>${esc(c.contact_person)||'-'}</div>
+    ${addr?`<div class="vd-row"><span class="ic">📍</span>${esc(addr)}</div>`:''}
+    ${sites.map(siteCard).join('')}
+  </div>`;
+}
+function renderVendors(){
+  const q=vendorState.search.trim().toLowerCase();
+  let list=state.customers;
+  if(q) list=list.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q));
+  return `
+  <div class="page-header"><h2>🏢 거래처 검색 (${state.customers.length})</h2><button class="btn" onclick="openCustomerModal()">+ 거래처 등록</button></div>
+  <div class="vd-wrap">
+    <input class="vd-search" placeholder="거래처명 입력..." value="${esc(vendorState.search)}" oninput="vendorState.search=this.value;renderInto()">
+    ${list.length? list.map(vendorCard).join('') : '<div class="empty-state">거래처가 없습니다</div>'}
+  </div>`;
+}
+function openSiteModal(customerId, siteId){
+  const s = siteId? (state.sites.find(x=>x.id==siteId)||{}) : { customer_id:customerId };
+  const cust = state.customers.find(x=>x.id==customerId)||{};
+  const body=`
+    <div style="margin-bottom:10px;font-size:13px;color:var(--gray-500)">거래처: <strong>${esc(vdName(cust))}</strong></div>
+    ${field('s_name','현장명 *',s.name)}
+    <div class="form-row">${field('s_contact','담당자',s.contact_person)}${field('s_phone','전화번호',s.phone)}</div>
+    ${field('s_addr','주소',s.address)}
+    ${field('s_addr2','상세주소',s.address_detail)}
+    <div class="form-group"><label>상태</label><select id="s_status"><option value="active" ${s.status!=='inactive'?'selected':''}>사용</option><option value="inactive" ${s.status==='inactive'?'selected':''}>해지</option></select></div>
+    ${area('s_memo','메모',s.memo)}
+    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveSite(${customerId},${siteId||'null'})">저장</button></div>`;
+  modal(siteId?'현장 수정':'현장 추가', body);
+}
+async function saveSite(customerId, siteId){
+  const data={ customer_id:customerId, name:v('s_name'), contact_person:v('s_contact'), phone:v('s_phone'), address:v('s_addr'), address_detail:v('s_addr2'), status:v('s_status'), memo:v('s_memo') };
+  if(!data.name){ alert('현장명은 필수입니다'); return; }
+  if(siteId) await api('PUT','/sites/'+siteId, data); else await api('POST','/sites', data);
+  closeModal(); await loadAll();
+}
+async function deleteSite(id){ if(!confirm('이 현장을 삭제하시겠습니까?'))return; await api('DELETE','/sites/'+id); await loadAll(); }
+async function deleteVendor(id){ if(!confirm('이 거래처를 삭제하시겠습니까? (현장도 함께 삭제됩니다)'))return; await api('DELETE','/customers/'+id); await loadAll(); }
+async function openVendorHistory(customerId){
+  const cust=state.customers.find(x=>x.id==customerId)||{};
+  modal(`📋 이력 - ${esc(vdName(cust))}`, '<div class="loading">불러오는 중...</div>', true);
+  let rows=[];
+  try{ rows=await api('GET','/customers/'+customerId+'/receptions'); }catch(e){}
+  const body=`${rows.length? `<div class="table-container"><table class="table"><thead><tr><th>일시</th><th>증상</th><th>상태</th><th>담당</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td style="font-size:12px">${fmtRecTime(r.received_at)}</td><td>${esc(r.symptom)||'-'}</td><td>${statusLabel(r.status)}</td><td>${r.assigned_engineer_id?esc(engName(r.assigned_engineer_id)):'-'}</td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="empty-state">이력이 없습니다</div>'}
+    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">닫기</button></div>`;
+  modal(`📋 이력 - ${esc(vdName(cust))}`, body, true);
+}
+
 // ── 기사 관리 ──
 function renderEngineers(){
   const es = state.engineers;

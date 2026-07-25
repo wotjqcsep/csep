@@ -131,6 +131,20 @@ select,input,textarea{font-family:inherit;font-size:14px}
 .ws-memo{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:7px;padding:9px 11px;font-size:13px;color:var(--gray-700);margin:9px 0}
 .ws-actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
 .ws-time{font-size:11px;color:var(--gray-400);margin-top:9px}
+/* 거래처 */
+.vd-wrap{max-width:900px;margin:0 auto}
+.vd-search{width:100%;padding:13px 16px;border:1px solid var(--gray-300);border-radius:10px;font-size:15px;margin-bottom:16px}
+.vd-card{background:#fff;border:1px solid var(--gray-200);border-radius:11px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.vd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.vd-title{font-size:15.5px;font-weight:800;color:var(--gray-700);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.vd-sub{font-size:12px;font-weight:600;color:var(--warning)}
+.vd-btns{display:flex;gap:5px;flex-wrap:wrap}
+.vd-btns .btn{padding:5px 11px;font-size:12px;border-radius:7px}
+.vd-row{display:flex;gap:6px;font-size:13px;color:var(--gray-600);margin-top:7px;flex-wrap:wrap;align-items:center}
+.vd-row .ic{color:var(--gray-400)}
+.vd-site{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:9px;padding:11px 13px;margin:10px 0 0 18px}
+.vd-badge{background:#f3d9fa;color:#9c36b5;padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700}
+.vd-sbadge{padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700}
 </style>
 </head>
 <body>
@@ -156,7 +170,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 <script src="menu.js"></script>
 <script>
 const API = '/api';
-const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null };
+const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null, sites:[] };
 // MENUS, TITLES 는 menu.js 에서 정의됨 (메뉴 수정은 menu.js 한 곳에서)
 const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 
@@ -178,7 +192,7 @@ async function loadAll(showLoading){
   if(showLoading && firstLoad) document.getElementById('page').innerHTML='<div class="loading">불러오는 중...</div>';
   const jobs = [
     ['dashboard','/dashboard'],['customers','/customers'],['computers','/computers'],['engineers','/engineers'],
-    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],
+    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],['sites','/sites'],
   ];
   const results = await Promise.allSettled(jobs.map(([,u])=>api('GET',u)));
   let anyOk=false;
