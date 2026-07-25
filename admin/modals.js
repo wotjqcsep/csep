@@ -100,7 +100,7 @@ function openComputerModal(id, customerId){
     <div class="form-section">NAS (없으면 빈칸)</div>
     <div class="form-row">${field('p_nasname','NAS 이름',c.nas_name)}${field('p_nasmodel','모델',c.nas_model)}</div>
     <div class="form-row">${field('p_nasip','NAS IP',c.nas_ip)}${field('p_nascap','총 용량',c.nas_total_capacity)}</div>
-    <div class="form-row">${field('p_naspart','파티션',c.nas_partition_info)}${field('p_nashdd','하드 갯수',c.nas_hdd_count)}</div>
+    ${field('p_naspart','파티션',c.nas_partition_info)}
     <div class="form-row">${field('p_nasid','관리자 ID',c.nas_admin_id)}${field('p_naspw','관리자 PW',c.nas_admin_password)}</div>
     <div class="form-section">공유기 (없으면 빈칸)</div>
     <div class="form-row">${field('p_rtname','공유기 이름',c.router_name)}${field('p_rtmodel','모델',c.router_model)}</div>
@@ -118,13 +118,15 @@ async function saveComputer(id){
     os:v('p_os'), office_version:v('p_office'), cad:v('p_cad'), adobe:v('p_adobe'), etc_program1:v('p_etc1'), etc_program2:v('p_etc2'),
     ip_address:v('p_ip'), mac_address:v('p_mac'), purchase_date:v('p_pdate'), warranty_expiry:v('p_warr'),
     printer:JSON.stringify(collectPrinters()),
-    nas_name:v('p_nasname'), nas_model:v('p_nasmodel'), nas_ip:v('p_nasip'), nas_total_capacity:v('p_nascap'), nas_partition_info:v('p_naspart'), nas_hdd_count:v('p_nashdd'), nas_admin_id:v('p_nasid'), nas_admin_password:v('p_naspw'),
+    nas_name:v('p_nasname'), nas_model:v('p_nasmodel'), nas_ip:v('p_nasip'), nas_total_capacity:v('p_nascap'), nas_partition_info:v('p_naspart'), nas_admin_id:v('p_nasid'), nas_admin_password:v('p_naspw'),
     router_name:v('p_rtname'), router_model:v('p_rtmodel'), router_ip:v('p_rtip'), router_hub_count:v('p_rthub'), router_admin_id:v('p_rtid'), router_admin_password:v('p_rtpw'),
     notes:v('p_notes'),
   };
   if(!data.customer_id){ alert('거래처 정보가 없습니다'); return; }
   if(!data.name) data.name = '장치';   // 장비명은 선택 — 비우면 기본값(거래처에 귀속)
-  if(id) await api('PUT','/computers/'+id, data); else await api('POST','/computers', data);
+  try{
+    if(id) await api('PUT','/computers/'+id, data); else await api('POST','/computers', data);
+  }catch(e){ alert('저장 실패: '+(e && e.message ? e.message : e)); return; }
   closeModal(); await loadAll();
 }
 async function deleteComputer(id){ if(!confirm('이 장비를 삭제하시겠습니까?'))return; await api('DELETE','/computers/'+id); custState.selComp=null; await loadAll(); }
