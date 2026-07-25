@@ -140,7 +140,7 @@ function renderReceptions(){
   const completed = rs.filter(r=>recSection(r)==='completed').sort(byDesc);
   // 구간 헤더(구분선) + 2열 카드
   const section = (title, color, list) => list.length
-    ? `<div class="ws-sec"><span style="background:${color}">${title} ${list.length}</span></div><div class="ws-grid">${list.map(recCard).join('')}</div>`
+    ? `<div class="ws-sec" style="--sec:${color}"><span style="background:${color}">${title} ${list.length}</span></div><div class="ws-grid">${list.map(recCard).join('')}</div>`
     : '';
   const body = [
     section('🔴 미처리', 'var(--danger)',  pending),
