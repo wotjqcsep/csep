@@ -8,17 +8,21 @@
 //  메뉴 순서변경: 줄 순서만 바꾸면 됨
 //  메뉴 삭제: 해당 줄만 지우면 됨
 // ============================================================
+//  ※ 렌더 함수(renderXxx)가 없는 항목은 "준비 중" 빈 페이지로 표시됩니다(메뉴만).
 const MENU_CONFIG = [
   { section: '현황', items: [
     { id: 'dashboard', icon: '📊', label: '대시보드' },
   ]},
   { section: '접수 · 현장', items: [
     { id: 'receptions', icon: '📞', label: '접수 관리' },
-    { id: 'engineers',  icon: '🔧', label: '기사 · 배정' },
+    { id: 'workorders', icon: '🔧', label: '작업지시' },   // 메뉴만(준비 중)
+    { id: 'engineers',  icon: '👷', label: '기사 · 배정' },
     { id: 'history',    icon: '📋', label: '수리 이력' },
   ]},
-  { section: '고객 · 자산', items: [
+  { section: '고객 · 거래처', items: [
     { id: 'customers', icon: '👥', label: '고객 · 장비' },
+    { id: 'vendors',   icon: '🏢', label: '거래처등록' },  // 메뉴만(준비 중)
+    { id: 'schedule',  icon: '📅', label: '일정표' },      // 메뉴만(준비 중)
   ]},
   { section: '매출 · 정산', items: [
     { id: 'sales',     icon: '🛒', label: '판매 관리' },

@@ -160,20 +160,32 @@ function renderInventory(){
 }
 async function deleteInventory(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/inventory/'+id); await loadAll(); }
 
-// ── 결제 관리 ──
+// ── 미수금 · 결제 (회계 장부: 어떤 작업으로 어떻게 입금됐는지) ──
+const PAY_METHODS = { cash:'현금', card:'카드', transfer:'계좌이체', unpaid:'미수' };
+function payMethodLabel(m){ return PAY_METHODS[m] || m || '-'; }
 function renderPayments(){
   const ps = state.payments;
+  const paid    = ps.filter(p=>p.payment_status==='completed');
+  const unpaid  = ps.filter(p=>p.payment_status!=='completed');
+  const sum = arr => arr.reduce((s,p)=>s+(Number(p.amount)||0),0);
+  const payName = p => esc(p.customer_name) || esc(p.company_name) || esc(p.customer_phone) || (p.customer_id?`고객${p.customer_id}`:'-');
   return `<div class="page-header"><h2>미수금 · 결제 (${ps.length}건)</h2></div>
+  <div class="stat-grid">
+    ${statCard('총 입금완료', won(sum(paid)), 'var(--success)', 20)}
+    ${statCard('총 미수금', won(sum(unpaid)), unpaid.length?'var(--danger)':'', 20)}
+    ${statCard('총 매출', won(sum(ps)), '', 20)}
+  </div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>#</th><th>금액</th><th>수단</th><th>상태</th><th>기한</th><th>액션</th></tr></thead>
+    <thead><tr><th>완료일</th><th>고객</th><th>작업 내용</th><th>결제수단</th><th>금액</th><th>상태</th></tr></thead>
     <tbody>${ps.length? ps.map(p=>`<tr>
-      <td style="color:var(--gray-400)">${p.id}</td><td>${won(p.amount)}</td><td>${esc(p.payment_method)||'-'}</td>
-      <td><span class="badge ${p.payment_status==='completed'?'completed':'assigned'}">${p.payment_status==='completed'?'완료':'대기'}</span></td>
-      <td>${esc(p.due_date)||'-'}</td>
-      <td>${p.payment_status!=='completed'?`<button class="btn btn-sm btn-success" onclick="completePayment(${p.id})">완료</button>`:''}</td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">결제가 없습니다</td></tr>'}
+      <td style="font-size:12px;color:var(--gray-500)">${p.completed_at?(p.completed_at).slice(0,10):(esc(p.due_date)||'-')}</td>
+      <td><strong>${payName(p)}</strong></td>
+      <td>${esc(p.work_description)||'-'}</td>
+      <td><span class="chip">${payMethodLabel(p.payment_method)}</span></td>
+      <td><strong>${won(p.amount)}</strong></td>
+      <td><span class="badge ${p.payment_status==='completed'?'completed':'assigned'}">${p.payment_status==='completed'?'입금완료':'미수'}</span></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">회계 내역이 없습니다</td></tr>'}
     </tbody></table></div>`;
 }
-async function completePayment(id){ await api('PUT',`/payments/${id}/complete`); await loadAll(); }
 
 // ── 통계 ──
 function renderStats(){

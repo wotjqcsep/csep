@@ -98,13 +98,17 @@ async function saveComputer(id){
 }
 async function deleteComputer(id){ if(!confirm('이 장비를 삭제하시겠습니까?'))return; await api('DELETE','/computers/'+id); custState.selComp=null; await loadAll(); }
 
-// ── 접수 등록 (검색 가능한 고객 선택) ──
-let recPick = { customerId:'', search:'', open:false };
+// ── 접수 등록 (기존 고객 검색 또는 신규 고객 입력) ──
+let recPick = { customerId:'', search:'', open:false, mode:'search', newName:'', newPhone:'' };
 function openReceptionModal(){
-  recPick = { customerId:'', search:'', open:false };
+  recPick = { customerId:'', search:'', open:false, mode:'search', newName:'', newPhone:'' };
   const body = `
-    <div class="form-row">
-      <div class="form-group"><label>고객 *</label><div id="custSelect"></div></div>
+    <div class="tabs" style="margin-bottom:14px">
+      <button class="tab ${recPick.mode==='search'?'active':''}" onclick="recPick.mode='search';renderCustSelect()">기존 고객</button>
+      <button class="tab ${recPick.mode==='new'?'active':''}" onclick="recPick.mode='new';renderCustSelect()">신규 고객</button>
+    </div>
+    <div id="custSelectContainer"></div>
+    <div class="form-row" style="margin-top:14px">
       <div class="form-group"><label>접수 채널 *</label><select id="r_channel">
         <option value="phone">전화</option><option value="sms">SMS</option><option value="kakao">카카오톡</option><option value="direct">직접등록</option></select></div>
     </div>
@@ -121,21 +125,34 @@ function openReceptionModal(){
   renderCustSelect();
 }
 function renderCustSelect(){
-  const el = document.getElementById('custSelect'); if(!el) return;
-  const sel = state.customers.find(c=>c.id==recPick.customerId);
-  // 선택 완료 상태: 칩만 표시
-  if(sel && !recPick.open){
-    el.innerHTML = `<div class="cs-box"><span style="flex:1">${esc(sel.name)||esc(sel.phone)} ${sel.name?`<span style="color:var(--gray-400);font-size:12px">(${esc(sel.phone)})</span>`:''}</span><button onclick="clearCust()" style="border:none;background:none;cursor:pointer;color:var(--gray-400);font-size:16px">×</button></div>`;
-    return;
+  const el = document.getElementById('custSelectContainer'); if(!el) return;
+
+  if(recPick.mode === 'search'){
+    // 기존 고객 검색 모드
+    const sel = state.customers.find(c=>c.id==recPick.customerId);
+    // 선택 완료 상태: 칩만 표시
+    if(sel && !recPick.open){
+      el.innerHTML = `<div class="form-group"><label>고객 *</label><div class="cs-box"><span style="flex:1">${esc(sel.name)||esc(sel.phone)} ${sel.name?`<span style="color:var(--gray-400);font-size:12px">(${esc(sel.phone)})</span>`:''}</span><button onclick="clearCust()" style="border:none;background:none;cursor:pointer;color:var(--gray-400);font-size:16px">×</button></div></div>`;
+      return;
+    }
+    // 검색 상태: 입력창은 고정, 목록만 갱신
+    el.innerHTML = `<div class="form-group"><label>고객 *</label><div class="cs-wrap">
+      <div class="cs-box"><input id="csInput" autocomplete="off" placeholder="이름, 전화번호 검색..." value="${esc(recPick.search)}"
+        oninput="onCustInput(this.value)" onfocus="recPick.open=true;updateCustList()" onblur="setTimeout(()=>{recPick.open=false;updateCustList()},180)"></div>
+      <div id="csList" class="cs-list" style="display:none"></div>
+    </div></div>`;
+    const i=document.getElementById('csInput'); if(i)i.focus();
+    updateCustList();
+  } else {
+    // 신규 고객 입력 모드
+    el.innerHTML = `<div class="form-row">
+      ${field('newCustName','고객명',recPick.newName)}
+      ${field('newCustPhone','전화번호',recPick.newPhone)}
+    </div>`;
+    // 입력값 동기화
+    document.getElementById('newCustName').addEventListener('input', e => recPick.newName = e.target.value);
+    document.getElementById('newCustPhone').addEventListener('input', e => recPick.newPhone = e.target.value);
   }
-  // 검색 상태: 입력창은 고정, 목록만 갱신
-  el.innerHTML = `<div class="cs-wrap">
-    <div class="cs-box"><input id="csInput" autocomplete="off" placeholder="이름, 전화번호 검색..." value="${esc(recPick.search)}"
-      oninput="onCustInput(this.value)" onfocus="recPick.open=true;updateCustList()" onblur="setTimeout(()=>{recPick.open=false;updateCustList()},180)"></div>
-    <div id="csList" class="cs-list" style="display:none"></div>
-  </div>`;
-  const i=document.getElementById('csInput'); if(i)i.focus();
-  updateCustList();
 }
 function onCustInput(val){ recPick.search=val; recPick.open=true; updateCustList(); }
 function updateCustList(){
@@ -168,9 +185,40 @@ function renderCustHistory(){
   </div>`;
 }
 async function saveReception(){
-  if(!recPick.customerId){ alert('고객을 선택하세요'); return; }
+  let customerId = null;
   const symptom = v('r_symptom'); if(!symptom){ alert('증상을 입력하세요'); return; }
-  const rec = await api('POST','/receptions', { customer_id:Number(recPick.customerId), reception_channel:v('r_channel'), reception_phone:v('r_phone'), symptom, initial_memo:v('r_memo') });
+
+  if(recPick.mode === 'search'){
+    // 기존 고객 선택 모드
+    if(!recPick.customerId){ alert('고객을 선택하세요'); return; }
+    customerId = Number(recPick.customerId);
+  } else {
+    // 신규 고객 모드: 고객명 또는 전화번호로 검색 후 없으면 생성
+    const name = recPick.newName.trim();
+    const phone = recPick.newPhone.trim();
+
+    if(!name && !phone){ alert('고객명 또는 전화번호 중 하나는 입력해야 합니다'); return; }
+
+    // 고객명 또는 전화번호로 기존 고객 검색
+    let existingCust = null;
+    if(name) existingCust = state.customers.find(c => (c.name || '').toLowerCase() === name.toLowerCase());
+    if(!existingCust && phone) existingCust = state.customers.find(c => c.phone === phone);
+
+    if(existingCust){
+      // 기존 고객 발견
+      customerId = existingCust.id;
+    } else {
+      // 신규 고객 생성
+      const newCust = await api('POST', '/customers', {
+        name: name || phone,  // 고객명이 없으면 전화번호를 고객명으로
+        phone: phone,
+        customer_type: 'personal'
+      });
+      customerId = newCust.id;
+    }
+  }
+
+  const rec = await api('POST','/receptions', { customer_id:customerId, reception_channel:v('r_channel'), reception_phone:v('r_phone'), symptom, initial_memo:v('r_memo') });
   const eng = v('r_eng');
   if(eng) await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);   // 작업지시: 바로 배정
   closeModal(); await loadAll();

@@ -268,7 +268,7 @@ function renderProcessing(){
         <div style="font-weight:700;margin-bottom:8px">📝 처리 결과 입력</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${S.presets.map((p,i)=>`<span onclick="appendField('p_desc',S.presets[${i}].text)" style="padding:5px 10px;background:#e7f5ff;color:#1971c2;border-radius:14px;font-size:12px;cursor:pointer">✓ ${esc(p.text)}</span>`).join('')}</div>
         <div class="fg"><label>처리 내용 *</label>
-          <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="p_desc" placeholder="처리 내용을 입력하세요" style="flex:1">${esc(r.work_description||'')}</textarea><button id="mic_p_desc" onclick="startVoice('p_desc',true)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:44px;font-size:20px;cursor:pointer">🎤</button></div>
+          <textarea id="p_desc" placeholder="처리 내용을 입력하세요" style="width:100%">${esc(r.work_description||'')}</textarea>
         </div>
         <div class="fg"><label>교체 부품 (없으면 빈칸, 직접입력 가능)</label><input id="p_parts" value="${esc(r.parts_used||'')}">
           ${S.parts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.parts.slice(0,12).map((p,i)=>`<span onclick="appendField('p_parts',S.parts[${i}].part_name)" style="padding:5px 10px;background:#f1f3f5;border-radius:14px;font-size:12px;cursor:pointer">+ ${esc(p.part_name)}</span>`).join('')}</div>`:''}
@@ -276,6 +276,8 @@ function renderProcessing(){
         <div class="fg"><label>다음 방문시 필요 부품 및 조치</label><input id="p_next" value="${esc(r.next_visit_parts||'')}"></div>
         <div class="fg"><label>고객 요청사항</label><input id="p_req" value="${esc(r.customer_request||'')}"></div>
         <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div></div>
+        <div class="fg"><label>결제수단 *</label><select id="p_paymethod">
+          <option value="cash">현금 (입금완료)</option><option value="card">카드 (입금완료)</option><option value="transfer">계좌이체 (입금완료)</option><option value="unpaid">미수 (나중에 받음)</option></select></div>
       </div>
       <div class="card">
         <div style="font-weight:700;margin-bottom:8px">📷 작업 사진 (관리자 전송)</div>
@@ -311,7 +313,7 @@ async function uploadProcPhotos(id){ for(const p of S.procPhotos){ try{ await ap
 async function submitProcessing(id){
   const g=x=>{const el=document.getElementById(x);return el?el.value:'';};
   const desc=g('p_desc').trim(); if(!desc){ alert('처리 내용을 입력하세요'); return; }
-  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:moneyVal('p_cparts'), cost_labor:moneyVal('p_clabor') });
+  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:moneyVal('p_cparts'), cost_labor:moneyVal('p_clabor'), payment_method:g('p_paymethod') });
   await uploadProcPhotos(id);
   S.processing=null; await loadReceptions(); alert('처리 완료');
 }
@@ -338,18 +340,15 @@ function renderWoTab(){
   el.innerHTML=`
     <div class="fg"><label>고객 검색 *</label>
       ${sel?`<div class="wo-selected"><span><strong>${esc(sel.name)||esc(sel.phone)}</strong>${sel.name&&sel.phone?` <span style="color:var(--gray-500);font-size:13px">${esc(sel.phone)}</span>`:''}${sel.address?`<div style="font-size:12px;color:var(--gray-500);margin-top:3px">📍 ${esc(sel.address)}</div>`:''}</span><button onclick="woClear()" style="border:none;background:none;font-size:22px;color:var(--gray-500);cursor:pointer">×</button></div>`
-        :`<div style="display:flex;gap:6px;align-items:center">
-            <input id="woT_search" placeholder="이름 또는 전화번호 입력" value="${esc(woState.search||'')}" oninput="woSearch(this.value)" autocomplete="off" inputmode="search" style="flex:1">
-            <button id="mic_woT_search" onclick="startVoice('woT_search',false)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:44px;font-size:20px;cursor:pointer;flex:none">🎤</button>
-          </div>
+        :`<input id="woT_search" placeholder="이름 또는 전화번호 입력" value="${esc(woState.search||'')}" oninput="woSearch(this.value)" autocomplete="off" inputmode="search" style="width:100%">
           <div id="woT_results"></div>
-          <button class="btn btn-ghost" style="margin-top:10px" onclick="openCustomerAdd('')">🧑 새 고객 등록 (음성)</button>`}
+          <button class="btn btn-ghost" style="margin-top:10px" onclick="openCustomerAdd('')">🧑 새 고객 등록</button>`}
     </div>
     ${sel?`
     ${comps.length?`<div class="fg"><label>장비 (선택)</label><select id="woT_comp" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
     <div class="sec-label">📋 작업 지시</div>
     <div class="fg"><label>작업 내용 / 증상 *</label>
-      <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="woT_symptom" placeholder="작업 지시 내용" style="flex:1" oninput="woState.symptom=this.value">${esc(woState.symptom||'')}</textarea><button id="mic_woT_symptom" onclick="startVoice('woT_symptom',true)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:44px;font-size:20px;cursor:pointer">🎤</button></div>
+      <textarea id="woT_symptom" placeholder="작업 지시 내용" style="width:100%" oninput="woState.symptom=this.value">${esc(woState.symptom||'')}</textarea>
     </div>
     <div class="fg"><label>담당 기사 *</label><select id="woT_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''} style="color:${engColor(e)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
     <button class="btn btn-primary" onclick="submitWoTab()">작업지시 + 배정</button>`:''}`;
@@ -600,6 +599,8 @@ function openComplete(id){
           <div class="fg"><label>부품비</label><input id="w_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div>
           <div class="fg"><label>공임비</label><input id="w_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div>
         </div>
+        <div class="fg"><label>결제수단 *</label><select id="w_paymethod">
+          <option value="cash">현금 (입금완료)</option><option value="card">카드 (입금완료)</option><option value="transfer">계좌이체 (입금완료)</option><option value="unpaid">미수 (나중에 받음)</option></select></div>
         <div class="fg"><label>작업 사진 (수리 전/후)</label>
           <input type="file" id="w_photo" accept="image/*" capture="environment" onchange="addCompletePhoto(this)" style="font-size:13px">
           <div id="w_photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
@@ -687,7 +688,7 @@ async function sendChatPhoto(id,input){
 async function submitComplete(id){
   const g=x=>document.getElementById(x).value;
   const desc=g('w_desc'); if(!desc){ alert('작업 내용을 입력하세요'); return; }
-  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('w_parts'), cost_parts:moneyVal('w_cparts'), cost_labor:moneyVal('w_clabor') });
+  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('w_parts'), cost_parts:moneyVal('w_cparts'), cost_labor:moneyVal('w_clabor'), payment_method:g('w_paymethod') });
   for(const p of completePhotos){ try{ await api('POST',`/receptions/${id}/photos`,{photo:p}); }catch(e){} }
   completePhotos=[];
   closeSheet(); loadReceptions();
@@ -772,48 +773,17 @@ function registerIncoming(id){
   api('DELETE','/incoming-call/'+id).catch(()=>{});
 }
 
-// ── 🎤 음성 입력 (말 → 글자) — APK는 네이티브, 브라우저는 웹 음성인식 ──
-async function startVoice(targetId, append){
-  const el=document.getElementById(targetId); if(!el) return;
-  const btn=document.getElementById('mic_'+targetId);
-  const set=t=>{ if(btn) btn.textContent=t; };
-  const put=t=>{ if(t){ el.value = (append && el.value) ? (el.value.trim()+' '+t) : t; el.dispatchEvent(new Event('input',{bubbles:true})); } };
-  // ① Capacitor 네이티브 음성인식
-  const cap=window.Capacitor;
-  if(cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.SpeechRecognition){
-    const SR=cap.Plugins.SpeechRecognition;
-    try{
-      const perm=await SR.requestPermissions();
-      set('🔴');
-      const res=await SR.start({ language:'ko-KR', maxResults:1, partialResults:false, popup:false });
-      set('🎤');
-      put((res && res.matches && res.matches[0]) || '');
-    }catch(e){ set('🎤'); console.log('네이티브 음성 실패:', e); alert('음성 인식을 사용하려면 마이크 권한을 허용하세요.'); }
-    return;
-  }
-  // ② 브라우저 웹 음성인식
-  const WSR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!WSR){ alert('이 기기는 음성 입력을 지원하지 않습니다.'); return; }
-  set('🔴');
-  const rec=new WSR(); rec.lang='ko-KR'; rec.interimResults=false; rec.maxAlternatives=1;
-  rec.onresult=e=>put(e.results[0][0].transcript);
-  rec.onerror=e=>console.log('음성오류', e.error);
-  rec.onend=()=>set('🎤');
-  try{ rec.start(); }catch(e){ set('🎤'); }
-}
+// ── 텍스트 입력 필드 (음성입력은 휴대폰 키보드 자체 마이크 사용 — 필드서비스와 동일) ──
 function micField(id, label, val, placeholder){
   return `<div class="fg"><label>${label}</label>
-    <div style="display:flex;gap:6px;align-items:center">
-      <input id="${id}" value="${esc(val)||''}" placeholder="${placeholder||''}" style="flex:1">
-      <button id="mic_${id}" onclick="startVoice('${id}',true)" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:42px;font-size:20px;cursor:pointer">🎤</button>
-    </div></div>`;
+    <input id="${id}" value="${esc(val)||''}" placeholder="${placeholder||''}" style="width:100%">
+    </div>`;
 }
 
-// ── 대표: 현장 고객 등록 (음성) ──
+// ── 대표: 현장 고객 등록 ──
 function openCustomerAdd(prefillPhone){
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🧑 현장 고객 등록</h3>
-      <div style="font-size:12px;color:var(--gray-500);margin-bottom:8px">🎤 버튼을 누르고 말하면 자동 입력됩니다 (운전 중엔 음성 추천)</div>
       <div class="fg"><label>고객 구분</label><select id="ca_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="personal">개인</option><option value="business">기업</option></select></div>
       ${micField('ca_name','고객명 (선택)','','예: 홍길동')}
       ${micField('ca_phone','전화번호 *',prefillPhone||'','')}

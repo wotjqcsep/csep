@@ -650,8 +650,16 @@ app.delete('/api/inventory/:id', wrap(async (req, res) => {
 // ============================================================
 app.get('/api/payments', wrap(async (req, res) => {
   const { status } = req.query;
-  if (status) return res.json((await pool.query('SELECT * FROM payments WHERE payment_status=$1 ORDER BY id', [status])).rows);
-  res.json((await pool.query('SELECT * FROM payments ORDER BY id')).rows);
+  // 회계 표시용: 어떤 작업(고객·작업내용)으로 입금됐는지 조인
+  const base = `
+    SELECT p.*, j.reception_id, j.work_description, j.completed_at,
+           r.customer_id, c.name AS customer_name, c.company_name, c.phone AS customer_phone
+    FROM payments p
+    LEFT JOIN jobs j ON p.job_id = j.id
+    LEFT JOIN receptions r ON j.reception_id = r.id
+    LEFT JOIN customers c ON r.customer_id = c.id`;
+  if (status) return res.json((await pool.query(`${base} WHERE p.payment_status=$1 ORDER BY p.id DESC`, [status])).rows);
+  res.json((await pool.query(`${base} ORDER BY p.id DESC`)).rows);
 }));
 
 app.post('/api/payments', wrap(async (req, res) => {
@@ -1000,12 +1008,30 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
   const b = req.body;
   const total = (Number(b.cost_parts) || 0) + (Number(b.cost_labor) || 0);
   const { rows } = await pool.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2, customer_request=$3, reserved_date=NULL WHERE id=$1 RETURNING *`, [req.params.id, b.work_description || '', b.customer_request || null]);
-  await pool.query(
-    `UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6, next_visit_parts=$7 WHERE reception_id=$1`,
+  const jobRes = await pool.query(
+    `UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6, next_visit_parts=$7 WHERE reception_id=$1 RETURNING id`,
     [req.params.id, b.work_description || '', b.parts_used || '', Number(b.cost_parts) || 0, Number(b.cost_labor) || 0, total, b.next_visit_parts || null]
   );
   const eng = rows[0].assigned_engineer_id;
   if (eng) await pool.query('UPDATE engineers SET total_jobs=total_jobs+1, total_revenue=total_revenue+$2 WHERE id=$1', [eng, total]);
+
+  // 비용이 있으면 회계(payments)에 기록 (재완료 시 중복 방지)
+  //  결제수단이 현금/카드/이체 → 입금완료(completed), '미수'/미입력 → 미수(pending)+고객 미수금 증가
+  if (total > 0) {
+    const jobId = jobRes.rows[0] && jobRes.rows[0].id;
+    const exists = jobId ? (await pool.query('SELECT id FROM payments WHERE job_id=$1', [jobId])).rows[0] : null;
+    if (!exists) {
+      const method = b.payment_method || 'unpaid';
+      const paid = method !== 'unpaid';
+      await pool.query(
+        `INSERT INTO payments (job_id, amount, payment_method, payment_status, paid_at) VALUES ($1, $2, $3, $4, $5)`,
+        [jobId || null, total, method, paid ? 'completed' : 'pending', paid ? new Date() : null]
+      );
+      // 미수(나중에 받음)일 때만 고객 미수금 증가
+      if (!paid && rows[0].customer_id) await pool.query('UPDATE customers SET outstanding_amount = COALESCE(outstanding_amount,0) + $2 WHERE id=$1', [rows[0].customer_id, total]);
+    }
+  }
+
   broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
   broadcastEngineers('reception_update', rows[0]);
   res.json(rows[0]);
