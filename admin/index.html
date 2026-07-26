@@ -145,6 +145,19 @@ select,input,textarea{font-family:inherit;font-size:14px}
 .vd-site{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:9px;padding:11px 13px;margin:10px 0 0 18px}
 .vd-badge{background:#f3d9fa;color:#9c36b5;padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700}
 .vd-sbadge{padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700}
+/* 일정표 달력 */
+.cal-wrap{max-width:920px;margin:0 auto}
+.cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.cal-legend{display:flex;gap:16px;font-size:12px;color:var(--gray-600);margin:8px 2px 12px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-dow{text-align:center;font-size:12px;font-weight:700;color:var(--gray-500);padding:3px 0}
+.cal-day{background:#fff;border:1px solid var(--gray-200);border-radius:9px;min-height:66px;padding:6px 7px;cursor:pointer;display:flex;flex-direction:column;transition:background .1s}
+.cal-day:hover{background:var(--gray-50)}
+.cal-day.empty{background:transparent;border:none;cursor:default}
+.cal-day.sel{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-light)}
+.cal-num{font-size:13px;font-weight:700}
+.cal-day.today .cal-num{background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center}
+.cal-dots{display:flex;flex-wrap:wrap;align-items:center;margin-top:auto}
 </style>
 </head>
 <body>

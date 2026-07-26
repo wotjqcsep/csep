@@ -416,6 +416,60 @@ async function addPartOption(){
 }
 async function deletePartOption(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/part-options/'+id); await loadAll(); }
 
+// ============================================================
+//  일정표 (달력)
+// ============================================================
+let scheduleState = { y:null, m:null, sel:null };
+const CAL_COLOR = { pending:'var(--danger)', reserved:'var(--warning)', completed:'var(--success)' };
+const CAL_LABEL = { pending:'미처리', reserved:'예약', completed:'완료' };
+function recCalInfo(r){
+  if(r.status==='completed') return { date: localDateKey(r.completed_at||r.received_at), sec:'completed' };
+  if(r.reserved_date) return { date: String(r.reserved_date).slice(0,10), sec:'reserved' };
+  return { date: localDateKey(r.received_at), sec:'pending' };
+}
+function schedMove(delta){ let m=scheduleState.m+delta, y=scheduleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} scheduleState.m=m; scheduleState.y=y; renderInto(); }
+function renderSchedule(){
+  const now=new Date();
+  if(scheduleState.y==null){ scheduleState.y=now.getFullYear(); scheduleState.m=now.getMonth(); }
+  const y=scheduleState.y, m=scheduleState.m, pad=n=>String(n).padStart(2,'0');
+  const key=d=>`${y}-${pad(m+1)}-${pad(d)}`;
+  const byDate={};
+  (state.receptions||[]).forEach(r=>{ const ci=recCalInfo(r); if(!ci.date||ci.date==='-')return; (byDate[ci.date]=byDate[ci.date]||[]).push({r,sec:ci.sec}); });
+  const startDow=new Date(y,m,1).getDay(), daysInMonth=new Date(y,m+1,0).getDate();
+  const todayKey=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const cells=[]; for(let i=0;i<startDow;i++) cells.push(0); for(let d=1;d<=daysInMonth;d++) cells.push(d);
+  const dow=['일','월','화','수','목','금','토'];
+  const legend=Object.keys(CAL_LABEL).map(s=>`<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${CAL_COLOR[s]};margin-right:5px"></span>${CAL_LABEL[s]}</span>`).join('');
+  const grid=cells.map(d=>{
+    if(!d) return `<div class="cal-day empty"></div>`;
+    const k=key(d), items=byDate[k]||[];
+    const dots=['pending','reserved','completed'].filter(s=>items.some(x=>x.sec===s))
+      .map(s=>`<span style="width:8px;height:8px;border-radius:50%;background:${CAL_COLOR[s]};display:inline-block;margin:1px"></span>`).join('');
+    const dowIdx=(startDow+d-1)%7, nc=dowIdx===0?'color:var(--danger)':dowIdx===6?'color:#1971c2':'';
+    return `<div class="cal-day ${scheduleState.sel===k?'sel':''} ${k===todayKey?'today':''}" onclick="scheduleState.sel='${k}';renderInto()">
+      <span class="cal-num" style="${nc}">${d}</span>
+      <div class="cal-dots">${dots}${items.length?`<span style="font-size:10px;color:var(--gray-400);margin-left:3px">${items.length}</span>`:''}</div>
+    </div>`;
+  }).join('');
+  const sel=scheduleState.sel, selItems=sel?(byDate[sel]||[]):[];
+  const detail = sel
+    ? `<div style="margin-top:16px"><div class="ws-sec" style="--sec:var(--primary)"><span style="background:var(--primary)">${esc(fmtRecDate(sel))} · ${selItems.length}건</span></div>
+        ${selItems.length? `<div class="ws-grid">${selItems.map(x=>recCard(x.r)).join('')}</div>` : '<div class="empty-state">이 날짜의 내역이 없습니다</div>'}</div>`
+    : '<div class="empty-state" style="margin-top:14px">날짜를 누르면 해당 내역이 표시됩니다</div>';
+  return `
+  <div class="page-header"><h2>📅 일정표</h2></div>
+  <div class="cal-wrap">
+    <div class="cal-head">
+      <button class="btn btn-sm btn-secondary" onclick="schedMove(-1)">◀ 이전달</button>
+      <strong style="font-size:17px">${y}년 ${m+1}월</strong>
+      <button class="btn btn-sm btn-secondary" onclick="schedMove(1)">다음달 ▶</button>
+    </div>
+    <div class="cal-legend">${legend}</div>
+    <div class="cal-grid">${dow.map((w,i)=>`<div class="cal-dow" style="${i===0?'color:var(--danger)':i===6?'color:#1971c2':''}">${w}</div>`).join('')}${grid}</div>
+    ${detail}
+  </div>`;
+}
+
 // ── 기사 관리 ──
 function renderEngineers(){
   const es = state.engineers;
