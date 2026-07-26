@@ -865,7 +865,12 @@ async function saveCustomerAdd(){
 }
 
 // ── 배차 경로 최적화 ──
-let routeState={map:null, markers:[], polylines:[], optimized:[], currentLoc:null, loading:false};
+let routeState={map:null, markers:[], polylines:[], optimized:[], currentLoc:null, loading:false, sections:null};
+// 구간(1→2→3…) 구분용 중복 안 되는 색 팔레트 (마커·경로선·리스트 동일 색)
+const LEG_COLORS=['#4263eb','#f76707','#2f9e44','#ae3ec9','#1098ad','#e64980','#5c940d','#7048e8','#0ca678','#d6336c','#f59f00','#12b886'];
+const legColor=i=>LEG_COLORS[i%LEG_COLORS.length];
+// 교통 정체 강조색 (원활은 강조 안 함) — 서행/지체/정체
+const TRAFFIC={2:{c:'#fab005',w:8,t:'서행'},3:{c:'#f76707',w:9,t:'지체'},4:{c:'#e03131',w:11,t:'정체'}};
 async function openRouteOptimizer(){
   const myId=S.engineer.id;
   const notDone=r=>r.status!=='completed';
@@ -892,7 +897,7 @@ async function openRouteOptimizer(){
     routeState.currentLoc=currentLoc;
     const optimized=await optimizeRoute(currentLoc, withAddr);
     // 실제 도로 경로 반영 시도 (실패해도 직선거리로 계속)
-    routeState.realPath=null; routeState.realTotal=null; routeState.routeMode='직선';
+    routeState.sections=null; routeState.realTotal=null; routeState.routeMode='직선';
     await applyRealRoute(currentLoc, optimized);
     routeState.optimized=optimized;
     renderRouteOptimized(optimized, currentLoc);
@@ -911,7 +916,7 @@ async function applyRealRoute(currentLoc, optimized){
     if(rr && rr.ok && Array.isArray(rr.legs)){
       let i=0;
       optimized.forEach(r=>{ if(r.coords && rr.legs[i]){ r.distance=rr.legs[i].distance; r.duration=rr.legs[i].duration; i++; } });
-      routeState.realPath=rr.path||null;
+      routeState.sections=rr.sections||null;
       routeState.realTotal={ distance:rr.distance, duration:rr.duration };
       routeState.routeMode='실제도로';
     }
@@ -1031,15 +1036,16 @@ function initRouteMap(currentLoc, optimized){
   optimized.forEach((r,idx)=>{
     if(!r.coords)return;
     const pos=new kakao.maps.LatLng(r.coords.lat, r.coords.lng);
-    const marker=new kakao.maps.Marker({ position:pos, map, title:`${idx+1}. ${r.customer_name||r.customer_phone}` });
-    marker.setImage(createMarkerImage('#1971c2',String(idx+1)));
+    const col=legColor(idx);
+    const marker=new kakao.maps.Marker({ position:pos, map, title:`${idx+1}. ${r.customer_name||r.customer_phone}`, zIndex:20 });
+    marker.setImage(createMarkerImage(col,String(idx+1)));
     routeState.markers.push(marker);
     // 마커 클릭 → 팝업(겹침 대비). 팝업 안에서 상세보기 진입
     const name=(r.customer_name||r.customer_phone||'고객').replace(/'/g,'');
     const addr=(r.customer_address||'').replace(/'/g,'');
     kakao.maps.event.addListener(marker,'click',()=>{
       const content=`<div style="padding:8px 10px;min-width:150px;font-size:12px;font-family:'Malgun Gothic',sans-serif">
-        <div style="font-weight:700;margin-bottom:2px">${idx+1}. ${name}</div>
+        <div style="font-weight:700;margin-bottom:2px"><span style="color:${col}">●</span> ${idx+1}. ${name}</div>
         <div style="color:#666;margin-bottom:6px">${addr}</div>
         <div onclick="handleRouteItemClick(${r.id})" style="text-align:center;background:#3b5bdb;color:#fff;border-radius:6px;padding:6px;cursor:pointer">상세보기 / 처리</div>
       </div>`;
@@ -1048,14 +1054,33 @@ function initRouteMap(currentLoc, optimized){
     });
     pathCoords.push(pos);
   });
-  // 실제 도로 경로선이 있으면 그걸(구불구불 실제 도로), 없으면 지점 잇는 직선
-  const linePath = (routeState.realPath && routeState.realPath.length)
-    ? routeState.realPath.map(p=>new kakao.maps.LatLng(p.lat, p.lng))
-    : pathCoords;
-  const solidReal = !!(routeState.realPath && routeState.realPath.length);
-  const polyline=new kakao.maps.Polyline({path:linePath,strokeWeight:5,strokeColor:'#1971c2',strokeOpacity:0.75,strokeStyle:solidReal?'solid':'shortdash',map});
-  routeState.polylines.push(polyline);
+  drawRouteLines(map, pathCoords);
   fitRouteBounds(currentLoc, optimized);
+}
+// 경로선 그리기: 구간별 고유색(base) + 정체구간 강조(overlay). 실제경로 없으면 직선 점선.
+function drawRouteLines(map, fallbackPath){
+  const secs=routeState.sections;
+  if(secs && secs.length){
+    secs.forEach((sec,li)=>{
+      const color=legColor(li);
+      const secPath=[];
+      (sec.roads||[]).forEach(rd=>(rd.path||[]).forEach(p=>secPath.push(new kakao.maps.LatLng(p.lat,p.lng))));
+      if(secPath.length){
+        routeState.polylines.push(new kakao.maps.Polyline({path:secPath,strokeWeight:6,strokeColor:color,strokeOpacity:0.9,strokeStyle:'solid',map,zIndex:2}));
+      }
+      // 정체(서행/지체/정체) 구간만 위에 강조 덧칠
+      (sec.roads||[]).forEach(rd=>{
+        const t=TRAFFIC[rd.state];
+        if(t && rd.path && rd.path.length>1){
+          const rp=rd.path.map(p=>new kakao.maps.LatLng(p.lat,p.lng));
+          routeState.polylines.push(new kakao.maps.Polyline({path:rp,strokeWeight:t.w,strokeColor:t.c,strokeOpacity:0.95,strokeStyle:'solid',map,zIndex:6}));
+        }
+      });
+    });
+  }else{
+    // 실제 경로 없음(직선 폴백): 지점 잇는 점선
+    routeState.polylines.push(new kakao.maps.Polyline({path:fallbackPath,strokeWeight:5,strokeColor:'#868e96',strokeOpacity:0.7,strokeStyle:'shortdash',map,zIndex:2}));
+  }
 }
 function fitRouteBounds(currentLoc, optimized){
   if(!routeState.map)return;
@@ -1098,19 +1123,23 @@ function renderRouteList(optimized, currentLoc){
     ${optimized.map((r,idx)=>{
       totalDist+=r.distance;
       totalTime+=r.duration;
+      const col=r.geoFailed?'#adb5bd':legColor(idx);
       const distTxt = r.geoFailed ? '<span style="color:var(--danger)">⚠️ 위치 인식 실패</span>'
         : `🚗 ${(r.distance/1000).toFixed(1)}km · ⏱️ ${Math.round(r.duration/60)}분`;
-      return `<div onclick="handleRouteItemClick(${r.id})" style="padding:10px;background:#fff;border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:4px solid ${r.geoFailed?'var(--danger)':'var(--primary)'}">
-        <div style="font-weight:700;font-size:13px;margin-bottom:3px">${idx+1}. ${esc(r.customer_name||r.customer_phone||'고객')}</div>
+      return `<div onclick="handleRouteItemClick(${r.id})" style="padding:10px;background:#fff;border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:5px solid ${col}">
+        <div style="font-weight:700;font-size:13px;margin-bottom:3px"><span style="display:inline-block;width:18px;height:18px;line-height:18px;text-align:center;background:${col};color:#fff;border-radius:50%;font-size:11px;margin-right:5px">${idx+1}</span>${esc(r.customer_name||r.customer_phone||'고객')}</div>
         <div style="font-size:11px;color:var(--gray-600);margin:2px 0">📍 ${esc(r.customer_address||'')}</div>
-        <div style="font-size:11px;color:var(--primary);margin-top:3px">${distTxt}${real&&!r.geoFailed?'':' <span style="color:var(--gray-400)">(직선)</span>'}</div>
+        <div style="font-size:11px;color:var(--gray-600);margin-top:3px">${distTxt}${real&&!r.geoFailed?'':' <span style="color:var(--gray-400)">(직선)</span>'}</div>
       </div>`;
     }).join('')}
     <div style="border-top:1px solid #dee2e6;padding-top:8px;margin-top:8px;font-size:12px">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 이동${real?'(도로)':'(직선)'}:</span><strong>${((routeState.realTotal?routeState.realTotal.distance:totalDist)/1000).toFixed(1)}km</strong></div>
       <div style="display:flex;justify-content:space-between"><span>예상 시간:</span><strong>약 ${Math.round((routeState.realTotal?routeState.realTotal.duration:totalTime)/60)}분</strong></div>
     </div>
-    <button class="btn btn-primary" onclick="launchRouteNav()" style="margin-top:12px">🧭 첫번째 배차 네비게이션</button>
+    ${real?`<div style="display:flex;gap:10px;justify-content:center;margin-top:8px;font-size:10px;color:var(--gray-500)">
+      <span><span style="color:#fab005">━</span> 서행</span><span><span style="color:#f76707">━</span> 지체</span><span><span style="color:#e03131">━</span> 정체</span>
+    </div>`:''}
+    <button class="btn btn-primary" onclick="launchRouteNav()" style="margin-top:10px">🧭 첫번째 배차 네비게이션</button>
     <button class="btn btn-ghost" onclick="closeSheet()" style="margin-top:6px">닫기</button>`;
   listDiv.innerHTML=html;
 }

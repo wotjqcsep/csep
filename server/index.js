@@ -1003,16 +1003,20 @@ app.post('/api/route', wrap(async (req, res) => {
   if (!route || route.result_code !== 0) {
     return res.json({ ok: false, reason: 'no_route', msg: route && route.result_msg });
   }
-  // 구간별(origin→wp1→...→dest) 거리/시간 + 전체 경로선 좌표
-  const legs = [], path = [];
-  (route.sections || []).forEach(sec => {
-    legs.push({ distance: sec.distance, duration: sec.duration });
-    (sec.roads || []).forEach(road => {
+  // 구간별(origin→wp1→...→dest) 거리/시간 + 도로별 교통상태·좌표
+  // traffic_state: 0 정보없음, 1 원활, 2 서행, 3 지체, 4 정체
+  const sections = (route.sections || []).map(sec => ({
+    distance: sec.distance,
+    duration: sec.duration,
+    roads: (sec.roads || []).map(road => {
       const v = road.vertexes || [];
-      for (let i = 0; i + 1 < v.length; i += 2) path.push({ lng: v[i], lat: v[i + 1] });
-    });
-  });
-  res.json({ ok: true, distance: route.summary.distance, duration: route.summary.duration, legs, path });
+      const p = [];
+      for (let i = 0; i + 1 < v.length; i += 2) p.push({ lng: v[i], lat: v[i + 1] });
+      return { state: (typeof road.traffic_state === 'number' ? road.traffic_state : -1), speed: road.traffic_speed, path: p };
+    }),
+  }));
+  const legs = sections.map(s => ({ distance: s.distance, duration: s.duration }));
+  res.json({ ok: true, distance: route.summary.distance, duration: route.summary.duration, legs, sections });
 }));
 
 app.get('/api/incoming-call/pending', wrap(async (req, res) => {
