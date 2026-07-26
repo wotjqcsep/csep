@@ -895,9 +895,9 @@ async function openRouteOptimizer(){
     await ensureKakao();
     const currentLoc=await getCurrentLocation();
     routeState.currentLoc=currentLoc;
-    const optimized=await optimizeRoute(currentLoc, withAddr);
-    // 직선 표시 모드 (실제 도로선은 복잡해서 사용 안 함). 구간별 색 구분은 유지.
+    // 지도선은 직선 유지. 순서·거리는 optimizeRoute가 도로거리 기준으로 계산(실패 시 직선)
     routeState.sections=null; routeState.realTotal=null; routeState.routeMode='직선';
+    const optimized=await optimizeRoute(currentLoc, withAddr);
     routeState.optimized=optimized;
     renderRouteOptimized(optimized, currentLoc);
   }catch(e){
@@ -905,21 +905,6 @@ async function openRouteOptimizer(){
     alert('경로 계산에 실패했습니다: '+e.message);
   }
   routeState.loading=false;
-}
-// 서버(카카오모빌리티) 실제 도로 경로로 각 구간 거리/시간·경로선 갱신. 실패 시 직선 유지.
-async function applyRealRoute(currentLoc, optimized){
-  const stops=optimized.filter(r=>r.coords);
-  if(!stops.length) return;
-  try{
-    const rr=await api('POST','/route',{ origin:{lat:currentLoc.lat,lng:currentLoc.lng}, destinations:stops.map(r=>r.coords) });
-    if(rr && rr.ok && Array.isArray(rr.legs)){
-      let i=0;
-      optimized.forEach(r=>{ if(r.coords && rr.legs[i]){ r.distance=rr.legs[i].distance; r.duration=rr.legs[i].duration; i++; } });
-      routeState.sections=rr.sections||null;
-      routeState.realTotal={ distance:rr.distance, duration:rr.duration };
-      routeState.routeMode='실제도로';
-    }
-  }catch(e){ console.warn('실제 경로 조회 실패 → 직선 유지', e); }
 }
 // 카카오 지도 SDK 로딩 보장 (autoload=false → load 호출 필요)
 function ensureKakao(){
@@ -982,21 +967,29 @@ async function optimizeRoute(startLoc, receptions){
   });
   const points=[];
   for(const r of receptions){ points.push({...r, coords: await geocode(r.customer_address)}); }
-  // 2) 최근접 이웃(nearest-neighbor)으로 순회 경로 구성 — 각 구간(이전지점→여기) 거리 계산
-  const ordered=[];
-  const remaining=points.filter(p=>p.coords);
+  const withCoords=points.filter(p=>p.coords);
   const failed=points.filter(p=>!p.coords);   // 좌표 인식 실패 건
-  let cur=startLoc;
-  while(remaining.length){
-    let bi=0, bd=Infinity;
-    for(let i=0;i<remaining.length;i++){
-      const d=calculateDistance(cur, remaining[i].coords).distance;
-      if(d<bd){ bd=d; bi=i; }
+  let ordered=null;
+  // 2) 실제 도로거리 기준 순서 (서버 카카오모빌리티) — 지도선은 직선, 순서·거리만 도로 기준
+  try{
+    const resp=await api('POST','/route-order',{ origin:{lat:startLoc.lat,lng:startLoc.lng}, stops:withCoords.map(p=>({id:p.id, lat:p.coords.lat, lng:p.coords.lng})) });
+    if(resp && resp.ok && Array.isArray(resp.order) && resp.order.length===withCoords.length){
+      ordered=resp.order.map(o=>{ const p=withCoords.find(x=>String(x.id)===String(o.id)); return {...p, distance:o.distance, duration:o.duration}; });
+      routeState.routeMode = resp.road ? '실제도로' : '직선';
     }
-    const next=remaining.splice(bi,1)[0];
-    const leg=calculateDistance(cur, next.coords);
-    ordered.push({...next, distance:leg.distance, duration:leg.duration});
-    cur=next.coords;
+  }catch(e){ console.warn('도로거리 순서 실패 → 직선 폴백', e); }
+  // 3) 폴백: 직선거리 최근접이웃
+  if(!ordered){
+    ordered=[]; const remaining=withCoords.slice(); let cur=startLoc;
+    while(remaining.length){
+      let bi=0, bd=Infinity;
+      for(let i=0;i<remaining.length;i++){ const d=calculateDistance(cur, remaining[i].coords).distance; if(d<bd){ bd=d; bi=i; } }
+      const next=remaining.splice(bi,1)[0];
+      const leg=calculateDistance(cur, next.coords);
+      ordered.push({...next, distance:leg.distance, duration:leg.duration});
+      cur=next.coords;
+    }
+    routeState.routeMode='직선';
   }
   failed.forEach(f=>ordered.push({...f, coords:null, distance:0, duration:0, geoFailed:true}));
   return ordered;
@@ -1097,7 +1090,7 @@ function renderRouteList(optimized, currentLoc){
   let totalDist=0, totalTime=0;
   const real = routeState.routeMode==='실제도로';
   const modeBadge = real
-    ? '<span style="background:#d3f9d8;color:#2b8a3e;border-radius:10px;padding:1px 7px">🛣️ 실제 도로</span>'
+    ? '<span style="background:#d3f9d8;color:#2b8a3e;border-radius:10px;padding:1px 7px">🛣️ 도로거리 순서</span>'
     : '<span style="background:#fff3bf;color:#e67700;border-radius:10px;padding:1px 7px">📏 직선거리(추정)</span>';
   const html=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -1120,9 +1113,6 @@ function renderRouteList(optimized, currentLoc){
       <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 이동${real?'(도로)':'(직선)'}:</span><strong>${((routeState.realTotal?routeState.realTotal.distance:totalDist)/1000).toFixed(1)}km</strong></div>
       <div style="display:flex;justify-content:space-between"><span>예상 시간:</span><strong>약 ${Math.round((routeState.realTotal?routeState.realTotal.duration:totalTime)/60)}분</strong></div>
     </div>
-    ${real?`<div style="display:flex;gap:10px;justify-content:center;margin-top:8px;font-size:10px;color:var(--gray-500)">
-      <span><span style="color:#fab005">━</span> 서행</span><span><span style="color:#f76707">━</span> 지체</span><span><span style="color:#e03131">━</span> 정체</span>
-    </div>`:''}
     <button class="btn btn-primary" onclick="launchRouteNav()" style="margin-top:10px">🧭 첫번째 배차 네비게이션</button>
     <button class="btn btn-ghost" onclick="closeSheet()" style="margin-top:6px">닫기</button>`;
   listDiv.innerHTML=html;

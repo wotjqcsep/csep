@@ -1019,6 +1019,55 @@ app.post('/api/route', wrap(async (req, res) => {
   res.json({ ok: true, distance: route.summary.distance, duration: route.summary.duration, legs, sections });
 }));
 
+// 실제 도로거리 기준 방문순서 최적화 (지도선은 앱에서 직선으로 그림, 순서·거리만 도로 기준)
+// body: { origin:{lat,lng}, stops:[{id,lat,lng}, ...] } → { ok, road, order:[{id,lat,lng,distance,duration}] }
+app.post('/api/route-order', wrap(async (req, res) => {
+  const key = process.env.KAKAO_REST_API_KEY;
+  const { origin, stops } = req.body || {};
+  if (!origin || !Array.isArray(stops) || !stops.length) return res.status(400).json({ error: 'origin/stops 필요' });
+  const haversine = (a, b) => {
+    const R = 6371000, toRad = d => d * Math.PI / 180;
+    const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  };
+  // 지점이 너무 많으면 도로 API 호출량(N^2) 과다 → 직선 폴백 지시
+  if (!key || stops.length > 9) return res.json({ ok: false, reason: key ? 'too_many' : 'no_key' });
+  const cache = new Map();
+  const roadDist = async (a, b) => {
+    const k = `${a.lat},${a.lng}>${b.lat},${b.lng}`;
+    if (cache.has(k)) return cache.get(k);
+    let d = { distance: haversine(a, b), duration: Math.round(haversine(a, b) / 1000 / 30 * 3600), fallback: true };
+    try {
+      const url = `https://apis-navi.kakaomobility.com/v1/directions?origin=${a.lng},${a.lat}&destination=${b.lng},${b.lat}&priority=RECOMMEND&summary=true`;
+      const resp = await fetch(url, { headers: { 'Authorization': `KakaoAK ${key}` } });
+      if (resp.ok) {
+        const data = await resp.json();
+        const r = data.routes && data.routes[0];
+        if (r && r.result_code === 0) d = { distance: r.summary.distance, duration: r.summary.duration };
+      }
+    } catch (e) { /* 폴백 유지 */ }
+    cache.set(k, d);
+    return d;
+  };
+  // 최근접이웃 (실제 도로거리 기준)
+  const remaining = stops.slice();
+  const order = [];
+  let cur = origin, anyReal = false;
+  while (remaining.length) {
+    let bi = 0, bd = Infinity, bres = null;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = await roadDist(cur, remaining[i]);
+      if (!d.fallback) anyReal = true;
+      if (d.distance < bd) { bd = d.distance; bi = i; bres = d; }
+    }
+    const next = remaining.splice(bi, 1)[0];
+    order.push({ id: next.id, lat: next.lat, lng: next.lng, distance: bres.distance, duration: bres.duration });
+    cur = next;
+  }
+  res.json({ ok: true, road: anyReal, order });
+}));
+
 app.get('/api/incoming-call/pending', wrap(async (req, res) => {
   res.json(incomingCalls.filter(c => !c.dismissed));
 }));
