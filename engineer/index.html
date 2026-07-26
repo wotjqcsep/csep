@@ -896,9 +896,8 @@ async function openRouteOptimizer(){
     const currentLoc=await getCurrentLocation();
     routeState.currentLoc=currentLoc;
     const optimized=await optimizeRoute(currentLoc, withAddr);
-    // 실제 도로 경로 반영 시도 (실패해도 직선거리로 계속)
+    // 직선 표시 모드 (실제 도로선은 복잡해서 사용 안 함). 구간별 색 구분은 유지.
     routeState.sections=null; routeState.realTotal=null; routeState.routeMode='직선';
-    await applyRealRoute(currentLoc, optimized);
     routeState.optimized=optimized;
     renderRouteOptimized(optimized, currentLoc);
   }catch(e){
@@ -1057,29 +1056,14 @@ function initRouteMap(currentLoc, optimized){
   drawRouteLines(map, pathCoords);
   fitRouteBounds(currentLoc, optimized);
 }
-// 경로선 그리기: 구간별 고유색(base) + 정체구간 강조(overlay). 실제경로 없으면 직선 점선.
+// 경로선 그리기: 구간(현위치→1→2→3…)마다 고유색 직선. 마커 색과 동일.
+// fallbackPath = [현위치, 1번, 2번, …] 순서의 LatLng 배열
 function drawRouteLines(map, fallbackPath){
-  const secs=routeState.sections;
-  if(secs && secs.length){
-    secs.forEach((sec,li)=>{
-      const color=legColor(li);
-      const secPath=[];
-      (sec.roads||[]).forEach(rd=>(rd.path||[]).forEach(p=>secPath.push(new kakao.maps.LatLng(p.lat,p.lng))));
-      if(secPath.length){
-        routeState.polylines.push(new kakao.maps.Polyline({path:secPath,strokeWeight:6,strokeColor:color,strokeOpacity:0.9,strokeStyle:'solid',map,zIndex:2}));
-      }
-      // 정체(서행/지체/정체) 구간만 위에 강조 덧칠
-      (sec.roads||[]).forEach(rd=>{
-        const t=TRAFFIC[rd.state];
-        if(t && rd.path && rd.path.length>1){
-          const rp=rd.path.map(p=>new kakao.maps.LatLng(p.lat,p.lng));
-          routeState.polylines.push(new kakao.maps.Polyline({path:rp,strokeWeight:t.w,strokeColor:t.c,strokeOpacity:0.95,strokeStyle:'solid',map,zIndex:6}));
-        }
-      });
-    });
-  }else{
-    // 실제 경로 없음(직선 폴백): 지점 잇는 점선
-    routeState.polylines.push(new kakao.maps.Polyline({path:fallbackPath,strokeWeight:5,strokeColor:'#868e96',strokeOpacity:0.7,strokeStyle:'shortdash',map,zIndex:2}));
+  for(let i=0;i+1<fallbackPath.length;i++){
+    routeState.polylines.push(new kakao.maps.Polyline({
+      path:[fallbackPath[i], fallbackPath[i+1]],
+      strokeWeight:5, strokeColor:legColor(i), strokeOpacity:0.85, strokeStyle:'solid', map, zIndex:2
+    }));
   }
 }
 function fitRouteBounds(currentLoc, optimized){
