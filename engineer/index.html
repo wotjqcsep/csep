@@ -142,7 +142,8 @@ function render(){
   const isAdmin=S.engineer.is_admin, myId=S.engineer.id;
   const notDone=r=>r.status!=='completed'&&r.status!=='cancelled';   // 취소건은 진행목록에서 제외
   const reserved=r=>r.reserved_date&&notDone(r);
-  const mineActive=S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r));
+  const ipFirst=list=>[...list.filter(r=>r.status==='in_progress'),...list.filter(r=>r.status!=='in_progress')]; // 진행중을 맨 위로
+  const mineActive=ipFirst(S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r)));
   const done=S.receptions.filter(r=>r.status==='completed');
   const tabs = isAdmin
     ? [['all','📊 전체현황'],['wo','➕ 작업지시'],['done','📁 완료이력'],['sched','📅 일정관리']]
@@ -155,7 +156,7 @@ function render(){
   else if(isAdmin){
     const f=S.statusFilter||'pending';
     const cnt={pending:S.receptions.filter(r=>notDone(r)&&!reserved(r)).length,reserved:S.receptions.filter(reserved).length,completed:done.length,all:S.receptions.length};
-    const flist=f==='reserved'?S.receptions.filter(reserved):f==='completed'?done:f==='all'?S.receptions:S.receptions.filter(r=>notDone(r)&&!reserved(r));
+    const flist=ipFirst(f==='reserved'?S.receptions.filter(reserved):f==='completed'?done:f==='all'?S.receptions:S.receptions.filter(r=>notDone(r)&&!reserved(r)));
     const chips=[['pending','🔴 미처리'],['reserved','🟡 예약'],['completed','🟢 완료'],['all','전체']];
     content=`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${chips.map(([k,l])=>`<span onclick="S.statusFilter='${k}';render()" style="padding:6px 12px;border-radius:16px;font-size:13px;cursor:pointer;${f===k?'background:var(--primary);color:#fff':'background:#fff;border:1px solid #dee2e6'}">${l} ${cnt[k]}</span>`).join('')}</div>`
       +(flist.length?flist.map(cardHtml).join(''):'<div class="empty">작업이 없습니다</div>');
@@ -187,8 +188,7 @@ function cardHtml(r){
     </div>
     ${isAdmin&&r.assigned_engineer_id?`<div class="info-line">👤 <span style="color:${engColorById(r.assigned_engineer_id)};font-weight:700">${esc(engName(r.assigned_engineer_id))}${engColorById(r.assigned_engineer_id)==='#e03131'?' (대표)':''}</span></div>`:''}
     ${r.customer_phone?`<div class="info-line">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
-    ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>
-      <div style="display:flex;gap:6px;margin:6px 0"><button class="btn" style="flex:1;margin:0;background:#03c75a;color:#fff;padding:8px" onclick="navNaverHere()">🗺️ 네이버지도 (내 위치)</button></div>`:''}
+    ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>`:''}
     <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
     ${r.reserved_date&&r.status!=='completed'?`<div class="info-line" style="color:var(--warning)">📅 예약: ${esc(r.reserved_date)}</div>`:''}
     <div class="info-line" style="color:var(--gray-400);font-size:12px">${(r.received_at||'').slice(0,16).replace('T',' ')}</div>
