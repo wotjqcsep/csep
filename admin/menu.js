@@ -24,7 +24,7 @@ const MENU_CONFIG = [
   { section: '매출 · 정산', items: [
     { id: 'sales',     icon: '🛒', label: '판매 관리' },
     { id: 'inventory', icon: '📦', label: '재고 관리' },
-    { id: 'payments',  icon: '💳', label: '미수금 · 결제' },
+    { id: 'payments',  icon: '💳', label: '결산' },
   ]},
   { section: '분석', items: [
     { id: 'stats', icon: '📈', label: '통계' },

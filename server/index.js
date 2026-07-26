@@ -217,6 +217,10 @@ async function initDB() {
       value TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
     CREATE TABLE IF NOT EXISTS receptions (
       id SERIAL PRIMARY KEY,
       customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
@@ -335,6 +339,15 @@ async function initDB() {
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS solution TEXT;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS reserved_date TEXT;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS customer_request TEXT;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS labor_fee DOUBLE PRECISION DEFAULT 0;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS parts_fee DOUBLE PRECISION DEFAULT 0;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS payment_method TEXT;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS tax_invoice BOOLEAN DEFAULT FALSE;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS woori_settled BOOLEAN DEFAULT FALSE;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS estimate_amount DOUBLE PRECISION;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS visit_fee DOUBLE PRECISION;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS picked_up BOOLEAN DEFAULT FALSE;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS outcome TEXT;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS next_visit_parts TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS cad TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS adobe TEXT;
@@ -635,6 +648,48 @@ app.put('/api/receptions/:id/solution', wrap(async (req, res) => {
   if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
+}));
+
+// 결제/정산 저장 (기사앱·PC 공용) — 공임/부품/결제수단/계산서, 선택적 완료
+app.put('/api/receptions/:id/payment', wrap(async (req, res) => {
+  const b = req.body;
+  const fields = ['labor_fee','parts_fee','payment_method','tax_invoice','solution','estimate_amount','visit_fee','outcome'];
+  const sets = [], vals = [];
+  fields.forEach(f => { if (b[f] !== undefined) { vals.push(b[f]); sets.push(`${f}=$${vals.length}`); } });
+  if (b.complete) sets.push("status='completed'", 'completed_at=NOW()');
+  if (!sets.length) { const { rows } = await pool.query('SELECT * FROM receptions WHERE id=$1',[req.params.id]); return res.json(rows[0]); }
+  vals.push(req.params.id);
+  const { rows } = await pool.query(`UPDATE receptions SET ${sets.join(',')} WHERE id=$${vals.length} RETURNING *`, vals);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 수거·견적대기중 표시 (지도 실행 시 자동 호출)
+app.put('/api/receptions/:id/pickup', wrap(async (req, res) => {
+  const { rows } = await pool.query('UPDATE receptions SET picked_up=TRUE WHERE id=$1 RETURNING *', [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 우리사무기 정산 받음 처리 (토글)
+app.put('/api/receptions/:id/woori-settle', wrap(async (req, res) => {
+  const val = req.body.settled !== undefined ? !!req.body.settled : true;
+  const { rows } = await pool.query('UPDATE receptions SET woori_settled=$1 WHERE id=$2 RETURNING *', [val, req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 설정 (출장비 기본금액 등)
+app.get('/api/settings', wrap(async (req, res) => {
+  const rows = (await pool.query('SELECT key, value FROM settings')).rows;
+  const o = {}; rows.forEach(r => o[r.key] = r.value); res.json(o);
+}));
+app.put('/api/settings/:key', wrap(async (req, res) => {
+  await pool.query('INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2', [req.params.key, req.body.value ?? '']);
+  res.json({ ok: true });
 }));
 
 app.delete('/api/receptions/:id', wrap(async (req, res) => {

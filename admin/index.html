@@ -183,7 +183,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 <script src="menu.js"></script>
 <script>
 const API = '/api';
-const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null, sites:[], partOptions:[] };
+const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null, sites:[], partOptions:[], settings:{} };
 // MENUS, TITLES 는 menu.js 에서 정의됨 (메뉴 수정은 menu.js 한 곳에서)
 const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', other:'기타' };
 
@@ -205,7 +205,7 @@ async function loadAll(showLoading){
   if(showLoading && firstLoad) document.getElementById('page').innerHTML='<div class="loading">불러오는 중...</div>';
   const jobs = [
     ['dashboard','/dashboard'],['customers','/customers'],['computers','/computers'],['engineers','/engineers'],
-    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],['sites','/sites'],['partOptions','/part-options'],
+    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],['sites','/sites'],['partOptions','/part-options'],['settings','/settings'],
   ];
   const results = await Promise.allSettled(jobs.map(([,u])=>api('GET',u)));
   let anyOk=false;

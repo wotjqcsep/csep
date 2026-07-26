@@ -105,7 +105,8 @@ function recCard(r){
     <div class="ws-head">
       <div class="ws-name">${esc(custName(r.customer_id))} <span style="font-size:13px;font-weight:400;color:var(--gray-400)">${ch}</span></div>
       <div style="text-align:right;flex-shrink:0">
-        <div style="display:flex;gap:5px;justify-content:flex-end">
+        <div style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap">
+          ${(r.picked_up && r.status!=='completed')?`<span class="ws-pill" style="background:#7048e8">수거·견적</span>`:''}
           ${r.reserved_date?`<span class="ws-pill" style="background:var(--warning)">예약</span>`:''}
           <span class="ws-pill" style="background:${st.c}">${st.l}</span>
         </div>
@@ -122,6 +123,7 @@ function recCard(r){
       ${r.status!=='completed'?`<button class="btn btn-sm" onclick="openEngineerChange(${r.id})">👤 기사 변경</button>
       <button class="btn btn-sm" style="background:#7048e8" onclick="openScheduleChange(${r.id})">📅 일정 변경</button>`:''}
       <button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬 대화${adminChatUnread[r.id]?` (${adminChatUnread[r.id]})`:''}</button>
+      ${r.status!=='completed'?`<button class="btn btn-sm" style="background:#e8590c" onclick="openChargedCancel(${r.id})">💰 비용청구취소</button>`:''}
       <button class="btn btn-sm btn-danger" onclick="deleteReception(${r.id})">✕ 취소</button>
     </div>
     <div class="ws-time">${fmtRecTime(r.received_at)}</div>
@@ -158,6 +160,23 @@ function renderReceptions(){
 }
 async function setRecStatus(id,status){ await api('PUT',`/receptions/${id}/status?status=${status}`); await loadAll(); }
 async function deleteReception(id){ if(!confirm('이 콜을 취소(삭제)하시겠습니까?'))return; await api('DELETE','/receptions/'+id); await loadAll(); }
+// 비용 청구 콜취소 (이동 중 고객 일방 취소 → 출장비 청구)
+function openChargedCancel(recId){
+  const r=state.receptions.find(x=>x.id==recId); if(!r) return;
+  const def=(state.settings||{}).visit_fee||'';
+  const body=`
+    <div style="margin-bottom:12px;font-size:13px;color:var(--gray-600)">고객: <strong>${esc(custName(r.customer_id))}</strong><br>이동 중 고객이 취소 → 출장비만 청구하고 종료합니다.</div>
+    <div class="form-group"><label>출장비 (변경 가능)</label><input id="cc_fee" type="number" min="0" value="${esc(def)}"></div>
+    <div class="form-group"><label>결제수단</label><select id="cc_pm">${['cash','transfer','card','unpaid'].map(k=>`<option value="${k}">${PM_LABEL[k]}</option>`).join('')}</select></div>
+    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">닫기</button><button class="btn btn-danger" onclick="doChargedCancel(${recId})">비용 청구 후 종료</button></div>`;
+  modal(`💰 비용 청구 콜취소 - ${esc(custName(r.customer_id))}`, body);
+}
+async function doChargedCancel(recId){
+  const fee=Number(v('cc_fee'))||0;
+  try{ await api('PUT',`/receptions/${recId}/payment`,{ visit_fee:fee, labor_fee:0, parts_fee:0, payment_method:v('cc_pm'), outcome:'charged_cancel', solution:'[비용청구 콜취소] 이동 중 고객 취소', complete:true }); }
+  catch(e){ alert('처리 실패: '+(e&&e.message?e.message:e)); return; }
+  closeModal(); await loadAll();
+}
 // 기사 변경 (재배정)
 function openEngineerChange(recId){
   const r=state.receptions.find(x=>x.id==recId); if(!r) return;
@@ -218,11 +237,23 @@ async function openReceptionDetail(recId){
     <div class="form-section">증상 / 요청</div>
     <div style="background:var(--gray-50);border-radius:8px;padding:10px;font-size:13px;white-space:pre-wrap">${esc(r.symptom)||'-'}${r.customer_request?'\n\n[고객요청] '+esc(r.customer_request):''}${r.initial_memo?'\n\n[메모] '+esc(r.initial_memo):''}</div>
     ${photos.length?`<div class="form-section">현장 사진 (${photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${photos.map(p=>`<img src="${p.photo}" style="width:92px;height:92px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--gray-200)" onclick="window.open(this.src,'_blank')">`).join('')}</div>`:''}
-    <div class="form-section">처리 내용 (처리하기)</div>
-    <textarea id="rd_sol" style="width:100%;min-height:70px" placeholder="처리한 내용을 입력하세요">${esc(r.solution||'')}</textarea>
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-secondary" onclick="saveSolution(${r.id},false)">💾 내용 저장</button>
-      ${r.status!=='completed'?`<button class="btn btn-sm btn-success" onclick="saveSolution(${r.id},true)">✔ 완료 처리</button>`:''}
+    <div class="form-section">처리 · 결제 (처리하기)</div>
+    <textarea id="rd_sol" style="width:100%;min-height:60px" placeholder="처리한 내용을 입력하세요">${esc(r.solution||'')}</textarea>
+    <div class="form-row" style="margin-top:8px">
+      <div class="form-group"><label>공임비</label><input id="rd_labor" type="number" min="0" value="${r.labor_fee||''}" oninput="calcPay()"></div>
+      <div class="form-group"><label>부품비</label><input id="rd_parts" type="number" min="0" value="${r.parts_fee||''}" oninput="calcPay()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>결제수단</label><select id="rd_pm" onchange="calcPay()">
+        <option value="">선택</option>
+        ${['card','cash','transfer','unpaid'].map(k=>`<option value="${k}" ${r.payment_method===k?'selected':''}>${PM_LABEL[k]}</option>`).join('')}
+      </select></div>
+      <div class="form-group"><label>세금계산서</label><label style="display:flex;align-items:center;gap:6px;padding-top:9px;font-size:14px"><input type="checkbox" id="rd_tax" ${r.tax_invoice?'checked':''} onchange="calcPay()"> 발급</label></div>
+    </div>
+    <div id="rd_calc" style="background:var(--gray-50);border-radius:8px;padding:10px;font-size:13px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-secondary" onclick="savePayment(${r.id},false)">💾 저장</button>
+      ${r.status!=='completed'?`<button class="btn btn-sm btn-success" onclick="savePayment(${r.id},true)">✔ 완료 처리</button>`:''}
     </div>
     <div class="form-section"></div>
     <div class="form-actions" style="flex-wrap:wrap;gap:6px">
@@ -231,6 +262,26 @@ async function openReceptionDetail(recId){
       <button class="btn btn-secondary" onclick="closeModal()">닫기</button>
     </div>`;
   modal(`📋 상세보기 - ${esc(custName(r.customer_id))}`, body, true);
+  calcPay();
+}
+function calcPay(){
+  const labor=Number(v('rd_labor'))||0, parts=Number(v('rd_parts'))||0, pm=v('rd_pm');
+  const tax=document.getElementById('rd_tax') && document.getElementById('rd_tax').checked;
+  const rev=labor+parts, woori=(pm==='card'||tax)?Math.round(rev*0.15):0, mine=rev-woori;
+  const el=document.getElementById('rd_calc'); if(!el) return;
+  el.innerHTML = `매출 <strong>${won(rev)}</strong>`
+    + (woori?` · <span style="color:var(--warning)">우리사무기 15% ${won(woori)}</span>`:'')
+    + ` · <span style="color:var(--success)">정산액(내 몫) <strong>${won(mine)}</strong></span>`
+    + ((pm==='card'||tax)&&rev?`<div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ 카드/계산서 → 매출은 우리사무기 경유, 나중에 ${won(mine)} 현금 정산 받음</div>`:'');
+}
+async function savePayment(recId, complete){
+  const tax = !!(document.getElementById('rd_tax') && document.getElementById('rd_tax').checked);
+  const data={ labor_fee:Number(v('rd_labor'))||0, parts_fee:Number(v('rd_parts'))||0, payment_method:v('rd_pm')||null, tax_invoice:tax, solution:v('rd_sol'), complete: !!complete };
+  if(complete && !data.payment_method){ if(!confirm('결제수단이 없습니다. 그래도 완료할까요?')) return; }
+  else if(complete && !confirm('완료 처리하시겠습니까?')) return;
+  try{ await api('PUT',`/receptions/${recId}/payment`, data); }
+  catch(e){ alert('저장 실패: '+(e&&e.message?e.message:e)); return; }
+  closeModal(); await loadAll();
 }
 async function saveSolution(recId, complete){
   const solution=v('rd_sol');
@@ -435,8 +486,16 @@ function renderPartsData(){
   const k=partForm.kind; const cfg=PART_KINDS[k];
   const list=(state.partOptions||[]).filter(o=>o.kind===k);
   return `
-  <div class="page-header"><h2>🧩 부품 데이터 (수동 추가)</h2></div>
+  <div class="page-header"><h2>🧩 부품 데이터 · 설정</h2></div>
   <div class="vd-wrap">
+    <div class="vd-card">
+      <div style="font-weight:800;margin-bottom:10px">🚗 출장비 기본금액</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="pd_visitfee" type="number" min="0" value="${esc((state.settings||{}).visit_fee||'')}" placeholder="예: 30000" style="flex:1;padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px">
+        <button class="btn" onclick="saveVisitFee()">저장</button>
+      </div>
+      <div style="font-size:12px;color:var(--gray-400);margin-top:6px">거절·비용청구 콜취소 시 기본으로 청구되는 금액 (현장에서 변경 가능)</div>
+    </div>
     <div class="vd-card">
       <div style="font-weight:800;margin-bottom:12px">새 부품 추가 <span style="font-weight:400;color:var(--gray-500);font-size:12px">— 추가하면 장치정보 드롭다운에 바로 나타납니다</span></div>
       <div class="form-group"><label>종류</label><select id="pd_kind" onchange="partForm.kind=this.value;renderInto()">
@@ -465,6 +524,7 @@ async function addPartOption(){
   await loadAll();
 }
 async function deletePartOption(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/part-options/'+id); await loadAll(); }
+async function saveVisitFee(){ await api('PUT','/settings/visit_fee',{value:v('pd_visitfee')||'0'}); await loadAll(); alert('출장비 기본금액이 저장되었습니다.'); }
 
 // ============================================================
 //  일정표 (달력)
@@ -582,27 +642,67 @@ async function deleteInventory(id){ if(!confirm('삭제하시겠습니까?'))ret
 // ── 미수금 · 결제 (회계 장부: 어떤 작업으로 어떻게 입금됐는지) ──
 const PAY_METHODS = { cash:'현금', card:'카드', transfer:'계좌이체', unpaid:'미수' };
 function payMethodLabel(m){ return PAY_METHODS[m] || m || '-'; }
+// ── 결산 (컴플러스) ──
+const PM_LABEL = { card:'카드', cash:'현금', transfer:'계좌이체', unpaid:'미수금' };
+function isWoori(r){ return r.payment_method==='card' || r.tax_invoice; }   // 우리사무기 경유(15%)
+function recRevenue(r){ return (Number(r.labor_fee)||0)+(Number(r.parts_fee)||0)+(Number(r.visit_fee)||0); }
+function wooriCut(r){ return isWoori(r)? Math.round(recRevenue(r)*0.15):0; }
+function mySettle(r){ return recRevenue(r)-wooriCut(r); }
+let settleState = { y:null, m:null };
+function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }
+async function doWooriSettle(id){ await api('PUT',`/receptions/${id}/woori-settle`,{settled:true}); await loadAll(); }
 function renderPayments(){
-  const ps = state.payments;
-  const paid    = ps.filter(p=>p.payment_status==='completed');
-  const unpaid  = ps.filter(p=>p.payment_status!=='completed');
-  const sum = arr => arr.reduce((s,p)=>s+(Number(p.amount)||0),0);
-  const payName = p => esc(p.customer_name) || esc(p.company_name) || esc(p.customer_phone) || (p.customer_id?`고객${p.customer_id}`:'-');
-  return `<div class="page-header"><h2>미수금 · 결제 (${ps.length}건)</h2></div>
+  const now=new Date();
+  if(settleState.y==null){ settleState.y=now.getFullYear(); settleState.m=now.getMonth(); }
+  const y=settleState.y, m=settleState.m;
+  const inMonth=r=>{ const d=recDate(r.completed_at); return d && d.getFullYear()===y && d.getMonth()===m; };
+  const done=(state.receptions||[]).filter(r=>r.status==='completed' && recRevenue(r)>0);
+  const md=done.filter(inMonth);
+  const rev=md.reduce((s,r)=>s+recRevenue(r),0);
+  const myTotal=md.reduce((s,r)=>s+mySettle(r),0);
+  const wooriMonth=md.reduce((s,r)=>s+wooriCut(r),0);
+  const wooriPending=done.filter(r=>isWoori(r) && !r.woori_settled);
+  const wooriPendingAmt=wooriPending.reduce((s,r)=>s+mySettle(r),0);
+  const unpaid=done.filter(r=>r.payment_method==='unpaid');
+  const unpaidAmt=unpaid.reduce((s,r)=>s+recRevenue(r),0);
+  const byPM={card:0,cash:0,transfer:0,unpaid:0}; md.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
+  const byCust={}; md.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); });
+  const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
+  return `
+  <div class="page-header"><h2>💳 결산 <span style="font-size:13px;color:var(--gray-500)">— 컴플러스</span></h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-sm btn-secondary" onclick="settleMove(-1)">◀</button>
+      <strong>${y}년 ${m+1}월</strong>
+      <button class="btn btn-sm btn-secondary" onclick="settleMove(1)">▶</button>
+    </div>
+  </div>
   <div class="stat-grid">
-    ${statCard('총 입금완료', won(sum(paid)), 'var(--success)', 20)}
-    ${statCard('총 미수금', won(sum(unpaid)), unpaid.length?'var(--danger)':'', 20)}
-    ${statCard('총 매출', won(sum(ps)), '', 20)}
+    ${statCard('이달 매출', won(rev), '', 20)}
+    ${statCard('이달 정산액(내 몫)', won(myTotal), 'var(--success)', 20)}
+    ${statCard('우리사무기 받을 정산액', won(wooriPendingAmt), wooriPendingAmt>0?'var(--warning)':'', 18)}
+    ${statCard('고객 미수금', won(unpaidAmt), unpaidAmt>0?'var(--danger)':'', 18)}
+  </div>
+  <div class="split" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
+    <div class="detail-panel" style="position:static">
+      <h3>이달 결제수단별</h3>
+      ${['card','cash','transfer','unpaid'].map(k=>`<div class="detail-row"><span class="detail-value">${PM_LABEL[k]}</span><span class="detail-value" style="text-align:right"><strong>${won(byPM[k])}</strong></span></div>`).join('')}
+      <div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">우리사무기 15%(이달)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth)}</strong></span></div>
+    </div>
+    <div class="detail-panel" style="position:static">
+      <h3>우리사무기 받을 정산액 (미정산 ${wooriPending.length}건)</h3>
+      ${wooriPending.length? wooriPending.slice(0,8).map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} · ${PM_LABEL[r.payment_method]||''}${r.tax_invoice?'/계산서':''}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(mySettle(r))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettle(${r.id})">정산받음</button></span></div>`).join('') : '<div class="empty-state">받을 정산액 없음</div>'}
+      ${wooriPending.length>8?`<div style="font-size:12px;color:var(--gray-400);margin-top:6px">외 ${wooriPending.length-8}건</div>`:''}
+    </div>
   </div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>완료일</th><th>고객</th><th>작업 내용</th><th>결제수단</th><th>금액</th><th>상태</th></tr></thead>
-    <tbody>${ps.length? ps.map(p=>`<tr>
-      <td style="font-size:12px;color:var(--gray-500)">${p.completed_at?(p.completed_at).slice(0,10):(esc(p.due_date)||'-')}</td>
-      <td><strong>${payName(p)}</strong></td>
-      <td>${esc(p.work_description)||'-'}</td>
-      <td><span class="chip">${payMethodLabel(p.payment_method)}</span></td>
-      <td><strong>${won(p.amount)}</strong></td>
-      <td><span class="badge ${p.payment_status==='completed'?'completed':'assigned'}">${p.payment_status==='completed'?'입금완료':'미수'}</span></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">회계 내역이 없습니다</td></tr>'}
+    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th><th style="text-align:right">우리사무기15%</th><th style="text-align:right">정산액(내 몫)</th></tr></thead>
+    <tbody>${custRows.length? custRows.map(([cid,o])=>`<tr>
+      <td><strong>${esc(custName(cid))}</strong></td>
+      <td style="text-align:right">${won(o.labor)}</td>
+      <td style="text-align:right">${won(o.parts)}</td>
+      <td style="text-align:right"><strong>${won(o.rev)}</strong></td>
+      <td style="text-align:right;color:var(--warning)">${o.woori?won(o.woori):'-'}</td>
+      <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>'}
     </tbody></table></div>`;
 }
 
