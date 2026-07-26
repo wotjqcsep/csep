@@ -891,6 +891,9 @@ async function openRouteOptimizer(){
     const currentLoc=await getCurrentLocation();
     routeState.currentLoc=currentLoc;
     const optimized=await optimizeRoute(currentLoc, withAddr);
+    // 실제 도로 경로 반영 시도 (실패해도 직선거리로 계속)
+    routeState.realPath=null; routeState.realTotal=null; routeState.routeMode='직선';
+    await applyRealRoute(currentLoc, optimized);
     routeState.optimized=optimized;
     renderRouteOptimized(optimized, currentLoc);
   }catch(e){
@@ -898,6 +901,21 @@ async function openRouteOptimizer(){
     alert('경로 계산에 실패했습니다: '+e.message);
   }
   routeState.loading=false;
+}
+// 서버(카카오모빌리티) 실제 도로 경로로 각 구간 거리/시간·경로선 갱신. 실패 시 직선 유지.
+async function applyRealRoute(currentLoc, optimized){
+  const stops=optimized.filter(r=>r.coords);
+  if(!stops.length) return;
+  try{
+    const rr=await api('POST','/route',{ origin:{lat:currentLoc.lat,lng:currentLoc.lng}, destinations:stops.map(r=>r.coords) });
+    if(rr && rr.ok && Array.isArray(rr.legs)){
+      let i=0;
+      optimized.forEach(r=>{ if(r.coords && rr.legs[i]){ r.distance=rr.legs[i].distance; r.duration=rr.legs[i].duration; i++; } });
+      routeState.realPath=rr.path||null;
+      routeState.realTotal={ distance:rr.distance, duration:rr.duration };
+      routeState.routeMode='실제도로';
+    }
+  }catch(e){ console.warn('실제 경로 조회 실패 → 직선 유지', e); }
 }
 // 카카오 지도 SDK 로딩 보장 (autoload=false → load 호출 필요)
 function ensureKakao(){
@@ -1030,7 +1048,12 @@ function initRouteMap(currentLoc, optimized){
     });
     pathCoords.push(pos);
   });
-  const polyline=new kakao.maps.Polyline({path:pathCoords,strokeWeight:3,strokeColor:'#1971c2',strokeOpacity:0.6,strokeStyle:'solid',map});
+  // 실제 도로 경로선이 있으면 그걸(구불구불 실제 도로), 없으면 지점 잇는 직선
+  const linePath = (routeState.realPath && routeState.realPath.length)
+    ? routeState.realPath.map(p=>new kakao.maps.LatLng(p.lat, p.lng))
+    : pathCoords;
+  const solidReal = !!(routeState.realPath && routeState.realPath.length);
+  const polyline=new kakao.maps.Polyline({path:linePath,strokeWeight:5,strokeColor:'#1971c2',strokeOpacity:0.75,strokeStyle:solidReal?'solid':'shortdash',map});
   routeState.polylines.push(polyline);
   fitRouteBounds(currentLoc, optimized);
 }
@@ -1063,23 +1086,29 @@ function renderRouteList(optimized, currentLoc){
   const listDiv=document.getElementById('routeList');
   if(!listDiv)return;
   let totalDist=0, totalTime=0;
+  const real = routeState.routeMode==='실제도로';
+  const modeBadge = real
+    ? '<span style="background:#d3f9d8;color:#2b8a3e;border-radius:10px;padding:1px 7px">🛣️ 실제 도로</span>'
+    : '<span style="background:#fff3bf;color:#e67700;border-radius:10px;padding:1px 7px">📏 직선거리(추정)</span>';
   const html=`
-    <div style="font-size:12px;font-weight:700;margin-bottom:2px">출발지: 현위치 📍</div>
-    <div style="font-size:10px;color:var(--gray-400);margin-bottom:8px">직선거리 기준 순서 · 실제 도로안내는 각 항목 네비</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:700">출발지: 현위치 📍</span>
+      <span style="font-size:10px">${modeBadge}</span>
+    </div>
     ${optimized.map((r,idx)=>{
       totalDist+=r.distance;
       totalTime+=r.duration;
       const distTxt = r.geoFailed ? '<span style="color:var(--danger)">⚠️ 위치 인식 실패</span>'
-        : `🚗 약 ${(r.distance/1000).toFixed(1)}km · ⏱️ 약 ${Math.round(r.duration/60)}분`;
+        : `🚗 ${(r.distance/1000).toFixed(1)}km · ⏱️ ${Math.round(r.duration/60)}분`;
       return `<div onclick="handleRouteItemClick(${r.id})" style="padding:10px;background:#fff;border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:4px solid ${r.geoFailed?'var(--danger)':'var(--primary)'}">
         <div style="font-weight:700;font-size:13px;margin-bottom:3px">${idx+1}. ${esc(r.customer_name||r.customer_phone||'고객')}</div>
         <div style="font-size:11px;color:var(--gray-600);margin:2px 0">📍 ${esc(r.customer_address||'')}</div>
-        <div style="font-size:11px;color:var(--primary);margin-top:3px">${distTxt}</div>
+        <div style="font-size:11px;color:var(--primary);margin-top:3px">${distTxt}${real&&!r.geoFailed?'':' <span style="color:var(--gray-400)">(직선)</span>'}</div>
       </div>`;
     }).join('')}
     <div style="border-top:1px solid #dee2e6;padding-top:8px;margin-top:8px;font-size:12px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 이동(직선):</span><strong>약 ${(totalDist/1000).toFixed(1)}km</strong></div>
-      <div style="display:flex;justify-content:space-between"><span>예상 시간:</span><strong>약 ${Math.round(totalTime/60)}분</strong></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 이동${real?'(도로)':'(직선)'}:</span><strong>${((routeState.realTotal?routeState.realTotal.distance:totalDist)/1000).toFixed(1)}km</strong></div>
+      <div style="display:flex;justify-content:space-between"><span>예상 시간:</span><strong>약 ${Math.round((routeState.realTotal?routeState.realTotal.duration:totalTime)/60)}분</strong></div>
     </div>
     <button class="btn btn-primary" onclick="launchRouteNav()" style="margin-top:12px">🧭 첫번째 배차 네비게이션</button>
     <button class="btn btn-ghost" onclick="closeSheet()" style="margin-top:6px">닫기</button>`;
@@ -1133,9 +1162,9 @@ function setupBackButton(){
   // 닫을 화면이 있으면 닫고, 없으면 앱을 '종료'가 아니라 '백그라운드로 최소화'
   // (완전 종료 시 전화감지·푸시가 끊기므로 minimizeApp으로 앱은 살려둠)
   App.addListener('backButton', ()=>{
-    if(handleBack()) return;
-    if(App.minimizeApp) App.minimizeApp();
-    else if(App.exitApp) App.exitApp();
+    if(handleBack()) return;   // 닫을 화면(모달·처리·탭)이 있으면 그것부터 닫기
+    // 홈에서 백 → 앱 종료가 아니라 백그라운드로 최소화. exitApp은 절대 호출하지 않음.
+    try{ if(App.minimizeApp) App.minimizeApp(); }catch(e){}
   });
 }
 

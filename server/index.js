@@ -966,6 +966,55 @@ app.get('/api/geocode', async (req, res) => {
   res.json({ lon: null, lat: null });
 });
 
+// 실제 도로 경로 (카카오모빌리티 다중경유지 길찾기). 실패 시 {ok:false} → 앱은 직선거리로 폴백
+// body: { origin:{lat,lng}, destinations:[{lat,lng}, ... 방문순서] }
+app.post('/api/route', wrap(async (req, res) => {
+  const key = process.env.KAKAO_REST_API_KEY;
+  if (!key) return res.json({ ok: false, reason: 'no_key' });
+  const { origin, destinations } = req.body || {};
+  if (!origin || !Array.isArray(destinations) || !destinations.length) {
+    return res.status(400).json({ error: 'origin/destinations 필요' });
+  }
+  const toXY = p => ({ x: Number(p.lng), y: Number(p.lat) });
+  const dest = destinations[destinations.length - 1];
+  const waypoints = destinations.slice(0, -1).map(toXY);
+  const body = {
+    origin: toXY(origin),
+    destination: toXY(dest),
+    waypoints,
+    priority: 'RECOMMEND',
+    car_fuel: 'GASOLINE', car_hipass: false, alternatives: false, road_details: false,
+  };
+  let resp;
+  try {
+    resp = await fetch('https://apis-navi.kakaomobility.com/v1/waypoints/directions', {
+      method: 'POST',
+      headers: { 'Authorization': `KakaoAK ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) { return res.json({ ok: false, reason: 'fetch_error', detail: e.message }); }
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => '');
+    console.log('[route] 카카오모빌리티 오류', resp.status, t.slice(0, 200));
+    return res.json({ ok: false, reason: 'api_error', status: resp.status });
+  }
+  const data = await resp.json();
+  const route = data.routes && data.routes[0];
+  if (!route || route.result_code !== 0) {
+    return res.json({ ok: false, reason: 'no_route', msg: route && route.result_msg });
+  }
+  // 구간별(origin→wp1→...→dest) 거리/시간 + 전체 경로선 좌표
+  const legs = [], path = [];
+  (route.sections || []).forEach(sec => {
+    legs.push({ distance: sec.distance, duration: sec.duration });
+    (sec.roads || []).forEach(road => {
+      const v = road.vertexes || [];
+      for (let i = 0; i + 1 < v.length; i += 2) path.push({ lng: v[i], lat: v[i + 1] });
+    });
+  });
+  res.json({ ok: true, distance: route.summary.distance, duration: route.summary.duration, legs, path });
+}));
+
 app.get('/api/incoming-call/pending', wrap(async (req, res) => {
   res.json(incomingCalls.filter(c => !c.dismissed));
 }));
