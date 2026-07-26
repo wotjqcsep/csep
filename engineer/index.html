@@ -625,7 +625,7 @@ function calcCompletePay(){
   const el=document.getElementById('w_calc'); if(!el) return;
   el.innerHTML = `매출 <b>${won(rev)}</b>`
     + (woori?` · <span style="color:#e67700">우리사무기 15% ${won(woori)}</span>`:'')
-    + ` · <span style="color:#2f9e44">내 몫 <b>${won(mine)}</b></span>`
+    + ` · <span style="color:#2f9e44">정산액 <b>${won(mine)}</b></span>`
     + ((pm==='card'||tax)&&rev?`<div style="font-size:11px;color:#868e96;margin-top:4px">카드/계산서 → 나중에 우리사무기에서 ${won(mine)} 현금 정산</div>`:'');
 }
 function calcProcPay(){
@@ -636,7 +636,7 @@ function calcProcPay(){
   const el=document.getElementById('p_calc'); if(!el) return;
   el.innerHTML = `매출 <b>${won(rev)}</b>`
     + (woori?` · <span style="color:#e67700">우리사무기 15% ${won(woori)}</span>`:'')
-    + ` · <span style="color:#2f9e44">내 몫 <b>${won(mine)}</b></span>`;
+    + ` · <span style="color:#2f9e44">정산액 <b>${won(mine)}</b></span>`;
 }
 function closeSheet(){ const o=document.getElementById('ov'); if(o)o.remove(); }
 // 프리셋/부품 칩 → 입력칸에 추가

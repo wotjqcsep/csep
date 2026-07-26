@@ -271,7 +271,7 @@ function calcPay(){
   const el=document.getElementById('rd_calc'); if(!el) return;
   el.innerHTML = `매출 <strong>${won(rev)}</strong>`
     + (woori?` · <span style="color:var(--warning)">우리사무기 15% ${won(woori)}</span>`:'')
-    + ` · <span style="color:var(--success)">정산액(내 몫) <strong>${won(mine)}</strong></span>`
+    + ` · <span style="color:var(--success)">정산액 <strong>${won(mine)}</strong></span>`
     + ((pm==='card'||tax)&&rev?`<div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ 카드/계산서 → 매출은 우리사무기 경유, 나중에 ${won(mine)} 현금 정산 받음</div>`:'');
 }
 async function savePayment(recId, complete){
@@ -678,7 +678,7 @@ function renderPayments(){
   </div>
   <div class="stat-grid">
     ${statCard('이달 매출', won(rev), '', 20)}
-    ${statCard('이달 정산액(내 몫)', won(myTotal), 'var(--success)', 20)}
+    ${statCard('이달 정산액', won(myTotal), 'var(--success)', 20)}
     ${statCard('우리사무기 받을 정산액', won(wooriPendingAmt), wooriPendingAmt>0?'var(--warning)':'', 18)}
     ${statCard('고객 미수금', won(unpaidAmt), unpaidAmt>0?'var(--danger)':'', 18)}
   </div>
@@ -695,7 +695,7 @@ function renderPayments(){
     </div>
   </div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th><th style="text-align:right">우리사무기15%</th><th style="text-align:right">정산액(내 몫)</th></tr></thead>
+    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th><th style="text-align:right">우리사무기15%</th><th style="text-align:right">정산액</th></tr></thead>
     <tbody>${custRows.length? custRows.map(([cid,o])=>`<tr>
       <td><strong>${esc(custName(cid))}</strong></td>
       <td style="text-align:right">${won(o.labor)}</td>
