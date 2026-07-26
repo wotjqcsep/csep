@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#1a1f2b">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=7d76e8ef1869f1f38fbdf46cb4f5e15b"></script>
 <style>
 :root{--primary:#3b5bdb;--success:#2f9e44;--warning:#f08c00;--danger:#e03131;--bg:#f1f3f5;--gray-400:#adb5bd;--gray-500:#868e96;--gray-600:#495057}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -163,7 +164,10 @@ function render(){
   document.getElementById('app').innerHTML=`
     <div class="topbar"><h1>🔧 현장 기사 앱</h1><span class="who"><span style="color:${isAdmin?'#ff6b6b':'#74c0fc'};font-weight:700">${esc(S.engineer.name)} ${isAdmin?'대표':'기사'}</span> · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
     <div class="tabs">${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}</div>
-    <div style="padding:12px 14px 0"><button class="btn" style="margin:0;background:#2b3140;color:#fff" onclick="openSoundPicker()">🔔 알림 소리 선택 (${soundName})</button></div>
+    <div style="padding:12px 14px 0;display:flex;gap:6px">
+      <button class="btn" style="margin:0;background:#2b3140;color:#fff;flex:1" onclick="openSoundPicker()">🔔 알림 소리 선택 (${soundName})</button>
+      ${isAdmin && S.tab==='all' ? `<button class="btn" style="margin:0;background:#1971c2;color:#fff;flex:1" onclick="openRouteOptimizer()">🗺️ 배차 경로</button>` : ''}
+    </div>
     <div class="content">${content}</div>`;
   if(S.tab==='wo')renderWoTab();
   if(S.tab==='sched')renderScheduleInline();
@@ -276,6 +280,8 @@ function renderProcessing(){
         <div class="fg"><label>다음 방문시 필요 부품 및 조치</label><input id="p_next" value="${esc(r.next_visit_parts||'')}"></div>
         <div class="fg"><label>고객 요청사항</label><input id="p_req" value="${esc(r.customer_request||'')}"></div>
         <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div></div>
+        <div class="fg"><label>결제수단 *</label><select id="p_paymethod">
+          <option value="cash">현금 (입금완료)</option><option value="card">카드 (입금완료)</option><option value="transfer">계좌이체 (입금완료)</option><option value="unpaid">미수 (나중에 받음)</option></select></div>
       </div>
       <div class="card">
         <div style="font-weight:700;margin-bottom:8px">📷 작업 사진 (관리자 전송)</div>
@@ -311,7 +317,7 @@ async function uploadProcPhotos(id){ for(const p of S.procPhotos){ try{ await ap
 async function submitProcessing(id){
   const g=x=>{const el=document.getElementById(x);return el?el.value:'';};
   const desc=g('p_desc').trim(); if(!desc){ alert('처리 내용을 입력하세요'); return; }
-  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:moneyVal('p_cparts'), cost_labor:moneyVal('p_clabor') });
+  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:moneyVal('p_cparts'), cost_labor:moneyVal('p_clabor'), payment_method:g('p_paymethod') });
   await uploadProcPhotos(id);
   S.processing=null; await loadReceptions(); alert('처리 완료');
 }
@@ -600,6 +606,8 @@ function openComplete(id){
           <div class="fg"><label>부품비</label><input id="w_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div>
           <div class="fg"><label>공임비</label><input id="w_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div>
         </div>
+        <div class="fg"><label>결제수단 *</label><select id="w_paymethod">
+          <option value="cash">현금 (입금완료)</option><option value="card">카드 (입금완료)</option><option value="transfer">계좌이체 (입금완료)</option><option value="unpaid">미수 (나중에 받음)</option></select></div>
         <div class="fg"><label>작업 사진 (수리 전/후)</label>
           <input type="file" id="w_photo" accept="image/*" capture="environment" onchange="addCompletePhoto(this)" style="font-size:13px">
           <div id="w_photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
@@ -687,7 +695,7 @@ async function sendChatPhoto(id,input){
 async function submitComplete(id){
   const g=x=>document.getElementById(x).value;
   const desc=g('w_desc'); if(!desc){ alert('작업 내용을 입력하세요'); return; }
-  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('w_parts'), cost_parts:moneyVal('w_cparts'), cost_labor:moneyVal('w_clabor') });
+  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('w_parts'), cost_parts:moneyVal('w_cparts'), cost_labor:moneyVal('w_clabor'), payment_method:g('w_paymethod') });
   for(const p of completePhotos){ try{ await api('POST',`/receptions/${id}/photos`,{photo:p}); }catch(e){} }
   completePhotos=[];
   closeSheet(); loadReceptions();
@@ -832,6 +840,181 @@ async function saveCustomerAdd(){
   // 등록 직후 바로 작업지시 진입 (증상엔 메모 자동 채움)
   woState={customerId:String(cust.id),customer:cust,search:'',results:[],comps:[],symptom:memo||'',searchSeq:(woState.searchSeq||0)};
   S.tab='wo'; render(); woLoadComps(cust.id);
+}
+
+// ── 배차 경로 최적화 ──
+let routeState={map:null, markers:[], polylines:[], optimized:[], currentLoc:null, loading:false};
+async function openRouteOptimizer(){
+  const myId=S.engineer.id;
+  const notDone=r=>r.status!=='completed';
+  const pending=S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r));
+  if(!pending.length){ alert('미처리 작업이 없습니다'); return; }
+  if(pending.some(r=>!r.customer_address)){ alert('주소가 없는 작업이 있습니다. 주소를 확인해주세요.'); return; }
+  routeState.loading=true;
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()"><div class="sheet" style="max-height:88vh;display:flex;flex-direction:column;padding:0"><div style="padding:22px;flex-shrink:0"><h3 style="margin:0">🗺️ 배차 경로 최적화</h3><div style="font-size:12px;color:var(--gray-500);margin-top:4px">현재 위치 기준 · 미처리 작업 ${pending.length}건</div></div><div id="routeContainer" style="flex:1;overflow:hidden;display:flex;flex-direction:column"><div style="text-align:center;padding:40px 20px;color:var(--gray-400)">계산 중...</div></div></div></div>`);
+  try{
+    const currentLoc=await getCurrentLocation();
+    routeState.currentLoc=currentLoc;
+    const optimized=await optimizeRoute(currentLoc, pending);
+    routeState.optimized=optimized;
+    renderRouteOptimized(optimized, currentLoc);
+  }catch(e){
+    console.error('경로 최적화 오류:', e);
+    alert('경로 계산에 실패했습니다: '+e.message);
+  }
+  routeState.loading=false;
+}
+async function getCurrentLocation(){
+  return new Promise((resolve,reject)=>{
+    if(!navigator.geolocation){ reject(new Error('위치 서비스를 지원하지 않습니다')); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos=>resolve({lat:pos.coords.latitude, lng:pos.coords.longitude}),
+      err=>reject(new Error('위치 권한: '+err.message)),
+      {timeout:10000, enableHighAccuracy:true}
+    );
+  });
+}
+async function calculateDistance(from, to){
+  return new Promise((resolve,reject)=>{
+    try{
+      const options={origin: new kakao.maps.LatLng(from.lat, from.lng), destination: new kakao.maps.LatLng(to.lat, to.lng), waypoints: []};
+      const directions=new kakao.maps.services.Directions();
+      directions.getDirection(options, (result,status)=>{
+        if(status===kakao.maps.services.Status.OK && result.routes && result.routes[0]){
+          const route=result.routes[0].summary;
+          resolve({distance: route.distance||0, duration: route.duration||0});
+        }else{
+          const dLat=(to.lat-from.lat)*111*1000;
+          const dLng=(to.lng-from.lng)*111*Math.cos(from.lat*Math.PI/180)*1000;
+          const dist=Math.sqrt(dLat*dLat+dLng*dLng);
+          resolve({distance: dist, duration: Math.round(dist/20*60)});
+        }
+      });
+    }catch(e){
+      const dLat=(to.lat-from.lat)*111*1000;
+      const dLng=(to.lng-from.lng)*111*Math.cos(from.lat*Math.PI/180)*1000;
+      const dist=Math.sqrt(dLat*dLat+dLng*dLng);
+      resolve({distance: dist, duration: Math.round(dist/20*60)});
+    }
+  });
+}
+async function optimizeRoute(startLoc, receptions){
+  const nearby=[];
+  for(const r of receptions){
+    try{
+      const geocoder=new kakao.maps.services.Geocoder();
+      const loc=await new Promise((resolve,reject)=>{
+        geocoder.addressSearch(r.customer_address, (result,status)=>{
+          if(status===kakao.maps.services.Status.OK&&result.length){
+            resolve({lat:parseFloat(result[0].y), lng:parseFloat(result[0].x)});
+          }else reject(new Error('주소 변환 실패'));
+        });
+      });
+      const dist=await calculateDistance(startLoc, loc);
+      nearby.push({...r, coords:loc, distance:dist.distance, duration:dist.duration});
+    }catch(e){
+      console.warn('좌표 변환 실패:', r.customer_address, e);
+      nearby.push({...r, coords:null, distance:999999999, duration:999999});
+    }
+  }
+  nearby.sort((a,b)=>a.distance-b.distance);
+  return nearby;
+}
+function renderRouteOptimized(optimized, currentLoc){
+  const container=document.getElementById('routeContainer');
+  if(!container)return;
+  container.innerHTML=`
+    <div style="display:flex;height:100%;gap:12px;padding:12px">
+      <div style="flex:1;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e3e7ec" id="mapDiv"></div>
+      <div style="width:280px;background:#f8f9fa;border-radius:12px;overflow-y:auto;border:1px solid #e3e7ec;padding:12px" id="routeList"></div>
+    </div>`;
+  initRouteMap(currentLoc, optimized);
+  renderRouteList(optimized, currentLoc);
+}
+function initRouteMap(currentLoc, optimized){
+  const mapDiv=document.getElementById('mapDiv');
+  if(!mapDiv)return;
+  const map=new kakao.maps.Map(mapDiv, {center: new kakao.maps.LatLng(currentLoc.lat, currentLoc.lng), level:8});
+  routeState.map=map;
+  routeState.markers=[];
+  routeState.polylines=[];
+  const startMarker=new kakao.maps.Marker({
+    position: new kakao.maps.LatLng(currentLoc.lat, currentLoc.lng),
+    map,
+    title:'출발점 (현재위치)',
+    clickable:false
+  });
+  startMarker.setImage(createMarkerImage('#2f9e44',''));
+  routeState.markers.push(startMarker);
+  const pathCoords=[new kakao.maps.LatLng(currentLoc.lat, currentLoc.lng)];
+  optimized.forEach((r,idx)=>{
+    if(!r.coords)return;
+    const marker=new kakao.maps.Marker({
+      position: new kakao.maps.LatLng(r.coords.lat, r.coords.lng),
+      map,
+      title: `${idx+1}. ${r.customer_name||r.customer_phone}`
+    });
+    marker.setImage(createMarkerImage('#1971c2',String(idx+1)));
+    routeState.markers.push(marker);
+    kakao.maps.event.addListener(marker,'click',()=>handleRouteItemClick(r.id));
+    pathCoords.push(new kakao.maps.LatLng(r.coords.lat, r.coords.lng));
+  });
+  const polyline=new kakao.maps.Polyline({path:pathCoords,strokeWeight:3,strokeColor:'#1971c2',strokeOpacity:0.6,strokeStyle:'solid',map});
+  routeState.polylines.push(polyline);
+  const bounds=new kakao.maps.LatLngBounds();
+  bounds.extend(new kakao.maps.LatLng(currentLoc.lat, currentLoc.lng));
+  optimized.forEach(r=>{ if(r.coords)bounds.extend(new kakao.maps.LatLng(r.coords.lat, r.coords.lng)); });
+  map.setBounds(bounds);
+}
+function createMarkerImage(color, text){
+  const canvas=document.createElement('canvas');
+  canvas.width=32;
+  canvas.height=42;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.arc(16,16,12,0,Math.PI*2);
+  ctx.fill();
+  if(text){
+    ctx.fillStyle='#fff';
+    ctx.font='bold 14px Arial';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(text,16,16);
+  }
+  return new kakao.maps.MarkerImage(canvas.toDataURL('image/png'), new kakao.maps.Size(32,42), {offset: new kakao.maps.Point(16,42)});
+}
+function renderRouteList(optimized, currentLoc){
+  const listDiv=document.getElementById('routeList');
+  if(!listDiv)return;
+  let totalDist=0, totalTime=0;
+  const html=`
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px">출발지: 현위치</div>
+    ${optimized.map((r,idx)=>{
+      totalDist+=r.distance;
+      totalTime+=r.duration;
+      return `<div onclick="handleRouteItemClick(${r.id})" style="padding:10px;background:#fff;border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:4px solid var(--primary);hover{background:#f1f3f5}">
+        <div style="font-weight:700;font-size:13px;margin-bottom:3px">${idx+1}. ${esc(r.customer_name||r.customer_phone||'고객')}</div>
+        <div style="font-size:11px;color:var(--gray-600);margin:2px 0">📍 ${esc(r.customer_address||'')}</div>
+        <div style="font-size:11px;color:var(--primary);margin-top:3px">🚗 ${Math.round(r.distance/1000)}km · ⏱️ ${Math.round(r.duration/60)}분</div>
+      </div>`;
+    }).join('')}
+    <div style="border-top:1px solid #dee2e6;padding-top:8px;margin-top:8px;font-size:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 거리:</span><strong>${Math.round(totalDist/1000)}km</strong></div>
+      <div style="display:flex;justify-content:space-between"><span>총 시간:</span><strong>${Math.round(totalTime/60)}분</strong></div>
+    </div>
+    <button class="btn btn-primary" onclick="launchRouteNav()" style="margin-top:12px">🧭 첫번째 배차 네비게이션</button>
+    <button class="btn btn-ghost" onclick="closeSheet()" style="margin-top:6px">닫기</button>`;
+  listDiv.innerHTML=html;
+}
+function handleRouteItemClick(recId){
+  closeSheet();
+  openProcessing(recId);
+}
+function launchRouteNav(){
+  if(!routeState.optimized||!routeState.optimized[0])return;
+  const first=routeState.optimized[0];
+  if(first.customer_address) navKakao(first.customer_address);
 }
 
 // ── SSE ──
