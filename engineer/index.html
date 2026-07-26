@@ -869,8 +869,9 @@ let routeState={map:null, markers:[], polylines:[], optimized:[], currentLoc:nul
 async function openRouteOptimizer(){
   const myId=S.engineer.id;
   const notDone=r=>r.status!=='completed';
-  const pending=S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r));
-  if(!pending.length){ alert('미처리 작업이 없습니다'); return; }
+  // 앱 '미처리' 칩과 동일 정의: 완료 아님 + 예약 아님 (예약 건은 배차 경로에서 제외)
+  const pending=S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r)&&!r.reserved_date);
+  if(!pending.length){ alert('미처리 작업이 없습니다 (예약 건은 제외됩니다)'); return; }
 
   const withAddr=pending.filter(r=>r.customer_address);
   const noAddr=pending.filter(r=>!r.customer_address);
