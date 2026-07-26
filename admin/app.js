@@ -118,6 +118,7 @@ function recCard(r){
     ${addr?`<div class="ws-row"><span class="ic">📍</span><span>${esc(addr)}</span></div>`:''}
     ${(r.solution||r.initial_memo)?`<div class="ws-memo">${esc(r.solution||r.initial_memo)}</div>`:''}
     <div class="ws-actions">
+      <button class="btn btn-sm" style="background:#1971c2" onclick="openReceptionDetail(${r.id})">🔍 상세보기</button>
       ${r.status!=='completed'?`<button class="btn btn-sm" onclick="openEngineerChange(${r.id})">👤 기사 변경</button>
       <button class="btn btn-sm" style="background:#7048e8" onclick="openScheduleChange(${r.id})">📅 일정 변경</button>`:''}
       <button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬 대화${adminChatUnread[r.id]?` (${adminChatUnread[r.id]})`:''}</button>
@@ -187,6 +188,53 @@ function openScheduleChange(recId){
 async function doScheduleChange(recId, clear){
   const date = clear? '' : v('sc_date');
   await api('PUT',`/receptions/${recId}/reserve`, { reserved_date: date||null });
+  closeModal(); await loadAll();
+}
+// 상세보기 (내용 전체) + 처리하기
+async function openReceptionDetail(recId){
+  const r=state.receptions.find(x=>x.id==recId); if(!r) return;
+  const c=custObj(r.customer_id)||{}; const st=REC_ST[r.status]||{l:r.status,c:'var(--gray-500)'};
+  const CH={phone:'전화',sms:'SMS',kakao:'카카오톡',direct:'직접등록'};
+  modal(`📋 상세보기 - ${esc(custName(r.customer_id))}`, '<div class="loading">불러오는 중...</div>', true);
+  let photos=[]; try{ photos=await api('GET','/receptions/'+recId+'/photos'); }catch(e){}
+  const rows=[
+    ['고객', custName(r.customer_id)],
+    ['전화', r.reception_phone||c.phone||''],
+    ['주소', [c.address,c.address_detail].filter(Boolean).join(' ')],
+    ['채널', CH[r.reception_channel]||r.reception_channel||''],
+    ['담당 기사', r.assigned_engineer_id?engName(r.assigned_engineer_id):'미지정'],
+    ['접수일시', fmtRecTime(r.received_at)],
+    ['처리 예정일', r.reserved_date||''],
+    ['완료일시', r.completed_at?fmtRecTime(r.completed_at):''],
+  ].filter(([,val])=>val);
+  const body=`
+    <div style="margin-bottom:12px">
+      <span class="ws-pill" style="background:${st.c}">${st.l}</span>
+      ${r.reserved_date?'<span class="ws-pill" style="background:var(--warning);margin-left:6px">예약</span>':''}
+    </div>
+    ${rows.map(([k,val])=>`<div class="detail-row"><span class="detail-label">${k}</span><span class="detail-value">${esc(val)}</span></div>`).join('')}
+    <div class="form-section">증상 / 요청</div>
+    <div style="background:var(--gray-50);border-radius:8px;padding:10px;font-size:13px;white-space:pre-wrap">${esc(r.symptom)||'-'}${r.customer_request?'\n\n[고객요청] '+esc(r.customer_request):''}${r.initial_memo?'\n\n[메모] '+esc(r.initial_memo):''}</div>
+    ${photos.length?`<div class="form-section">현장 사진 (${photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${photos.map(p=>`<img src="${p.photo}" style="width:92px;height:92px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--gray-200)" onclick="window.open(this.src,'_blank')">`).join('')}</div>`:''}
+    <div class="form-section">처리 내용 (처리하기)</div>
+    <textarea id="rd_sol" style="width:100%;min-height:70px" placeholder="처리한 내용을 입력하세요">${esc(r.solution||'')}</textarea>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-secondary" onclick="saveSolution(${r.id},false)">💾 내용 저장</button>
+      ${r.status!=='completed'?`<button class="btn btn-sm btn-success" onclick="saveSolution(${r.id},true)">✔ 완료 처리</button>`:''}
+    </div>
+    <div class="form-section"></div>
+    <div class="form-actions" style="flex-wrap:wrap;gap:6px">
+      ${r.status!=='completed'?`<button class="btn btn-sm" onclick="openEngineerChange(${r.id})">👤 기사 변경</button><button class="btn btn-sm" style="background:#7048e8" onclick="openScheduleChange(${r.id})">📅 일정 변경</button>`:''}
+      <button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬 대화</button>
+      <button class="btn btn-secondary" onclick="closeModal()">닫기</button>
+    </div>`;
+  modal(`📋 상세보기 - ${esc(custName(r.customer_id))}`, body, true);
+}
+async function saveSolution(recId, complete){
+  const solution=v('rd_sol');
+  if(complete && !confirm('완료 처리하시겠습니까?')) return;
+  try{ await api('PUT',`/receptions/${recId}/solution`, { solution, complete: !!complete }); }
+  catch(e){ alert('저장 실패: '+(e&&e.message?e.message:e)); return; }
   closeModal(); await loadAll();
 }
 
