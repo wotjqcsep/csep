@@ -846,6 +846,46 @@ function micField(id, label, val, placeholder){
       ${micBtn(id)}
     </div></div>`;
 }
+// 🎤 음성입력: ① Capacitor 네이티브 음성인식(APK) → ② 브라우저 Web Speech → ③ 키보드 마이크 안내
+async function startVoice(targetId, append){
+  const el=document.getElementById(targetId); if(!el) return;
+  const btn=document.getElementById('mic_'+targetId);
+  const icon=t=>{ if(btn) btn.textContent=t; };
+  const put=txt=>{ if(!txt) return; const cur=el.value||''; el.value=(append!==false && cur) ? (cur.replace(/\s*$/,'')+' '+txt) : txt; el.dispatchEvent(new Event('input',{bubbles:true})); };
+  const cap=window.Capacitor;
+  const SR=cap && cap.Plugins && cap.Plugins.SpeechRecognition;
+  // ① 네이티브 (APK)
+  if(cap && cap.isNativePlatform && cap.isNativePlatform() && SR){
+    try{
+      let perm=null; try{ perm=await SR.checkPermissions(); }catch(e){}
+      if(!perm || perm.speechRecognition!=='granted'){
+        const req=await SR.requestPermissions();
+        if(req && req.speechRecognition!=='granted'){ alert('음성 인식을 쓰려면 마이크 권한을 허용해주세요.'); return; }
+      }
+      icon('🔴');
+      const res=await SR.start({ language:'ko-KR', maxResults:1, partialResults:false, popup:false });
+      icon('🎤');
+      put(res && res.matches && res.matches[0]);
+      return;
+    }catch(e){ icon('🎤'); console.warn('네이티브 음성인식 실패, 폴백 시도:', e && e.message); }
+  }
+  // ② 브라우저 Web Speech API
+  const WSR=window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(WSR){
+    try{
+      const rec=new WSR(); rec.lang='ko-KR'; rec.interimResults=false; rec.maxAlternatives=1;
+      icon('🔴');
+      rec.onresult=e=>put(e.results[0][0].transcript);
+      rec.onerror=()=>icon('🎤');
+      rec.onend=()=>icon('🎤');
+      rec.start();
+      return;
+    }catch(e){ icon('🎤'); }
+  }
+  // ③ 둘 다 불가 → 키보드 마이크로 안내
+  el.focus();
+  alert('키보드가 뜨면 키보드의 마이크(🎤) 버튼을 눌러 말씀하세요.');
+}
 
 // ── 대표: 현장 고객 등록 ──
 function openCustomerAdd(prefillPhone){
