@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#1a1f2b">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=7d76e8ef1869f1f38fbdf46cb4f5e15b"></script>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=d51112f1641c58ced9ecc03bd942b08f&libraries=services&autoload=false"></script>
 <style>
 :root{--primary:#3b5bdb;--success:#2f9e44;--warning:#f08c00;--danger:#e03131;--bg:#f1f3f5;--gray-400:#adb5bd;--gray-500:#868e96;--gray-600:#495057}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -887,6 +887,7 @@ async function openRouteOptimizer(){
   routeState.loading=true;
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()"><div class="sheet" style="max-height:88vh;display:flex;flex-direction:column;padding:0"><div style="padding:22px;flex-shrink:0"><h3 style="margin:0">🗺️ 배차 경로 최적화</h3><div style="font-size:12px;color:var(--gray-500);margin-top:4px">현재 위치 기준 · 주소있음 ${withAddr.length}건</div></div><div id="routeContainer" style="flex:1;overflow:hidden;display:flex;flex-direction:column"><div style="text-align:center;padding:40px 20px;color:var(--gray-400)">계산 중...</div></div></div></div>`);
   try{
+    await ensureKakao();
     const currentLoc=await getCurrentLocation();
     routeState.currentLoc=currentLoc;
     const optimized=await optimizeRoute(currentLoc, withAddr);
@@ -897,6 +898,15 @@ async function openRouteOptimizer(){
     alert('경로 계산에 실패했습니다: '+e.message);
   }
   routeState.loading=false;
+}
+// 카카오 지도 SDK 로딩 보장 (autoload=false → load 호출 필요)
+function ensureKakao(){
+  return new Promise((resolve,reject)=>{
+    if(typeof kakao==='undefined' || !kakao.maps || !kakao.maps.load){
+      reject(new Error('지도 SDK를 불러오지 못했습니다 (네트워크·키·도메인 확인)')); return;
+    }
+    kakao.maps.load(()=>resolve());
+  });
 }
 async function getCurrentLocation(){
   // ① Capacitor(APK) 네이티브 위치 — 런타임 권한 요청 포함
@@ -927,62 +937,61 @@ async function getCurrentLocation(){
     );
   });
 }
-async function calculateDistance(from, to){
-  return new Promise((resolve,reject)=>{
-    try{
-      const options={origin: new kakao.maps.LatLng(from.lat, from.lng), destination: new kakao.maps.LatLng(to.lat, to.lng), waypoints: []};
-      const directions=new kakao.maps.services.Directions();
-      directions.getDirection(options, (result,status)=>{
-        if(status===kakao.maps.services.Status.OK && result.routes && result.routes[0]){
-          const route=result.routes[0].summary;
-          resolve({distance: route.distance||0, duration: route.duration||0});
-        }else{
-          const dLat=(to.lat-from.lat)*111*1000;
-          const dLng=(to.lng-from.lng)*111*Math.cos(from.lat*Math.PI/180)*1000;
-          const dist=Math.sqrt(dLat*dLat+dLng*dLng);
-          resolve({distance: dist, duration: Math.round(dist/20*60)});
-        }
-      });
-    }catch(e){
-      const dLat=(to.lat-from.lat)*111*1000;
-      const dLng=(to.lng-from.lng)*111*Math.cos(from.lat*Math.PI/180)*1000;
-      const dist=Math.sqrt(dLat*dLat+dLng*dLng);
-      resolve({distance: dist, duration: Math.round(dist/20*60)});
-    }
-  });
+// 직선거리(Haversine) 기반 추정 — 카카오 지도 JS SDK엔 길찾기가 없어 직선거리로 순서 정렬
+// (실제 도로거리/시간은 각 지점 '네비' 버튼으로 카카오맵/티맵에서 확인)
+function calculateDistance(from, to){
+  const R=6371000; // 지구 반경(m)
+  const toRad=d=>d*Math.PI/180;
+  const dLat=toRad(to.lat-from.lat);
+  const dLng=toRad(to.lng-from.lng);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(from.lat))*Math.cos(toRad(to.lat))*Math.sin(dLng/2)**2;
+  const dist=R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); // 직선거리(m)
+  return {distance: dist, duration: Math.round(dist/1000/30*3600)}; // 평균 30km/h 가정 소요초
 }
 async function optimizeRoute(startLoc, receptions){
-  const nearby=[];
-  for(const r of receptions){
-    try{
-      const geocoder=new kakao.maps.services.Geocoder();
-      const loc=await new Promise((resolve,reject)=>{
-        geocoder.addressSearch(r.customer_address, (result,status)=>{
-          if(status===kakao.maps.services.Status.OK&&result.length){
-            resolve({lat:parseFloat(result[0].y), lng:parseFloat(result[0].x)});
-          }else reject(new Error('주소 변환 실패'));
-        });
-      });
-      const dist=await calculateDistance(startLoc, loc);
-      nearby.push({...r, coords:loc, distance:dist.distance, duration:dist.duration});
-    }catch(e){
-      console.warn('좌표 변환 실패:', r.customer_address, e);
-      nearby.push({...r, coords:null, distance:999999999, duration:999999});
+  // 1) 모든 주소 → 좌표 변환
+  const geocoder=new kakao.maps.services.Geocoder();
+  const geocode=addr=>new Promise(resolve=>{
+    geocoder.addressSearch(addr, (result,status)=>{
+      if(status===kakao.maps.services.Status.OK && result.length){
+        resolve({lat:parseFloat(result[0].y), lng:parseFloat(result[0].x)});
+      }else resolve(null);
+    });
+  });
+  const points=[];
+  for(const r of receptions){ points.push({...r, coords: await geocode(r.customer_address)}); }
+  // 2) 최근접 이웃(nearest-neighbor)으로 순회 경로 구성 — 각 구간(이전지점→여기) 거리 계산
+  const ordered=[];
+  const remaining=points.filter(p=>p.coords);
+  const failed=points.filter(p=>!p.coords);   // 좌표 인식 실패 건
+  let cur=startLoc;
+  while(remaining.length){
+    let bi=0, bd=Infinity;
+    for(let i=0;i<remaining.length;i++){
+      const d=calculateDistance(cur, remaining[i].coords).distance;
+      if(d<bd){ bd=d; bi=i; }
     }
+    const next=remaining.splice(bi,1)[0];
+    const leg=calculateDistance(cur, next.coords);
+    ordered.push({...next, distance:leg.distance, duration:leg.duration});
+    cur=next.coords;
   }
-  nearby.sort((a,b)=>a.distance-b.distance);
-  return nearby;
+  failed.forEach(f=>ordered.push({...f, coords:null, distance:0, duration:0, geoFailed:true}));
+  return ordered;
 }
 function renderRouteOptimized(optimized, currentLoc){
   const container=document.getElementById('routeContainer');
   if(!container)return;
+  // 모바일 세로 배치: 위=지도(고정 높이), 아래=리스트(스크롤)
   container.innerHTML=`
-    <div style="display:flex;height:100%;gap:12px;padding:12px">
-      <div style="flex:1;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e3e7ec" id="mapDiv"></div>
-      <div style="width:280px;background:#f8f9fa;border-radius:12px;overflow-y:auto;border:1px solid #e3e7ec;padding:12px" id="routeList"></div>
+    <div style="display:flex;flex-direction:column;height:100%;gap:10px;padding:12px">
+      <div style="height:42vh;min-height:220px;flex-shrink:0;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e3e7ec" id="mapDiv"></div>
+      <div style="flex:1;background:#f8f9fa;border-radius:12px;overflow-y:auto;border:1px solid #e3e7ec;padding:12px" id="routeList"></div>
     </div>`;
   initRouteMap(currentLoc, optimized);
   renderRouteList(optimized, currentLoc);
+  // 레이아웃 확정 후 지도 크기 재계산 (안 하면 회색으로 뜸)
+  setTimeout(()=>{ if(routeState.map){ routeState.map.relayout(); fitRouteBounds(currentLoc, optimized); } }, 200);
 }
 function initRouteMap(currentLoc, optimized){
   const mapDiv=document.getElementById('mapDiv');
@@ -991,6 +1000,7 @@ function initRouteMap(currentLoc, optimized){
   routeState.map=map;
   routeState.markers=[];
   routeState.polylines=[];
+  routeState.infowindow=new kakao.maps.InfoWindow({removable:true, zIndex:10});
   const startMarker=new kakao.maps.Marker({
     position: new kakao.maps.LatLng(currentLoc.lat, currentLoc.lng),
     map,
@@ -1002,22 +1012,34 @@ function initRouteMap(currentLoc, optimized){
   const pathCoords=[new kakao.maps.LatLng(currentLoc.lat, currentLoc.lng)];
   optimized.forEach((r,idx)=>{
     if(!r.coords)return;
-    const marker=new kakao.maps.Marker({
-      position: new kakao.maps.LatLng(r.coords.lat, r.coords.lng),
-      map,
-      title: `${idx+1}. ${r.customer_name||r.customer_phone}`
-    });
+    const pos=new kakao.maps.LatLng(r.coords.lat, r.coords.lng);
+    const marker=new kakao.maps.Marker({ position:pos, map, title:`${idx+1}. ${r.customer_name||r.customer_phone}` });
     marker.setImage(createMarkerImage('#1971c2',String(idx+1)));
     routeState.markers.push(marker);
-    kakao.maps.event.addListener(marker,'click',()=>handleRouteItemClick(r.id));
-    pathCoords.push(new kakao.maps.LatLng(r.coords.lat, r.coords.lng));
+    // 마커 클릭 → 팝업(겹침 대비). 팝업 안에서 상세보기 진입
+    const name=(r.customer_name||r.customer_phone||'고객').replace(/'/g,'');
+    const addr=(r.customer_address||'').replace(/'/g,'');
+    kakao.maps.event.addListener(marker,'click',()=>{
+      const content=`<div style="padding:8px 10px;min-width:150px;font-size:12px;font-family:'Malgun Gothic',sans-serif">
+        <div style="font-weight:700;margin-bottom:2px">${idx+1}. ${name}</div>
+        <div style="color:#666;margin-bottom:6px">${addr}</div>
+        <div onclick="handleRouteItemClick(${r.id})" style="text-align:center;background:#3b5bdb;color:#fff;border-radius:6px;padding:6px;cursor:pointer">상세보기 / 처리</div>
+      </div>`;
+      routeState.infowindow.setContent(content);
+      routeState.infowindow.open(map, marker);
+    });
+    pathCoords.push(pos);
   });
   const polyline=new kakao.maps.Polyline({path:pathCoords,strokeWeight:3,strokeColor:'#1971c2',strokeOpacity:0.6,strokeStyle:'solid',map});
   routeState.polylines.push(polyline);
+  fitRouteBounds(currentLoc, optimized);
+}
+function fitRouteBounds(currentLoc, optimized){
+  if(!routeState.map)return;
   const bounds=new kakao.maps.LatLngBounds();
   bounds.extend(new kakao.maps.LatLng(currentLoc.lat, currentLoc.lng));
   optimized.forEach(r=>{ if(r.coords)bounds.extend(new kakao.maps.LatLng(r.coords.lat, r.coords.lng)); });
-  map.setBounds(bounds);
+  routeState.map.setBounds(bounds);
 }
 function createMarkerImage(color, text){
   const canvas=document.createElement('canvas');
@@ -1042,19 +1064,22 @@ function renderRouteList(optimized, currentLoc){
   if(!listDiv)return;
   let totalDist=0, totalTime=0;
   const html=`
-    <div style="font-size:12px;font-weight:700;margin-bottom:8px">출발지: 현위치</div>
+    <div style="font-size:12px;font-weight:700;margin-bottom:2px">출발지: 현위치 📍</div>
+    <div style="font-size:10px;color:var(--gray-400);margin-bottom:8px">직선거리 기준 순서 · 실제 도로안내는 각 항목 네비</div>
     ${optimized.map((r,idx)=>{
       totalDist+=r.distance;
       totalTime+=r.duration;
-      return `<div onclick="handleRouteItemClick(${r.id})" style="padding:10px;background:#fff;border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:4px solid var(--primary)">
+      const distTxt = r.geoFailed ? '<span style="color:var(--danger)">⚠️ 위치 인식 실패</span>'
+        : `🚗 약 ${(r.distance/1000).toFixed(1)}km · ⏱️ 약 ${Math.round(r.duration/60)}분`;
+      return `<div onclick="handleRouteItemClick(${r.id})" style="padding:10px;background:#fff;border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:4px solid ${r.geoFailed?'var(--danger)':'var(--primary)'}">
         <div style="font-weight:700;font-size:13px;margin-bottom:3px">${idx+1}. ${esc(r.customer_name||r.customer_phone||'고객')}</div>
         <div style="font-size:11px;color:var(--gray-600);margin:2px 0">📍 ${esc(r.customer_address||'')}</div>
-        <div style="font-size:11px;color:var(--primary);margin-top:3px">🚗 ${Math.round(r.distance/1000)}km · ⏱️ ${Math.round(r.duration/60)}분</div>
+        <div style="font-size:11px;color:var(--primary);margin-top:3px">${distTxt}</div>
       </div>`;
     }).join('')}
     <div style="border-top:1px solid #dee2e6;padding-top:8px;margin-top:8px;font-size:12px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 거리:</span><strong>${Math.round(totalDist/1000)}km</strong></div>
-      <div style="display:flex;justify-content:space-between"><span>총 시간:</span><strong>${Math.round(totalTime/60)}분</strong></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 이동(직선):</span><strong>약 ${(totalDist/1000).toFixed(1)}km</strong></div>
+      <div style="display:flex;justify-content:space-between"><span>예상 시간:</span><strong>약 ${Math.round(totalTime/60)}분</strong></div>
     </div>
     <button class="btn btn-primary" onclick="launchRouteNav()" style="margin-top:12px">🧭 첫번째 배차 네비게이션</button>
     <button class="btn btn-ghost" onclick="closeSheet()" style="margin-top:6px">닫기</button>`;
