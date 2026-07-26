@@ -24,20 +24,29 @@ function comboField(id,label,val,listId,options){
 // ── 부품 프리셋 (선택 + 직접입력 겸용) ──
 const CPU_DATA = {
   Intel: { label:'세대', info:'내장 그래픽: F·KF 모델만 없음, 그 외 모델은 내장 그래픽 있음(UHD/Iris Xe)', groups:{
-    '14세대':['Core i9-14900K','Core i9-14900','Core i7-14700K','Core i7-14700','Core i5-14600K','Core i5-14500','Core i5-14400','Core i3-14100'],
-    '13세대':['Core i9-13900K','Core i9-13900','Core i7-13700K','Core i7-13700','Core i5-13600K','Core i5-13500','Core i5-13400','Core i3-13100'],
-    '12세대':['Core i9-12900K','Core i7-12700K','Core i7-12700','Core i5-12600K','Core i5-12400','Core i3-12100'],
-    '11세대':['Core i9-11900K','Core i7-11700K','Core i5-11600K','Core i5-11400','Core i3-10105'],
-    '10세대':['Core i9-10900K','Core i7-10700K','Core i5-10600K','Core i5-10400','Core i3-10100'],
-    '9세대 이하':['Core i7-9700K','Core i5-9400','Core i7-8700','Core i5-7500','Core i5-6600'],
+    'Core Ultra(2세대)':['Core Ultra 9 285K','Core Ultra 7 265K','Core Ultra 7 265KF','Core Ultra 5 245K','Core Ultra 5 245KF'],
+    '14세대':['Core i9-14900KS','Core i9-14900K','Core i9-14900KF','Core i9-14900','Core i7-14700K','Core i7-14700KF','Core i7-14700','Core i5-14600K','Core i5-14600KF','Core i5-14500','Core i5-14400','Core i5-14400F','Core i3-14100','Core i3-14100F'],
+    '13세대':['Core i9-13900KS','Core i9-13900K','Core i9-13900KF','Core i9-13900','Core i7-13700K','Core i7-13700KF','Core i7-13700','Core i5-13600K','Core i5-13600KF','Core i5-13500','Core i5-13400','Core i5-13400F','Core i3-13100','Core i3-13100F'],
+    '12세대':['Core i9-12900K','Core i9-12900KF','Core i9-12900','Core i7-12700K','Core i7-12700KF','Core i7-12700','Core i5-12600K','Core i5-12600KF','Core i5-12600','Core i5-12500','Core i5-12400','Core i5-12400F','Core i3-12100','Core i3-12100F'],
+    '11세대':['Core i9-11900K','Core i9-11900KF','Core i9-11900','Core i7-11700K','Core i7-11700KF','Core i7-11700','Core i5-11600K','Core i5-11600KF','Core i5-11500','Core i5-11400','Core i5-11400F'],
+    '10세대':['Core i9-10900K','Core i9-10900KF','Core i9-10900','Core i7-10700K','Core i7-10700KF','Core i7-10700','Core i5-10600K','Core i5-10600KF','Core i5-10500','Core i5-10400','Core i5-10400F','Core i3-10300','Core i3-10100','Core i3-10100F'],
+    '9세대':['Core i9-9900KS','Core i9-9900K','Core i9-9900KF','Core i9-9900','Core i7-9700K','Core i7-9700KF','Core i7-9700','Core i5-9600K','Core i5-9600KF','Core i5-9400','Core i5-9400F','Core i3-9350KF','Core i3-9100','Core i3-9100F'],
+    '8세대':['Core i7-8700K','Core i7-8700','Core i5-8600K','Core i5-8600','Core i5-8500','Core i5-8400','Core i3-8350K','Core i3-8300','Core i3-8100'],
+    '7세대':['Core i7-7700K','Core i7-7700','Core i5-7600K','Core i5-7600','Core i5-7500','Core i5-7400','Core i3-7350K','Core i3-7320','Core i3-7300','Core i3-7100'],
+    '6세대':['Core i7-6700K','Core i7-6700','Core i5-6600K','Core i5-6600','Core i5-6500','Core i5-6400','Core i3-6320','Core i3-6300','Core i3-6100'],
+    '5세대':['Core i7-5775C','Core i5-5675C'],
+    '4세대':['Core i7-4790K','Core i7-4790','Core i7-4770K','Core i7-4770','Core i5-4690K','Core i5-4670K','Core i5-4590','Core i5-4570','Core i5-4460','Core i5-4440','Core i3-4360','Core i3-4340','Core i3-4170','Core i3-4160','Core i3-4150','Core i3-4130'],
+    '3세대':['Core i7-3770K','Core i7-3770','Core i5-3570K','Core i5-3550','Core i5-3470','Core i5-3450','Core i5-3330','Core i3-3240','Core i3-3220','Core i3-3210'],
+    '2세대':['Core i7-2700K','Core i7-2600K','Core i7-2600','Core i5-2500K','Core i5-2500','Core i5-2400','Core i5-2320','Core i5-2300','Core i3-2130','Core i3-2120','Core i3-2100'],
+    '1세대':['Core i7-980X','Core i7-975','Core i7-965','Core i7-960','Core i7-950','Core i7-930','Core i7-920','Core i7-880','Core i7-870','Core i7-860','Core i5-760','Core i5-750','Core i5-680','Core i5-660','Core i5-650','Core i3-560','Core i3-550','Core i3-540','Core i3-530'],
   }},
   AMD: { label:'소켓', info:'BIOS 업데이트 시 상위 CPU 지원(예: B450→라이젠 5000)',
-    chipset:{ 'AM5':'A620 / B650 / B650E / X670 / X670E', 'AM4':'A320 / B350 / X370 / B450 / X470 / A520 / B550 / X570', 'AM3':'760G / 970 / 990X / 990FX', 'AM6':'(예정)' },
+    chipset:{ 'AM5':'A620 / B650 / B650E / X670 / X670E / B840 / X870 / X870E', 'AM4':'A320 / B350 / X370 / B450 / X470 / A520 / B550 / X570', 'AM3':'760G / 970 / 990X / 990FX (AM3+)', 'AM6':'(예정)' },
     igpu:{ 'AM5':'7000번대 이상 기본 내장, 8000G 강력', 'AM4':'G 모델만 내장(예: 5600G)', 'AM3':'없음', 'AM6':'(예정)' },
     groups:{
-    'AM5':['Ryzen 9 9950X','Ryzen 9 7950X','Ryzen 9 7900X','Ryzen 7 9700X','Ryzen 7 7800X3D','Ryzen 7 7700X','Ryzen 5 9600X','Ryzen 5 7600X','Ryzen 5 7600','Ryzen 7 8700G','Ryzen 5 8600G'],
-    'AM4':['Ryzen 9 5950X','Ryzen 9 5900X','Ryzen 7 5800X3D','Ryzen 7 5700X','Ryzen 5 5600X','Ryzen 5 5600','Ryzen 5 5600G','Ryzen 5 3600','Ryzen 3 3200G','Ryzen 5 2600'],
-    'AM3':['Phenom II X6 1100T','Phenom II X4 965','Athlon II X4 640','FX-8350 (AM3+)','FX-6300 (AM3+)'],
+    'AM5':['Ryzen 9 9950X3D','Ryzen 9 9950X','Ryzen 9 9900X3D','Ryzen 9 9900X','Ryzen 7 9800X3D','Ryzen 7 9700X','Ryzen 5 9600X','Ryzen 9 7950X3D','Ryzen 9 7950X','Ryzen 9 7900X','Ryzen 9 7900','Ryzen 7 7800X3D','Ryzen 7 7700X','Ryzen 7 7700','Ryzen 5 7600X','Ryzen 5 7600','Ryzen 5 7500F','Ryzen 7 8700G','Ryzen 5 8600G','Ryzen 5 8500G'],
+    'AM4':['Ryzen 9 5950X','Ryzen 9 5900X','Ryzen 7 5800X3D','Ryzen 7 5800X','Ryzen 7 5700X','Ryzen 7 5700G','Ryzen 5 5600X','Ryzen 5 5600','Ryzen 5 5600G','Ryzen 5 5500','Ryzen 9 3900X','Ryzen 7 3800X','Ryzen 7 3700X','Ryzen 5 3600X','Ryzen 5 3600','Ryzen 5 3400G','Ryzen 3 3200G','Ryzen 5 3100','Ryzen 7 2700X','Ryzen 7 2700','Ryzen 5 2600X','Ryzen 5 2600','Ryzen 5 2400G','Ryzen 3 2200G','Ryzen 7 1800X','Ryzen 7 1700X','Ryzen 7 1700','Ryzen 5 1600','Ryzen 5 1500X','Ryzen 3 1300X','Ryzen 3 1200'],
+    'AM3':['Phenom II X6 1100T','Phenom II X6 1090T','Phenom II X4 965','Phenom II X4 955','Phenom II X4 945','Athlon II X4 640','Athlon II X4 630','FX-9590 (AM3+)','FX-8350 (AM3+)','FX-8320 (AM3+)','FX-6350 (AM3+)','FX-6300 (AM3+)','FX-4300 (AM3+)'],
     'AM6':['(미출시 · 예정)'],
   }}
 };
@@ -65,16 +74,22 @@ const MB_CHIPSET={
   AMD:['A520','A620','B550','B650','B650E','X570','X670','X670E']
 };
 function optHtml(list){ return list.map(o=>`<option value="${o}"></option>`).join(''); }
+// 수동 추가 부품(part_options) 조회
+function partOpts(kind){ return (typeof state!=='undefined' && state.partOptions)? state.partOptions.filter(o=>o.kind===kind) : []; }
+function customGroups(kind, first){ return [...new Set(partOpts(kind).filter(o=>(o.grp||'').split('||')[0]===first).map(o=>(o.grp||'').split('||')[1]).filter(Boolean))]; }
+function customVals(kind, first, second){ return partOpts(kind).filter(o=>{ const pp=(o.grp||'').split('||'); return pp[0]===first && (!second || pp[1]===second); }).map(o=>o.value); }
 function updateCpuSub(){
   const p=v('p_cpu_plat'); const sel=document.getElementById('p_cpu_sub');
-  const groups=(p&&CPU_DATA[p])?Object.keys(CPU_DATA[p].groups):[];
+  const preset=(p&&CPU_DATA[p])?Object.keys(CPU_DATA[p].groups):[];
+  const groups=[...preset, ...customGroups('cpu',p).filter(g=>!preset.includes(g))];
   if(sel) sel.innerHTML=`<option value="">${p&&CPU_DATA[p]?CPU_DATA[p].label:'세대/소켓'}</option>`+groups.map(g=>`<option>${g}</option>`).join('');
   updateCpuModels();
 }
 function updateCpuModels(){
   const p=v('p_cpu_plat'), sub=v('p_cpu_sub'); const dl=document.getElementById('cpu_list');
   let list=[];
-  if(p&&CPU_DATA[p]){ const g=CPU_DATA[p].groups; list = (sub&&g[sub])? g[sub] : [].concat(...Object.values(g)); }
+  if(p&&CPU_DATA[p]){ const g=CPU_DATA[p].groups; list = (sub&&g[sub])? g[sub].slice() : [].concat(...Object.values(g)); }
+  list=list.concat(customVals('cpu',p,sub));
   if(dl) dl.innerHTML=optHtml(list);
   const info=document.getElementById('cpu_info');
   if(info){ let t='';
@@ -86,14 +101,16 @@ function updateCpuModels(){
 function updateVgaSeries(){
   const m=v('p_vga_maker'); const sel=document.getElementById('p_vga_series'); const g=document.getElementById('p_gpu');
   if(m==='내장 그래픽'){ if(g&&!g.value) g.value='내장 그래픽'; if(sel) sel.innerHTML='<option value="">-</option>'; const dl=document.getElementById('vga_list'); if(dl) dl.innerHTML=''; return; }
-  const groups=(m&&VGA_DATA[m])?Object.keys(VGA_DATA[m].groups):[];
+  const preset=(m&&VGA_DATA[m])?Object.keys(VGA_DATA[m].groups):[];
+  const groups=[...preset, ...customGroups('vga',m).filter(g=>!preset.includes(g))];
   if(sel) sel.innerHTML='<option value="">시리즈</option>'+groups.map(s=>`<option>${s}</option>`).join('');
   updateVgaModels();
 }
 function updateVgaModels(){
   const m=v('p_vga_maker'), s=v('p_vga_series'); const dl=document.getElementById('vga_list');
   let list=[];
-  if(m&&VGA_DATA[m]){ const g=VGA_DATA[m].groups; list = (s&&g[s])? g[s] : [].concat(...Object.values(g)); }
+  if(m&&VGA_DATA[m]){ const g=VGA_DATA[m].groups; list = (s&&g[s])? g[s].slice() : [].concat(...Object.values(g)); }
+  list=list.concat(customVals('vga',m,s));
   if(dl) dl.innerHTML=optHtml(list);
 }
 function updateMbChipset(){ const p=v('p_mb_plat'); const list=p?(MB_CHIPSET[p]||[]):[].concat(MB_CHIPSET.Intel,MB_CHIPSET.AMD); const dl=document.getElementById('mb_chipset_list'); if(dl) dl.innerHTML=optHtml(list); }

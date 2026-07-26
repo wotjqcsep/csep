@@ -373,6 +373,49 @@ async function submitWorkorder(customerId, siteId){
   closeModal(); alert('작업지시를 전송했습니다.'); await loadAll();
 }
 
+// ============================================================
+//  부품 데이터 (수동 추가 → 드롭다운 반영)
+// ============================================================
+let partForm = { kind:'cpu' };
+const PART_KINDS = {
+  cpu: { label:'CPU', g1:{label:'플랫폼',opts:['Intel','AMD']}, g2:'세대/소켓 (예: 15세대, AM6)', val:'모델명 (예: Core i5-15400)' },
+  vga: { label:'VGA', g1:{label:'제조사',opts:['NVIDIA','AMD','Intel Arc','내장 그래픽']}, g2:'시리즈 (예: RTX 50)', val:'모델명 (예: RTX 5060)' },
+};
+function renderPartsData(){
+  const k=partForm.kind; const cfg=PART_KINDS[k];
+  const list=(state.partOptions||[]).filter(o=>o.kind===k);
+  return `
+  <div class="page-header"><h2>🧩 부품 데이터 (수동 추가)</h2></div>
+  <div class="vd-wrap">
+    <div class="vd-card">
+      <div style="font-weight:800;margin-bottom:12px">새 부품 추가 <span style="font-weight:400;color:var(--gray-500);font-size:12px">— 추가하면 장치정보 드롭다운에 바로 나타납니다</span></div>
+      <div class="form-group"><label>종류</label><select id="pd_kind" onchange="partForm.kind=this.value;renderInto()">
+        ${Object.entries(PART_KINDS).map(([kk,c])=>`<option value="${kk}" ${k===kk?'selected':''}>${c.label}</option>`).join('')}
+      </select></div>
+      <div class="form-row">
+        <div class="form-group"><label>${cfg.g1.label}</label><select id="pd_g1">${cfg.g1.opts.map(o=>`<option>${o}</option>`).join('')}</select></div>
+        <div class="form-group"><label>${cfg.g2}</label><input id="pd_g2" placeholder="${cfg.g2}"></div>
+      </div>
+      <div class="form-group"><label>${cfg.val}</label><input id="pd_val" placeholder="${cfg.val}"></div>
+      <button class="btn" onclick="addPartOption()">+ 추가</button>
+    </div>
+    <div class="vd-card">
+      <div style="font-weight:800;margin-bottom:10px">추가된 ${cfg.label} 목록 (${list.length})</div>
+      ${list.length? list.map(o=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--gray-100);font-size:13px">
+        <span>${o.grp?`<span class="chip">${esc((o.grp||'').replace('||',' · '))}</span> `:''}${esc(o.value)}</span>
+        <button class="btn btn-sm btn-danger" onclick="deletePartOption(${o.id})">삭제</button></div>`).join('') : '<div class="empty-state">추가된 항목이 없습니다</div>'}
+    </div>
+  </div>`;
+}
+async function addPartOption(){
+  const k=partForm.kind, g1=v('pd_g1'), g2=v('pd_g2'), val=v('pd_val');
+  if(!val){ alert('모델명을 입력하세요'); return; }
+  const grp=[g1,g2].filter(Boolean).join('||');
+  try{ await api('POST','/part-options',{kind:k, grp, value:val}); }catch(e){ alert('추가 실패: '+(e&&e.message?e.message:e)); return; }
+  await loadAll();
+}
+async function deletePartOption(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/part-options/'+id); await loadAll(); }
+
 // ── 기사 관리 ──
 function renderEngineers(){
   const es = state.engineers;

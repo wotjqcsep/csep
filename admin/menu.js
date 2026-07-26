@@ -30,6 +30,7 @@ const MENU_CONFIG = [
     { id: 'stats', icon: '📈', label: '통계' },
   ]},
   { section: '관리', items: [
+    { id: 'partsdata', icon: '🧩', label: '부품 데이터', right: true }, // 기사관리 왼쪽(우측정렬 시작)
     { id: 'engineers', icon: '👷', label: '기사 관리', right: true },  // 상단 탭 맨 우측 끝
   ]},
 ];

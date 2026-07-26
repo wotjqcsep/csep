@@ -210,6 +210,13 @@ async function initDB() {
       memo TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS part_options (
+      id SERIAL PRIMARY KEY,
+      kind TEXT NOT NULL,
+      grp TEXT DEFAULT '',
+      value TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
     CREATE TABLE IF NOT EXISTS receptions (
       id SERIAL PRIMARY KEY,
       customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
@@ -454,6 +461,26 @@ app.put('/api/sites/:id', wrap(async (req, res) => {
 
 app.delete('/api/sites/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM sites WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+}));
+
+// ============================================================
+//  부품 옵션 (part_options) — 드롭다운 수동 추가 데이터
+// ============================================================
+app.get('/api/part-options', wrap(async (req, res) => {
+  res.json((await pool.query('SELECT * FROM part_options ORDER BY id')).rows);
+}));
+app.post('/api/part-options', wrap(async (req, res) => {
+  const b = req.body;
+  if (!b.kind || !b.value) return res.status(400).json({ error: 'kind, value 필수' });
+  const { rows } = await pool.query(
+    'INSERT INTO part_options (kind, grp, value) VALUES ($1,$2,$3) RETURNING *',
+    [b.kind, b.grp || '', b.value]
+  );
+  res.json(rows[0]);
+}));
+app.delete('/api/part-options/:id', wrap(async (req, res) => {
+  await pool.query('DELETE FROM part_options WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
 

@@ -170,7 +170,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 <script src="menu.js"></script>
 <script>
 const API = '/api';
-const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null, sites:[] };
+const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null, sites:[], partOptions:[] };
 // MENUS, TITLES 는 menu.js 에서 정의됨 (메뉴 수정은 menu.js 한 곳에서)
 const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', other:'기타' };
 
@@ -192,7 +192,7 @@ async function loadAll(showLoading){
   if(showLoading && firstLoad) document.getElementById('page').innerHTML='<div class="loading">불러오는 중...</div>';
   const jobs = [
     ['dashboard','/dashboard'],['customers','/customers'],['computers','/computers'],['engineers','/engineers'],
-    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],['sites','/sites'],
+    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],['sites','/sites'],['partOptions','/part-options'],
   ];
   const results = await Promise.allSettled(jobs.map(([,u])=>api('GET',u)));
   let anyOk=false;
@@ -208,8 +208,9 @@ async function loadAll(showLoading){
 function renderNav(){
   // MENU_CONFIG 의 모든 항목을 한 줄 탭으로 평탄화
   const items = MENUS.flatMap(m=>m.items);
-  document.getElementById('nav').innerHTML = items.map(([id,icon,label,right])=>
-    `<button class="tab-item ${state.page===id?'active':''}"${right?' style="margin-left:auto"':''} onclick="go('${id}')"><span class="tab-icon">${icon}</span><span>${label}</span></button>`
+  const firstRight = items.findIndex(it=>it[3]);   // 첫 우측정렬 항목에만 margin-left:auto
+  document.getElementById('nav').innerHTML = items.map(([id,icon,label],i)=>
+    `<button class="tab-item ${state.page===id?'active':''}"${i===firstRight?' style="margin-left:auto"':''} onclick="go('${id}')"><span class="tab-icon">${icon}</span><span>${label}</span></button>`
   ).join('');
 }
 function go(page){ state.page=page; renderNav(); render(); }
