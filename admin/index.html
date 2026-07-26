@@ -12,24 +12,24 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--gray-100);color:var(--gray-700);font-size:14px}
-.app{display:flex;min-height:100vh}
-/* 사이드바 */
-.sidebar{width:220px;background:#1a1f2b;color:#e6e9ef;flex-shrink:0;display:flex;flex-direction:column;position:fixed;height:100vh;overflow-y:auto}
-.sidebar-header{padding:22px 18px;border-bottom:1px solid #2b3140}
-.sidebar-header h2{color:#6b9cff;font-size:23px;font-weight:800;letter-spacing:.5px}
-.sidebar-header span{font-size:11px;color:#8b93a3}
-.nav-section{padding:6px 0}
-.nav-section-label{padding:10px 18px 5px;font-size:11px;color:#8b93a3;text-transform:uppercase;letter-spacing:1px;font-weight:600}
-.nav-item{display:flex;align-items:center;gap:11px;width:100%;padding:11px 18px;border:none;background:none;color:#e6e9ef;cursor:pointer;font-size:15px;text-align:left;border-left:3px solid transparent;transition:background .12s}
-.nav-item:hover{background:#252c3a}
-.nav-item.active{background:#2a3654;color:#fff;border-left-color:#6b9cff;font-weight:700}
-.nav-icon{font-size:17px;width:20px;text-align:center}
+.app{min-height:100vh;display:flex;flex-direction:column}
+/* 상단 탭 네비게이션 (필드서비스 스타일) */
+.topbar{position:sticky;top:0;z-index:100}
+.brandbar{background:#1a1f2b;color:#e6e9ef;padding:13px 22px;display:flex;justify-content:space-between;align-items:center}
+.brandbar .brand{font-size:20px;font-weight:800;color:#6b9cff;letter-spacing:.5px}
+.brandbar .brand small{font-size:11px;color:#8b93a3;margin-left:9px;font-weight:400;letter-spacing:0}
+.brandbar .right{display:flex;gap:12px;align-items:center;font-size:12px;color:#c8cdd8}
+.tabbar{display:flex;background:#2a3654;overflow-x:auto}
+.tab-item{padding:12px 18px;color:#aeb9d4;cursor:pointer;font-size:14px;white-space:nowrap;border:none;background:none;display:flex;align-items:center;gap:7px;border-bottom:3px solid transparent;transition:background .12s,color .12s}
+.tab-item:hover{color:#fff;background:#313e5e}
+.tab-item.active{color:#fff;background:#1a1f2b;border-bottom-color:#6b9cff;font-weight:700}
+.tab-icon{font-size:16px}
 /* 메인 */
-.main{margin-left:210px;flex:1;display:flex;flex-direction:column;min-width:0}
-.header{background:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--gray-200);position:sticky;top:0;z-index:50}
-.header h1{font-size:18px}
-.header .right{display:flex;gap:12px;align-items:center;font-size:12px;color:var(--gray-500)}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
 .server-status{color:var(--success)}
+.placeholder{background:#fff;border-radius:12px;padding:60px 24px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06);color:var(--gray-400)}
+.placeholder .ph-icon{font-size:44px;margin-bottom:12px}
+.placeholder .ph-title{font-size:18px;color:var(--gray-600);font-weight:700;margin-bottom:6px}
 .page{padding:24px}
 .page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .page-header h2{font-size:20px}
@@ -104,23 +104,76 @@ select,input,textarea{font-family:inherit;font-size:14px}
 .popup-head{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;background:var(--gray-50)}
 .popup-body{padding:14px 16px}
 .chip{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;background:var(--gray-200)}
+/* 작업현황 카드 (시인성 강화) */
+.ws-wrap{max-width:1000px;margin:0 auto}
+.ws-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.ws-fbtn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;color:#fff}
+.ws-date{display:flex;align-items:center;text-align:center;color:var(--gray-600);font-weight:700;font-size:13px;margin:22px 0 12px}
+.ws-date::before,.ws-date::after{content:'';flex:1;height:1px;background:var(--gray-300)}
+.ws-date span{padding:0 14px}
+/* 구간 구분선 (미처리/예약/완료) */
+.ws-sec{display:flex;align-items:center;text-align:center;margin:26px 0 15px}
+.ws-sec::before,.ws-sec::after{content:'';flex:1;height:3px;border-radius:2px;background:var(--sec,var(--gray-300));opacity:.55}
+.ws-sec span{margin:0 12px;padding:5px 16px;border-radius:16px;color:#fff;font-weight:800;font-size:14px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.ws-sec:first-child{margin-top:4px}
+.ws-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:680px){.ws-grid{grid-template-columns:1fr}}
+.ws-card{background:#fff;border:1px solid var(--gray-200);border-left:5px solid var(--gray-400);border-radius:11px;padding:15px 17px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.ws-card.new{border-left-color:var(--danger)}
+.ws-card.assigned{border-left-color:var(--danger)}
+.ws-card.in_progress{border-left-color:#1971c2}
+.ws-card.completed{border-left-color:var(--success)}
+.ws-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:11px}
+.ws-name{font-size:16px;font-weight:800;color:var(--gray-700)}
+.ws-pill{padding:4px 12px;border-radius:13px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}
+.ws-row{display:flex;gap:8px;font-size:13.5px;color:var(--gray-600);margin:4px 0;align-items:flex-start;line-height:1.45}
+.ws-row .ic{width:17px;flex-shrink:0;text-align:center}
+.ws-memo{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:7px;padding:9px 11px;font-size:13px;color:var(--gray-700);margin:9px 0}
+.ws-actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.ws-time{font-size:11px;color:var(--gray-400);margin-top:9px}
+/* 거래처 */
+.vd-wrap{max-width:900px;margin:0 auto}
+.vd-search{width:100%;padding:13px 16px;border:1px solid var(--gray-300);border-radius:10px;font-size:15px;margin-bottom:16px}
+.vd-card{background:#fff;border:1px solid var(--gray-200);border-radius:11px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.vd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.vd-title{font-size:15.5px;font-weight:800;color:var(--gray-700);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.vd-sub{font-size:12px;font-weight:600;color:var(--warning)}
+.vd-btns{display:flex;gap:5px;flex-wrap:wrap}
+.vd-btns .btn{padding:5px 11px;font-size:12px;border-radius:7px}
+.vd-row{display:flex;gap:6px;font-size:13px;color:var(--gray-600);margin-top:7px;flex-wrap:wrap;align-items:center}
+.vd-row .ic{color:var(--gray-400)}
+.vd-site{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:9px;padding:11px 13px;margin:10px 0 0 18px}
+.vd-badge{background:#f3d9fa;color:#9c36b5;padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700}
+.vd-sbadge{padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700}
+/* 일정표 달력 */
+.cal-wrap{max-width:920px;margin:0 auto}
+.cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.cal-legend{display:flex;gap:16px;font-size:12px;color:var(--gray-600);margin:8px 2px 12px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-dow{text-align:center;font-size:12px;font-weight:700;color:var(--gray-500);padding:3px 0}
+.cal-day{background:#fff;border:1px solid var(--gray-200);border-radius:9px;min-height:66px;padding:6px 7px;cursor:pointer;display:flex;flex-direction:column;transition:background .1s}
+.cal-day:hover{background:var(--gray-50)}
+.cal-day.empty{background:transparent;border:none;cursor:default}
+.cal-day.sel{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-light)}
+.cal-num{font-size:13px;font-weight:700}
+.cal-day.today .cal-num{background:var(--primary);color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center}
+.cal-dots{display:flex;flex-wrap:wrap;align-items:center;margin-top:auto}
 </style>
 </head>
 <body>
 <div class="app">
-  <aside class="sidebar">
-    <div class="sidebar-header"><h2>CSEP</h2><span>컴퓨터 A/S ERP</span></div>
-    <nav id="nav"></nav>
-  </aside>
-  <main class="main">
-    <header class="header">
-      <h1 id="pageTitle">대시보드</h1>
+  <div class="topbar">
+    <div class="brandbar">
+      <span class="brand">CSEP <small>컴퓨터 A/S ERP</small></span>
       <div class="right">
         <button class="btn-sm btn-secondary" onclick="testCall()">📞 수신 테스트</button>
         <span class="server-status" id="srvStatus">● 서버 연결</span>
         <span>관리자</span>
       </div>
-    </header>
+    </div>
+    <nav class="tabbar" id="nav"></nav>
+  </div>
+  <main class="main">
     <div class="page" id="page"><div class="loading">불러오는 중...</div></div>
   </main>
 </div>
@@ -130,9 +183,9 @@ select,input,textarea{font-family:inherit;font-size:14px}
 <script src="menu.js"></script>
 <script>
 const API = '/api';
-const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null };
+const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null, sites:[], partOptions:[], settings:{} };
 // MENUS, TITLES 는 menu.js 에서 정의됨 (메뉴 수정은 menu.js 한 곳에서)
-const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
+const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', other:'기타' };
 
 // ── API 헬퍼 ──
 async function api(method, url, body){
@@ -152,31 +205,43 @@ async function loadAll(showLoading){
   if(showLoading && firstLoad) document.getElementById('page').innerHTML='<div class="loading">불러오는 중...</div>';
   const jobs = [
     ['dashboard','/dashboard'],['customers','/customers'],['computers','/computers'],['engineers','/engineers'],
-    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],
+    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],['sites','/sites'],['partOptions','/part-options'],['settings','/settings'],
   ];
   const results = await Promise.allSettled(jobs.map(([,u])=>api('GET',u)));
   let anyOk=false;
   results.forEach((r,i)=>{ if(r.status==='fulfilled'){ state[jobs[i][0]] = r.value; anyOk=true; } });
   document.getElementById('srvStatus').textContent = anyOk ? '● 서버 연결' : '● 연결 끊김';
   document.getElementById('srvStatus').style.color = anyOk ? 'var(--success)' : 'var(--danger)';
-  if(firstLoad){ firstLoad=false; render(); } else if(!document.querySelector('.modal-overlay')) render();
+  // 검색 입력 중이면 배경 새로고침으로 화면을 다시 그리지 않음(포커스 유지)
+  const typing = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('vd-search');
+  if(firstLoad){ firstLoad=false; render(); } else if(!document.querySelector('.modal-overlay') && !typing) render();
 }
 
-// ── 네비게이션 ──
+// ── 네비게이션 (상단 탭) ──
 function renderNav(){
-  document.getElementById('nav').innerHTML = MENUS.map(m=>`
-    <div class="nav-section"><div class="nav-section-label">${m.sec}</div>
-      ${m.items.map(([id,icon,label])=>`<button class="nav-item ${state.page===id?'active':''}" onclick="go('${id}')"><span class="nav-icon">${icon}</span><span>${label}</span></button>`).join('')}
-    </div>`).join('');
+  // MENU_CONFIG 의 모든 항목을 한 줄 탭으로 평탄화
+  const items = MENUS.flatMap(m=>m.items);
+  const firstRight = items.findIndex(it=>it[3]);   // 첫 우측정렬 항목에만 margin-left:auto
+  document.getElementById('nav').innerHTML = items.map(([id,icon,label],i)=>
+    `<button class="tab-item ${state.page===id?'active':''}"${i===firstRight?' style="margin-left:auto"':''} onclick="go('${id}')"><span class="tab-icon">${icon}</span><span>${label}</span></button>`
+  ).join('');
 }
-function go(page){ state.page=page; document.getElementById('pageTitle').textContent=TITLES[page]; renderNav(); render(); }
+function go(page){ state.page=page; renderNav(); render(); }
 
 // ── 렌더 라우터 ──
 function render(){
   renderNav();
   const el = document.getElementById('page');
   const r = pageRenderer(state.page);   // menu.js: id → renderXxx 자동 매핑
-  el.innerHTML = r ? r() : '준비 중';
+  el.innerHTML = r ? r() : placeholderPage(state.page);
+}
+// 렌더 함수가 아직 없는 메뉴 → "준비 중" 안내 (메뉴만)
+function placeholderPage(id){
+  return `<div class="placeholder">
+    <div class="ph-icon">🚧</div>
+    <div class="ph-title">${esc(TITLES[id]||'')}</div>
+    <div>준비 중입니다. 메뉴만 먼저 만들어 두었습니다.</div>
+  </div>`;
 }
 
 // ── 대시보드 ──
@@ -186,7 +251,7 @@ function renderDashboard(){
   return `
   <div class="stat-grid">
     ${statCard('오늘 신규 접수', d.today_new)}
-    ${statCard('배정 대기', d.assigned_pending, d.assigned_pending>0?'var(--warning)':'')}
+    ${statCard('미처리', d.assigned_pending, d.assigned_pending>0?'var(--danger)':'')}
     ${statCard('진행 중', d.in_progress, 'var(--success)')}
     ${statCard('오늘 완료', d.completed_today, 'var(--gray-500)')}
     ${statCard('총 미수금', won(d.total_outstanding), d.total_outstanding>0?'var(--danger)':'', 20)}
@@ -204,7 +269,7 @@ function renderDashboard(){
   </div>`;
 }
 function statCard(label,value,color,size){ return `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value" style="${color?`color:${color};`:''}${size?`font-size:${size}px;`:''}">${value}</div></div>`; }
-function statusLabel(s){ return {idle:'대기',on_the_way:'출동',working:'작업중',off_duty:'퇴근',new:'신규',assigned:'배정',in_progress:'진행중',completed:'완료'}[s]||s; }
+function statusLabel(s){ return {idle:'대기',on_the_way:'출동',working:'작업중',off_duty:'퇴근',new:'미처리',assigned:'미처리',in_progress:'진행중',completed:'완료'}[s]||s; }
 function custName(id){ const c=state.customers.find(c=>c.id==id); if(!c) return id?`고객${id}`:'-'; return c.name||c.phone||`고객${c.id}`; }
 function engName(id){ return (state.engineers.find(e=>e.id==id)||{}).name || '-'; }
 

@@ -5,7 +5,7 @@
 function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
 function modal(title, bodyHtml, wide){
   document.getElementById('modalRoot').innerHTML = `
-  <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-overlay">
     <div class="modal ${wide?'wide':''}">
       <div class="modal-head"><h3>${title}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
       <div class="modal-body">${bodyHtml}</div>
@@ -15,6 +15,161 @@ function modal(title, bodyHtml, wide){
 function field(id,label,val,type){ return `<div class="form-group"><label>${label}</label><input id="${id}" type="${type||'text'}" value="${esc(val)||''}"></div>`; }
 function area(id,label,val){ return `<div class="form-group"><label>${label}</label><textarea id="${id}">${esc(val)||''}</textarea></div>`; }
 const v = id => { const e=document.getElementById(id); return e?e.value:''; };
+// 선택(목록) + 직접입력 겸용 필드 (datalist)
+function comboField(id,label,val,listId,options){
+  return `<div class="form-group"><label>${label}</label>
+    <input id="${id}" list="${listId}" value="${esc(val)||''}" placeholder="선택 또는 직접 입력" autocomplete="off">
+    <datalist id="${listId}">${options.map(o=>`<option value="${o}"></option>`).join('')}</datalist></div>`;
+}
+// ── 부품 프리셋 (선택 + 직접입력 겸용) ──
+const CPU_DATA = {
+  Intel: { label:'세대', info:'내장 그래픽: F·KF 모델만 없음, 그 외 모델은 내장 그래픽 있음(UHD/Iris Xe)', groups:{
+    'Core Ultra(2세대)':['Core Ultra 9 285K','Core Ultra 7 265K','Core Ultra 7 265KF','Core Ultra 5 245K','Core Ultra 5 245KF'],
+    '14세대':['Core i9-14900KS','Core i9-14900K','Core i9-14900KF','Core i9-14900','Core i7-14700K','Core i7-14700KF','Core i7-14700','Core i5-14600K','Core i5-14600KF','Core i5-14500','Core i5-14400','Core i5-14400F','Core i3-14100','Core i3-14100F'],
+    '13세대':['Core i9-13900KS','Core i9-13900K','Core i9-13900KF','Core i9-13900','Core i7-13700K','Core i7-13700KF','Core i7-13700','Core i5-13600K','Core i5-13600KF','Core i5-13500','Core i5-13400','Core i5-13400F','Core i3-13100','Core i3-13100F'],
+    '12세대':['Core i9-12900K','Core i9-12900KF','Core i9-12900','Core i7-12700K','Core i7-12700KF','Core i7-12700','Core i5-12600K','Core i5-12600KF','Core i5-12600','Core i5-12500','Core i5-12400','Core i5-12400F','Core i3-12100','Core i3-12100F'],
+    '11세대':['Core i9-11900K','Core i9-11900KF','Core i9-11900','Core i7-11700K','Core i7-11700KF','Core i7-11700','Core i5-11600K','Core i5-11600KF','Core i5-11500','Core i5-11400','Core i5-11400F'],
+    '10세대':['Core i9-10900K','Core i9-10900KF','Core i9-10900','Core i7-10700K','Core i7-10700KF','Core i7-10700','Core i5-10600K','Core i5-10600KF','Core i5-10500','Core i5-10400','Core i5-10400F','Core i3-10300','Core i3-10100','Core i3-10100F'],
+    '9세대':['Core i9-9900KS','Core i9-9900K','Core i9-9900KF','Core i9-9900','Core i7-9700K','Core i7-9700KF','Core i7-9700','Core i5-9600K','Core i5-9600KF','Core i5-9400','Core i5-9400F','Core i3-9350KF','Core i3-9100','Core i3-9100F'],
+    '8세대':['Core i7-8700K','Core i7-8700','Core i5-8600K','Core i5-8600','Core i5-8500','Core i5-8400','Core i3-8350K','Core i3-8300','Core i3-8100'],
+    '7세대':['Core i7-7700K','Core i7-7700','Core i5-7600K','Core i5-7600','Core i5-7500','Core i5-7400','Core i3-7350K','Core i3-7320','Core i3-7300','Core i3-7100'],
+    '6세대':['Core i7-6700K','Core i7-6700','Core i5-6600K','Core i5-6600','Core i5-6500','Core i5-6400','Core i3-6320','Core i3-6300','Core i3-6100'],
+    '5세대':['Core i7-5775C','Core i5-5675C'],
+    '4세대':['Core i7-4790K','Core i7-4790','Core i7-4770K','Core i7-4770','Core i5-4690K','Core i5-4670K','Core i5-4590','Core i5-4570','Core i5-4460','Core i5-4440','Core i3-4360','Core i3-4340','Core i3-4170','Core i3-4160','Core i3-4150','Core i3-4130'],
+    '3세대':['Core i7-3770K','Core i7-3770','Core i5-3570K','Core i5-3550','Core i5-3470','Core i5-3450','Core i5-3330','Core i3-3240','Core i3-3220','Core i3-3210'],
+    '2세대':['Core i7-2700K','Core i7-2600K','Core i7-2600','Core i5-2500K','Core i5-2500','Core i5-2400','Core i5-2320','Core i5-2300','Core i3-2130','Core i3-2120','Core i3-2100'],
+    '1세대':['Core i7-980X','Core i7-975','Core i7-965','Core i7-960','Core i7-950','Core i7-930','Core i7-920','Core i7-880','Core i7-870','Core i7-860','Core i5-760','Core i5-750','Core i5-680','Core i5-660','Core i5-650','Core i3-560','Core i3-550','Core i3-540','Core i3-530'],
+  }},
+  AMD: { label:'소켓', info:'BIOS 업데이트 시 상위 CPU 지원(예: B450→라이젠 5000)',
+    chipset:{ 'AM5':'A620 / B650 / B650E / X670 / X670E / B840 / X870 / X870E', 'AM4':'A320 / B350 / X370 / B450 / X470 / A520 / B550 / X570', 'AM3':'760G / 970 / 990X / 990FX (AM3+)', 'AM6':'(예정)' },
+    igpu:{ 'AM5':'7000번대 이상 기본 내장, 8000G 강력', 'AM4':'G 모델만 내장(예: 5600G)', 'AM3':'없음', 'AM6':'(예정)' },
+    groups:{
+    'AM5':['Ryzen 9 9950X3D','Ryzen 9 9950X','Ryzen 9 9900X3D','Ryzen 9 9900X','Ryzen 7 9800X3D','Ryzen 7 9700X','Ryzen 5 9600X','Ryzen 9 7950X3D','Ryzen 9 7950X','Ryzen 9 7900X','Ryzen 9 7900','Ryzen 7 7800X3D','Ryzen 7 7700X','Ryzen 7 7700','Ryzen 5 7600X','Ryzen 5 7600','Ryzen 5 7500F','Ryzen 7 8700G','Ryzen 5 8600G','Ryzen 5 8500G'],
+    'AM4':['Ryzen 9 5950X','Ryzen 9 5900X','Ryzen 7 5800X3D','Ryzen 7 5800X','Ryzen 7 5700X','Ryzen 7 5700G','Ryzen 5 5600X','Ryzen 5 5600','Ryzen 5 5600G','Ryzen 5 5500','Ryzen 9 3900X','Ryzen 7 3800X','Ryzen 7 3700X','Ryzen 5 3600X','Ryzen 5 3600','Ryzen 5 3400G','Ryzen 3 3200G','Ryzen 5 3100','Ryzen 7 2700X','Ryzen 7 2700','Ryzen 5 2600X','Ryzen 5 2600','Ryzen 5 2400G','Ryzen 3 2200G','Ryzen 7 1800X','Ryzen 7 1700X','Ryzen 7 1700','Ryzen 5 1600','Ryzen 5 1500X','Ryzen 3 1300X','Ryzen 3 1200'],
+    'AM3':['Phenom II X6 1100T','Phenom II X6 1090T','Phenom II X4 965','Phenom II X4 955','Phenom II X4 945','Athlon II X4 640','Athlon II X4 630','FX-9590 (AM3+)','FX-8350 (AM3+)','FX-8320 (AM3+)','FX-6350 (AM3+)','FX-6300 (AM3+)','FX-4300 (AM3+)'],
+    'AM6':['(미출시 · 예정)'],
+  }}
+};
+const VGA_DATA = {
+  'NVIDIA': { groups:{
+    'RTX 50':['RTX 5090','RTX 5080','RTX 5070 Ti','RTX 5070','RTX 5060 Ti','RTX 5060'],
+    'RTX 40':['RTX 4090','RTX 4080 SUPER','RTX 4070 Ti SUPER','RTX 4070 SUPER','RTX 4070','RTX 4060 Ti','RTX 4060'],
+    'RTX 30':['RTX 3090','RTX 3080','RTX 3070','RTX 3060 Ti','RTX 3060','RTX 3050'],
+    'RTX 20':['RTX 2080 Ti','RTX 2070','RTX 2060'],
+    'GTX 16':['GTX 1660 SUPER','GTX 1650'],
+    'GTX 10':['GTX 1080 Ti','GTX 1070','GTX 1060','GTX 1050 Ti'],
+  }},
+  'AMD': { groups:{
+    'RX 9000':['RX 9070 XT','RX 9070'],
+    'RX 7000':['RX 7900 XTX','RX 7800 XT','RX 7700 XT','RX 7600'],
+    'RX 6000':['RX 6900 XT','RX 6800','RX 6700 XT','RX 6600','RX 6500 XT'],
+    'RX 5000':['RX 5700 XT','RX 5600 XT','RX 5500 XT'],
+  }},
+  'Intel Arc': { groups:{ 'Arc B':['Arc B580','Arc B570'], 'Arc A':['Arc A770','Arc A750','Arc A380'] }},
+  '내장 그래픽': { groups:{} },
+};
+const MB_MAKERS=['ASUS','MSI','GIGABYTE','ASROCK','BIOSTAR','기타'];
+const MB_CHIPSET={
+  Intel:['H610','B660','B760','H670','H770','Z690','Z790'],
+  AMD:['A520','A620','B550','B650','B650E','X570','X670','X670E']
+};
+function optHtml(list){ return list.map(o=>`<option value="${o}"></option>`).join(''); }
+// 수동 추가 부품(part_options) 조회
+function partOpts(kind){ return (typeof state!=='undefined' && state.partOptions)? state.partOptions.filter(o=>o.kind===kind) : []; }
+function customGroups(kind, first){ return [...new Set(partOpts(kind).filter(o=>(o.grp||'').split('||')[0]===first).map(o=>(o.grp||'').split('||')[1]).filter(Boolean))]; }
+function customVals(kind, first, second){ return partOpts(kind).filter(o=>{ const pp=(o.grp||'').split('||'); return pp[0]===first && (!second || pp[1]===second); }).map(o=>o.value); }
+function updateCpuSub(){
+  const p=v('p_cpu_plat'); const sel=document.getElementById('p_cpu_sub');
+  const preset=(p&&CPU_DATA[p])?Object.keys(CPU_DATA[p].groups):[];
+  const groups=[...preset, ...customGroups('cpu',p).filter(g=>!preset.includes(g))];
+  if(sel) sel.innerHTML=`<option value="">${p&&CPU_DATA[p]?CPU_DATA[p].label:'세대/소켓'}</option>`+groups.map(g=>`<option>${g}</option>`).join('');
+  updateCpuModels();
+}
+function updateCpuModels(){
+  const p=v('p_cpu_plat'), sub=v('p_cpu_sub'); const dl=document.getElementById('cpu_list');
+  let list=[];
+  if(p&&CPU_DATA[p]){ const g=CPU_DATA[p].groups; list = (sub&&g[sub])? g[sub].slice() : [].concat(...Object.values(g)); }
+  list=list.concat(customVals('cpu',p,sub));
+  if(dl) dl.innerHTML=optHtml(list);
+  const info=document.getElementById('cpu_info');
+  if(info){ let t='';
+    if(p==='Intel') t='🖥 '+CPU_DATA.Intel.info;
+    else if(p==='AMD'){ t='🖥 '+CPU_DATA.AMD.info; if(sub&&CPU_DATA.AMD.chipset[sub]) t=`🖥 지원 칩셋: ${CPU_DATA.AMD.chipset[sub]} · 내장그래픽: ${CPU_DATA.AMD.igpu[sub]}\n   ${CPU_DATA.AMD.info}`; }
+    info.textContent=t;
+  }
+}
+function updateVgaSeries(){
+  const m=v('p_vga_maker'); const sel=document.getElementById('p_vga_series'); const g=document.getElementById('p_gpu');
+  if(m==='내장 그래픽'){ if(g&&!g.value) g.value='내장 그래픽'; if(sel) sel.innerHTML='<option value="">-</option>'; const dl=document.getElementById('vga_list'); if(dl) dl.innerHTML=''; return; }
+  const preset=(m&&VGA_DATA[m])?Object.keys(VGA_DATA[m].groups):[];
+  const groups=[...preset, ...customGroups('vga',m).filter(g=>!preset.includes(g))];
+  if(sel) sel.innerHTML='<option value="">시리즈</option>'+groups.map(s=>`<option>${s}</option>`).join('');
+  updateVgaModels();
+}
+function updateVgaModels(){
+  const m=v('p_vga_maker'), s=v('p_vga_series'); const dl=document.getElementById('vga_list');
+  let list=[];
+  if(m&&VGA_DATA[m]){ const g=VGA_DATA[m].groups; list = (s&&g[s])? g[s].slice() : [].concat(...Object.values(g)); }
+  list=list.concat(customVals('vga',m,s));
+  if(dl) dl.innerHTML=optHtml(list);
+}
+function updateMbChipset(){ const p=v('p_mb_plat'); const list=p?(MB_CHIPSET[p]||[]):[].concat(MB_CHIPSET.Intel,MB_CHIPSET.AMD); const dl=document.getElementById('mb_chipset_list'); if(dl) dl.innerHTML=optHtml(list); }
+function mbParse(raw){ if(!raw) return {}; try{ const o=JSON.parse(raw); if(o&&typeof o==='object'&&!Array.isArray(o)) return o; }catch(e){} return {model:String(raw)}; }
+function collectMb(){ const o={plat:v('p_mb_plat'),maker:v('p_mb_maker'),chipset:v('p_mb_chipset'),model:v('p_mb_model')}; return Object.values(o).some(x=>x)? JSON.stringify(o):''; }
+function mbSummary(raw){ const o=mbParse(raw); return [o.plat,o.maker,o.chipset,o.model].filter(Boolean).join(' '); }
+
+// 여러 개 입력(RAM/SSD/HDD) — JSON으로 저장. RAM은 합계 자동계산. opts 있으면 선택+직접입력
+const MULTI_SPECS = {
+  ram: { calc:true,  legacy:'maker', fields:[{k:'size',ph:'용량(GB)',type:'number',flex:1},{k:'spec',ph:'규격',flex:1,opts:['DDR3','DDR4','DDR5','DDR6']},{k:'maker',ph:'제조사',flex:1,opts:['삼성','SK하이닉스','마이크론','G.SKILL','커세어','팀그룹','기타']}] },
+  ssd: { calc:false, legacy:'cap',  fields:[{k:'type',ph:'방식',flex:1,opts:['2.5인치 SATA','NVMe M.2','M.2 SATA','기타']},{k:'cap',ph:'용량(예:512GB)',flex:1},{k:'maker',ph:'제조사/모델',flex:2}] },
+  hdd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량(예:2TB)',flex:1},{k:'maker',ph:'제조사',flex:2,opts:['WD','씨게이트','도시바','기타']}] },
+};
+function parseSpecList(kind, raw){
+  if(!raw) return [];
+  try{ const a=JSON.parse(raw); if(Array.isArray(a)) return a; }catch(e){}
+  const k=MULTI_SPECS[kind].legacy; return String(raw).trim()? [{[k]:String(raw)}] : [];
+}
+function multiRow(kind, item){
+  item=item||{}; const cfg=MULTI_SPECS[kind];
+  const inputs=cfg.fields.map(f=>`<input class="ms-${kind}-${f.k}" placeholder="${f.ph}"${f.type?` type="${f.type}" min="0"`:''}${f.opts?` list="ms-${kind}-${f.k}-list"`:''} value="${esc(item[f.k])||''}" style="flex:${f.flex}"${cfg.calc?` oninput="calcMulti('${kind}')"`:''} autocomplete="off">`).join('');
+  return `<div class="ms-${kind}-row" style="display:flex;gap:6px;margin-bottom:6px">${inputs}<button type="button" class="btn btn-sm btn-danger" style="flex:none" onclick="this.parentElement.remove();${cfg.calc?`calcMulti('${kind}')`:''}">−</button></div>`;
+}
+function multiBlock(kind, raw){
+  const cfg=MULTI_SPECS[kind]; const list=parseSpecList(kind, raw);
+  const rows=(list.length?list:[{}]).map(i=>multiRow(kind,i)).join('');
+  const datalists=cfg.fields.filter(f=>f.opts).map(f=>`<datalist id="ms-${kind}-${f.k}-list">${optHtml(f.opts)}</datalist>`).join('');
+  return `${datalists}<div id="ms-${kind}-rows">${rows}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
+      <button type="button" class="btn btn-sm btn-secondary" onclick="addMulti('${kind}')">+ 추가</button>
+      ${cfg.calc?`<span style="font-size:12px;color:var(--gray-500)">합계: <strong id="ms-${kind}-total">-</strong></span>`:''}
+    </div>`;
+}
+function addMulti(kind){ document.getElementById('ms-'+kind+'-rows').insertAdjacentHTML('beforeend', multiRow(kind)); if(MULTI_SPECS[kind].calc) calcMulti(kind); }
+function collectMulti(kind){ const cfg=MULTI_SPECS[kind];
+  return [...document.querySelectorAll('#ms-'+kind+'-rows .ms-'+kind+'-row')].map(r=>{ const o={}; cfg.fields.forEach(f=>o[f.k]=(r.querySelector('.ms-'+kind+'-'+f.k).value||'').trim()); return o; }).filter(o=>Object.values(o).some(x=>x));
+}
+function calcMulti(kind){ if(!MULTI_SPECS[kind].calc) return;
+  const total=[...document.querySelectorAll('#ms-'+kind+'-rows .ms-'+kind+'-size')].reduce((s,el)=>s+(parseFloat(el.value)||0),0);
+  const el=document.getElementById('ms-'+kind+'-total'); if(el) el.textContent = total? total+'GB' : '-';
+}
+// 목록 표시용 요약
+function specSummary(kind, raw){
+  const list=parseSpecList(kind, raw); if(!list.length) return '';
+  const cfg=MULTI_SPECS[kind];
+  if(kind==='ram'){ const total=list.reduce((s,x)=>s+(parseFloat(x.size)||0),0);
+    const parts=list.map(x=>[(x.size?x.size+'GB':''),x.spec,x.maker].filter(Boolean).join(' ')).filter(Boolean).join(' + ');
+    return (total?total+'GB':'')+(parts?' ('+parts+')':''); }
+  return list.map(x=>cfg.fields.map(f=>x[f.k]).filter(Boolean).join(' ')).filter(Boolean).join(', ');
+}
+// 프린터: 여러 대 가능 (프린터명/모델 + IP). DB의 printer 컬럼에 JSON으로 저장
+function parsePrinters(raw){ if(!raw) return []; try{ const a=JSON.parse(raw); return Array.isArray(a)?a:[]; }catch(e){ return raw?[{name:String(raw),ip:''}]:[]; } }
+function printerRowHtml(p){ p=p||{}; return `<div class="printer-row" style="display:flex;gap:6px;margin-bottom:6px">
+    <input class="p-name" placeholder="프린터명/모델" value="${esc(p.name)||''}" style="flex:2">
+    <input class="p-ip" placeholder="IP (선택)" value="${esc(p.ip)||''}" style="flex:1">
+    <button type="button" class="btn btn-sm btn-danger" style="flex:none" onclick="this.parentElement.remove()">−</button>
+  </div>`; }
+function addPrinterRow(){ document.getElementById('printer_rows').insertAdjacentHTML('beforeend', printerRowHtml()); }
+function collectPrinters(){ return [...document.querySelectorAll('#printer_rows .printer-row')].map(r=>({name:r.querySelector('.p-name').value.trim(), ip:r.querySelector('.p-ip').value.trim()})).filter(p=>p.name||p.ip); }
 
 // ── 고객 추가/수정 ──
 function openCustomerModal(id, prefill){
@@ -46,54 +201,99 @@ async function saveCustomer(id){
 }
 
 // ── 장비 추가/수정 ──
+const OS_OPTS=['Windows XP','Windows 7','Windows 8.1','Windows 10','Windows 11'];
+const OFFICE_OPTS=['Office 2007','Office 2010','Office 2013','Office 2016','Office 2019','Office 2021','Microsoft 365'];
+const CAD_OPTS=['AutoCAD 2018','AutoCAD 2020','AutoCAD 2022','AutoCAD 2024','ZWCAD'];
+const ADOBE_OPTS=['Acrobat Reader','Acrobat Pro','Photoshop','Illustrator','Adobe CC'];
 function openComputerModal(id, customerId){
   const c = id? state.computers.find(x=>x.id==id) : { customer_id:customerId, device_type:'desktop' };
   const isEdit = !!id;
-  const custOptions = state.customers.map(x=>`<option value="${x.id}" ${c.customer_id==x.id?'selected':''}>${esc(x.name)||esc(x.phone)||('고객'+x.id)}</option>`).join('');
+  const cid = c.customer_id;
+  const cust = state.customers.find(x=>x.id==cid) || {};
+  const cname = cust.company_name || cust.name || cust.phone || ('고객'+cid);
+  const mb = mbParse(c.motherboard);
   const body = `
+    <div class="form-group"><label>거래처 (고정)</label>
+      <input type="hidden" id="p_cust" value="${cid||''}">
+      <input value="${esc(cname)}" disabled style="background:var(--gray-100);color:var(--gray-600);cursor:not-allowed"></div>
     <div class="form-row">
-      <div class="form-group"><label>고객 *</label><select id="p_cust">${custOptions}</select></div>
       <div class="form-group"><label>장비 종류 *</label><select id="p_type">
         ${Object.entries(DEVICE_TYPES).map(([k,l])=>`<option value="${k}" ${c.device_type===k?'selected':''}>${l}</option>`).join('')}
       </select></div>
+      ${field('p_name','장비명 (선택)',c.name)}
     </div>
-    <div class="form-row">${field('p_name','장비명 *',c.name)}${field('p_serial','시리얼번호',c.serial_number)}</div>
-    <div class="form-section">하드웨어</div>
-    <div class="form-row">${field('p_cpu','CPU',c.cpu)}${field('p_ram','RAM',c.ram)}</div>
-    <div class="form-row">${field('p_ssd','SSD',c.ssd)}${field('p_hdd','HDD',c.hdd)}</div>
-    <div class="form-row">${field('p_mb','메인보드',c.motherboard)}${field('p_gpu','GPU',c.gpu)}</div>
-    <div class="form-row">${field('p_power','파워',c.power)}${field('p_monitor','모니터',c.monitor)}</div>
-    <div class="form-section">소프트웨어</div>
-    <div class="form-row">${field('p_os','OS',c.os)}${field('p_office','Office',c.office_version)}</div>
-    <div class="form-row">${field('p_av','백신',c.antivirus)}${field('p_printer','프린터',c.printer)}</div>
+    <div class="form-section">하드웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(추후 스마트폰 AI 사진으로 자동 입력 예정)</span></div>
+    <div class="form-group"><label>CPU</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="p_cpu_plat" onchange="updateCpuSub()" style="flex:none;width:90px"><option value="">플랫폼</option><option>Intel</option><option>AMD</option></select>
+        <select id="p_cpu_sub" onchange="updateCpuModels()" style="flex:none;width:120px"><option value="">세대/소켓</option></select>
+        <input id="p_cpu" list="cpu_list" value="${esc(c.cpu)||''}" placeholder="모델 선택/입력" style="flex:1;min-width:150px" autocomplete="off">
+        <datalist id="cpu_list"></datalist>
+      </div>
+      <div id="cpu_info" style="font-size:11.5px;color:var(--gray-500);margin-top:5px;white-space:pre-line"></div></div>
+    <div class="form-group"><label>메인보드</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="p_mb_plat" onchange="updateMbChipset()" style="flex:none;width:100px"><option value="">플랫폼</option><option ${mb.plat==='Intel'?'selected':''}>Intel</option><option ${mb.plat==='AMD'?'selected':''}>AMD</option></select>
+        <input id="p_mb_maker" list="mb_maker_list" value="${esc(mb.maker)||''}" placeholder="제조사" style="flex:1;min-width:100px" autocomplete="off">
+        <input id="p_mb_chipset" list="mb_chipset_list" value="${esc(mb.chipset)||''}" placeholder="칩셋" style="flex:1;min-width:100px" autocomplete="off">
+        <input id="p_mb_model" value="${esc(mb.model)||''}" placeholder="세부 모델(선택)" style="flex:2;min-width:130px">
+      </div>
+      <datalist id="mb_maker_list">${optHtml(MB_MAKERS)}</datalist>
+      <datalist id="mb_chipset_list"></datalist></div>
+    <div class="form-group"><label>VGA (그래픽카드)</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="p_vga_maker" onchange="updateVgaSeries()" style="flex:none;width:110px"><option value="">제조사</option><option>내장 그래픽</option><option>NVIDIA</option><option>AMD</option><option>Intel Arc</option></select>
+        <select id="p_vga_series" onchange="updateVgaModels()" style="flex:none;width:110px"><option value="">시리즈</option></select>
+        <input id="p_gpu" list="vga_list" value="${esc(c.gpu)||''}" placeholder="모델 선택/입력" style="flex:1;min-width:150px" autocomplete="off">
+        <datalist id="vga_list"></datalist>
+      </div></div>
+    ${field('p_power','파워',c.power)}
+    ${field('p_monitor','모니터',c.monitor)}
+    <div class="form-group"><label>RAM (모듈별 입력 · 합계 자동계산)</label>${multiBlock('ram',c.ram)}</div>
+    <div class="form-group"><label>SSD (여러 개 가능)</label>${multiBlock('ssd',c.ssd)}</div>
+    <div class="form-group"><label>HDD (여러 개 가능)</label>${multiBlock('hdd',c.hdd)}</div>
+    ${field('p_serial','시리얼번호',c.serial_number)}
+    <div class="form-section">소프트웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(설치 확인용 · 선택 또는 직접 입력)</span></div>
+    <div class="form-row">${comboField('p_os','OS',c.os,'os_list',OS_OPTS)}${comboField('p_office','Office',c.office_version,'office_list',OFFICE_OPTS)}</div>
+    <div class="form-row">${comboField('p_cad','캐드(CAD)',c.cad,'cad_list',CAD_OPTS)}${comboField('p_adobe','어도비(Adobe)',c.adobe,'adobe_list',ADOBE_OPTS)}</div>
+    <div class="form-row">${field('p_etc1','기타 프로그램 1',c.etc_program1)}${field('p_etc2','기타 프로그램 2',c.etc_program2)}</div>
     <div class="form-section">네트워크</div>
     <div class="form-row">${field('p_ip','IP주소',c.ip_address)}${field('p_mac','MAC주소',c.mac_address)}</div>
     <div class="form-row">${field('p_pdate','구입일',c.purchase_date,'date')}${field('p_warr','보증만료',c.warranty_expiry,'date')}</div>
+    <div class="form-section">프린터 (여러 대 가능 · 없으면 빈칸)</div>
+    <div id="printer_rows">${(parsePrinters(c.printer).length?parsePrinters(c.printer):[{}]).map(printerRowHtml).join('')}</div>
+    <button type="button" class="btn btn-sm btn-secondary" onclick="addPrinterRow()">+ 프린터 추가</button>
     <div class="form-section">NAS (없으면 빈칸)</div>
     <div class="form-row">${field('p_nasname','NAS 이름',c.nas_name)}${field('p_nasmodel','모델',c.nas_model)}</div>
     <div class="form-row">${field('p_nasip','NAS IP',c.nas_ip)}${field('p_nascap','총 용량',c.nas_total_capacity)}</div>
+    ${field('p_naspart','파티션',c.nas_partition_info)}
     <div class="form-row">${field('p_nasid','관리자 ID',c.nas_admin_id)}${field('p_naspw','관리자 PW',c.nas_admin_password)}</div>
     <div class="form-section">공유기 (없으면 빈칸)</div>
     <div class="form-row">${field('p_rtname','공유기 이름',c.router_name)}${field('p_rtmodel','모델',c.router_model)}</div>
-    <div class="form-row">${field('p_rtip','공유기 IP',c.router_ip)}${field('p_rtid','관리자 ID',c.router_admin_id)}</div>
-    ${field('p_rtpw','공유기 관리자 PW',c.router_admin_password)}
+    <div class="form-row">${field('p_rtip','공유기 IP',c.router_ip)}${field('p_rthub','허브 연결 갯수',c.router_hub_count)}</div>
+    <div class="form-row">${field('p_rtid','관리자 ID',c.router_admin_id)}${field('p_rtpw','공유기 관리자 PW',c.router_admin_password)}</div>
     ${area('p_notes','메모',c.notes)}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveComputer(${id||'null'})">저장</button></div>`;
-  modal(isEdit?'장비 수정':'장비 추가', body, true);
+  modal(isEdit?'장치 수정':'장치 추가', body, true);
+  calcMulti('ram'); updateCpuSub(); updateMbChipset(); updateVgaSeries();
 }
 async function saveComputer(id){
   const data = {
     customer_id:Number(v('p_cust')), name:v('p_name'), device_type:v('p_type'), serial_number:v('p_serial'),
-    cpu:v('p_cpu'), ram:v('p_ram'), ssd:v('p_ssd'), hdd:v('p_hdd'), motherboard:v('p_mb'), gpu:v('p_gpu'),
-    power:v('p_power'), monitor:v('p_monitor'), os:v('p_os'), office_version:v('p_office'), antivirus:v('p_av'), printer:v('p_printer'),
+    cpu:v('p_cpu'), ram:JSON.stringify(collectMulti('ram')), ssd:JSON.stringify(collectMulti('ssd')), hdd:JSON.stringify(collectMulti('hdd')), motherboard:collectMb(), gpu:v('p_gpu'),
+    power:v('p_power'), monitor:v('p_monitor'),
+    os:v('p_os'), office_version:v('p_office'), cad:v('p_cad'), adobe:v('p_adobe'), etc_program1:v('p_etc1'), etc_program2:v('p_etc2'),
     ip_address:v('p_ip'), mac_address:v('p_mac'), purchase_date:v('p_pdate'), warranty_expiry:v('p_warr'),
-    nas_name:v('p_nasname'), nas_model:v('p_nasmodel'), nas_ip:v('p_nasip'), nas_total_capacity:v('p_nascap'), nas_admin_id:v('p_nasid'), nas_admin_password:v('p_naspw'),
-    router_name:v('p_rtname'), router_model:v('p_rtmodel'), router_ip:v('p_rtip'), router_admin_id:v('p_rtid'), router_admin_password:v('p_rtpw'),
+    printer:JSON.stringify(collectPrinters()),
+    nas_name:v('p_nasname'), nas_model:v('p_nasmodel'), nas_ip:v('p_nasip'), nas_total_capacity:v('p_nascap'), nas_partition_info:v('p_naspart'), nas_admin_id:v('p_nasid'), nas_admin_password:v('p_naspw'),
+    router_name:v('p_rtname'), router_model:v('p_rtmodel'), router_ip:v('p_rtip'), router_hub_count:v('p_rthub'), router_admin_id:v('p_rtid'), router_admin_password:v('p_rtpw'),
     notes:v('p_notes'),
   };
-  if(!data.customer_id){ alert('고객을 선택하세요'); return; }
-  if(!data.name){ alert('장비명을 입력하세요'); return; }
-  if(id) await api('PUT','/computers/'+id, data); else await api('POST','/computers', data);
+  if(!data.customer_id){ alert('거래처 정보가 없습니다'); return; }
+  if(!data.name) data.name = '장치';   // 장비명은 선택 — 비우면 기본값(거래처에 귀속)
+  try{
+    if(id) await api('PUT','/computers/'+id, data); else await api('POST','/computers', data);
+  }catch(e){ alert('저장 실패: '+(e && e.message ? e.message : e)); return; }
   closeModal(); await loadAll();
 }
 async function deleteComputer(id){ if(!confirm('이 장비를 삭제하시겠습니까?'))return; await api('DELETE','/computers/'+id); custState.selComp=null; await loadAll(); }
@@ -116,8 +316,8 @@ function openReceptionModal(){
     ${field('r_phone','전화번호','')}
     ${area('r_symptom','증상 *','')}
     ${area('r_memo','초기 메모','')}
-    <div class="form-group"><label>담당 기사 (선택 시 바로 배정)</label><select id="r_eng">
-      <option value="">미배정 (나중에 배정)</option>
+    <div class="form-group"><label>담당 기사</label><select id="r_eng">
+      <option value="">미지정</option>
       ${state.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}${e.is_admin?' (대표)':''} · ${statusLabel(e.status)}</option>`).join('')}
     </select></div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveReception()">접수 등록</button></div>`;
@@ -221,24 +421,6 @@ async function saveReception(){
   const rec = await api('POST','/receptions', { customer_id:customerId, reception_channel:v('r_channel'), reception_phone:v('r_phone'), symptom, initial_memo:v('r_memo') });
   const eng = v('r_eng');
   if(eng) await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);   // 작업지시: 바로 배정
-  closeModal(); await loadAll();
-}
-
-// ── 기사 배정 ──
-function openAssignModal(recId){
-  const r = state.receptions.find(x=>x.id==recId);
-  const body = `
-    <div style="margin-bottom:14px;padding:12px;background:var(--gray-50);border-radius:8px;font-size:13px"><strong>증상:</strong> ${esc(r.symptom)||'-'}</div>
-    <div class="form-group"><label>배정할 기사</label><select id="a_eng">
-      <option value="">선택하세요</option>
-      ${state.engineers.map(e=>`<option value="${e.id}">${esc(e.name)} (${statusLabel(e.status)})</option>`).join('')}
-    </select></div>
-    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="doAssign(${recId})">배정</button></div>`;
-  modal(`기사 배정 - ${esc(custName(r.customer_id))}`, body);
-}
-async function doAssign(recId){
-  const eng = v('a_eng'); if(!eng){ alert('기사를 선택하세요'); return; }
-  await api('PUT',`/receptions/${recId}/assign?engineer_id=${eng}`);
   closeModal(); await loadAll();
 }
 

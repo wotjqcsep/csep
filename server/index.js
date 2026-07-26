@@ -198,6 +198,29 @@ async function initDB() {
       notes TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS sites (
+      id SERIAL PRIMARY KEY,
+      customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      contact_person TEXT,
+      phone TEXT,
+      address TEXT,
+      address_detail TEXT,
+      status TEXT DEFAULT 'active',
+      memo TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS part_options (
+      id SERIAL PRIMARY KEY,
+      kind TEXT NOT NULL,
+      grp TEXT DEFAULT '',
+      value TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
     CREATE TABLE IF NOT EXISTS receptions (
       id SERIAL PRIMARY KEY,
       customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
@@ -316,7 +339,23 @@ async function initDB() {
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS solution TEXT;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS reserved_date TEXT;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS customer_request TEXT;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS labor_fee DOUBLE PRECISION DEFAULT 0;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS parts_fee DOUBLE PRECISION DEFAULT 0;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS payment_method TEXT;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS tax_invoice BOOLEAN DEFAULT FALSE;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS woori_settled BOOLEAN DEFAULT FALSE;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS estimate_amount DOUBLE PRECISION;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS visit_fee DOUBLE PRECISION;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS picked_up BOOLEAN DEFAULT FALSE;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS outcome TEXT;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS next_visit_parts TEXT;
+    ALTER TABLE computers ADD COLUMN IF NOT EXISTS cad TEXT;
+    ALTER TABLE computers ADD COLUMN IF NOT EXISTS adobe TEXT;
+    ALTER TABLE computers ADD COLUMN IF NOT EXISTS etc_program1 TEXT;
+    ALTER TABLE computers ADD COLUMN IF NOT EXISTS etc_program2 TEXT;
+    ALTER TABLE computers ADD COLUMN IF NOT EXISTS printer_model TEXT;
+    ALTER TABLE computers ADD COLUMN IF NOT EXISTS printer_ip TEXT;
+    ALTER TABLE computers ADD COLUMN IF NOT EXISTS router_hub_count TEXT;
   `);
   console.log('DB 초기화 완료');
 }
@@ -403,9 +442,65 @@ app.get('/api/customers/:id/receptions', wrap(async (req, res) => {
 }));
 
 // ============================================================
+//  현장 (sites) — 거래처(고객)에 딸린 지점/설치장소
+// ============================================================
+app.get('/api/sites', wrap(async (req, res) => {
+  const { customer_id } = req.query;
+  if (customer_id) return res.json((await pool.query('SELECT * FROM sites WHERE customer_id=$1 ORDER BY id', [customer_id])).rows);
+  res.json((await pool.query('SELECT * FROM sites ORDER BY id')).rows);
+}));
+
+app.post('/api/sites', wrap(async (req, res) => {
+  const b = req.body;
+  const { rows } = await pool.query(
+    `INSERT INTO sites (customer_id, name, contact_person, phone, address, address_detail, status, memo)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [b.customer_id, b.name, b.contact_person, b.phone, b.address, b.address_detail, b.status || 'active', b.memo]
+  );
+  res.json(rows[0]);
+}));
+
+app.put('/api/sites/:id', wrap(async (req, res) => {
+  const b = req.body;
+  const fields = ['name', 'contact_person', 'phone', 'address', 'address_detail', 'status', 'memo'];
+  const sets = [], vals = [];
+  fields.forEach(f => { if (b[f] !== undefined) { vals.push(b[f]); sets.push(`${f}=$${vals.length}`); } });
+  if (!sets.length) { const { rows } = await pool.query('SELECT * FROM sites WHERE id=$1', [req.params.id]); return res.json(rows[0]); }
+  vals.push(req.params.id);
+  const { rows } = await pool.query(`UPDATE sites SET ${sets.join(',')} WHERE id=$${vals.length} RETURNING *`, vals);
+  if (!rows[0]) return res.status(404).json({ error: '현장 없음' });
+  res.json(rows[0]);
+}));
+
+app.delete('/api/sites/:id', wrap(async (req, res) => {
+  await pool.query('DELETE FROM sites WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+}));
+
+// ============================================================
+//  부품 옵션 (part_options) — 드롭다운 수동 추가 데이터
+// ============================================================
+app.get('/api/part-options', wrap(async (req, res) => {
+  res.json((await pool.query('SELECT * FROM part_options ORDER BY id')).rows);
+}));
+app.post('/api/part-options', wrap(async (req, res) => {
+  const b = req.body;
+  if (!b.kind || !b.value) return res.status(400).json({ error: 'kind, value 필수' });
+  const { rows } = await pool.query(
+    'INSERT INTO part_options (kind, grp, value) VALUES ($1,$2,$3) RETURNING *',
+    [b.kind, b.grp || '', b.value]
+  );
+  res.json(rows[0]);
+}));
+app.delete('/api/part-options/:id', wrap(async (req, res) => {
+  await pool.query('DELETE FROM part_options WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+}));
+
+// ============================================================
 //  컴퓨터/장비 (computers)
 // ============================================================
-const COMPUTER_FIELDS = ['customer_id', 'name', 'device_type', 'cpu', 'ram', 'ssd', 'hdd', 'motherboard', 'gpu', 'os', 'os_version', 'office_version', 'antivirus', 'ip_address', 'mac_address', 'serial_number', 'assembled', 'power', 'purchase_date', 'warranty_expiry', 'printer', 'monitor', 'nas_name', 'nas_model', 'nas_ip', 'nas_hdd_count', 'nas_hdd_detail', 'nas_total_capacity', 'nas_partition_info', 'nas_maintenance_period', 'nas_maintenance_notes', 'nas_admin_id', 'nas_admin_password', 'router_name', 'router_model', 'router_ip', 'router_admin_id', 'router_admin_password', 'notes'];
+const COMPUTER_FIELDS = ['customer_id', 'name', 'device_type', 'cpu', 'ram', 'ssd', 'hdd', 'motherboard', 'gpu', 'os', 'os_version', 'office_version', 'antivirus', 'ip_address', 'mac_address', 'serial_number', 'assembled', 'power', 'purchase_date', 'warranty_expiry', 'printer', 'monitor', 'nas_name', 'nas_model', 'nas_ip', 'nas_hdd_count', 'nas_hdd_detail', 'nas_total_capacity', 'nas_partition_info', 'nas_maintenance_period', 'nas_maintenance_notes', 'nas_admin_id', 'nas_admin_password', 'router_name', 'router_model', 'router_ip', 'router_admin_id', 'router_admin_password', 'notes', 'cad', 'adobe', 'etc_program1', 'etc_program2', 'printer_model', 'printer_ip', 'router_hub_count'];
 
 app.get('/api/computers', wrap(async (req, res) => {
   const { customer_id } = req.query;
@@ -534,6 +629,83 @@ app.put('/api/receptions/:id/status', wrap(async (req, res) => {
   const { rows } = await pool.query(`UPDATE receptions SET status=$1${extra} WHERE id=$2 RETURNING *`, [status, req.params.id]);
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
+}));
+
+// 일정(예약일) 변경 — 관리자 PC
+app.put('/api/receptions/:id/reserve', wrap(async (req, res) => {
+  const date = req.query.date || req.body.reserved_date || null;
+  const { rows } = await pool.query('UPDATE receptions SET reserved_date=$1 WHERE id=$2 RETURNING *', [date || null, req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 콜 취소 — 삭제하지 않고 '취소됨' 상태로 기록 보존
+app.put('/api/receptions/:id/cancel', wrap(async (req, res) => {
+  const reason = req.body.reason || '';
+  const { rows } = await pool.query(
+    `UPDATE receptions SET status='cancelled', outcome='cancelled', solution=CASE WHEN $2<>'' THEN $2 ELSE solution END WHERE id=$1 RETURNING *`,
+    [req.params.id, reason ? ('[콜취소] ' + reason) : '[콜취소]']
+  );
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 처리 내용 기록 (+선택적 완료) — 관리자 PC
+app.put('/api/receptions/:id/solution', wrap(async (req, res) => {
+  const b = req.body;
+  const extra = b.complete ? ", status='completed', completed_at=NOW()" : '';
+  const { rows } = await pool.query(`UPDATE receptions SET solution=$1${extra} WHERE id=$2 RETURNING *`, [b.solution || null, req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 결제/정산 저장 (기사앱·PC 공용) — 공임/부품/결제수단/계산서, 선택적 완료
+app.put('/api/receptions/:id/payment', wrap(async (req, res) => {
+  const b = req.body;
+  const fields = ['labor_fee','parts_fee','payment_method','tax_invoice','solution','estimate_amount','visit_fee','outcome'];
+  const sets = [], vals = [];
+  fields.forEach(f => { if (b[f] !== undefined) { vals.push(b[f]); sets.push(`${f}=$${vals.length}`); } });
+  if (b.complete) sets.push("status='completed'", 'completed_at=NOW()');
+  if (!sets.length) { const { rows } = await pool.query('SELECT * FROM receptions WHERE id=$1',[req.params.id]); return res.json(rows[0]); }
+  vals.push(req.params.id);
+  const { rows } = await pool.query(`UPDATE receptions SET ${sets.join(',')} WHERE id=$${vals.length} RETURNING *`, vals);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 수거·견적대기중 + 진행중 (지도 실행 시 자동 호출) — 미처리(new/assigned)면 진행중으로
+app.put('/api/receptions/:id/pickup', wrap(async (req, res) => {
+  const { rows } = await pool.query(
+    `UPDATE receptions SET picked_up=TRUE, status=CASE WHEN status IN ('new','assigned') THEN 'in_progress' ELSE status END WHERE id=$1 RETURNING *`,
+    [req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  await pool.query(`UPDATE jobs SET status='in_progress', started_at=COALESCE(started_at, NOW()) WHERE reception_id=$1 AND status <> 'completed'`, [req.params.id]);
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 우리사무기 정산 받음 처리 (토글)
+app.put('/api/receptions/:id/woori-settle', wrap(async (req, res) => {
+  const val = req.body.settled !== undefined ? !!req.body.settled : true;
+  const { rows } = await pool.query('UPDATE receptions SET woori_settled=$1 WHERE id=$2 RETURNING *', [val, req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
+// 설정 (출장비 기본금액 등)
+app.get('/api/settings', wrap(async (req, res) => {
+  const rows = (await pool.query('SELECT key, value FROM settings')).rows;
+  const o = {}; rows.forEach(r => o[r.key] = r.value); res.json(o);
+}));
+app.put('/api/settings/:key', wrap(async (req, res) => {
+  await pool.query('INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2', [req.params.key, req.body.value ?? '']);
+  res.json({ ok: true });
 }));
 
 app.delete('/api/receptions/:id', wrap(async (req, res) => {
@@ -1007,7 +1179,7 @@ app.put('/api/engineer/receptions/:id/start', wrap(async (req, res) => {
 app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
   const b = req.body;
   const total = (Number(b.cost_parts) || 0) + (Number(b.cost_labor) || 0);
-  const { rows } = await pool.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2, customer_request=$3, reserved_date=NULL WHERE id=$1 RETURNING *`, [req.params.id, b.work_description || '', b.customer_request || null]);
+  const { rows } = await pool.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2, customer_request=$3, labor_fee=$4, parts_fee=$5, payment_method=$6, tax_invoice=$7, reserved_date=NULL WHERE id=$1 RETURNING *`, [req.params.id, b.work_description || '', b.customer_request || null, Number(b.cost_labor) || 0, Number(b.cost_parts) || 0, b.payment_method || null, !!b.tax_invoice]);
   const jobRes = await pool.query(
     `UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6, next_visit_parts=$7 WHERE reception_id=$1 RETURNING id`,
     [req.params.id, b.work_description || '', b.parts_used || '', Number(b.cost_parts) || 0, Number(b.cost_labor) || 0, total, b.next_visit_parts || null]

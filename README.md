@@ -4,7 +4,7 @@
 **약칭**: CSEP  
 **시작일**: 2026-06-28  
 **상태**: 🔵 기획 단계  
-**저장 위치**: `E:\dev\CSEP\`
+**저장 위치**: `E:\Production program\CSEP\`
 
 ---
 
@@ -29,7 +29,7 @@
 ## 📂 폴더 구조
 
 ```
-E:\dev\CSEP\
+E:\Production program\CSEP\
 ├── README.md                    # 이 파일
 ├── CSEP_기획서.md              # 전체 기능 설명
 ├── 개발계획.md                  # MVP → 단계별 계획
@@ -140,7 +140,7 @@ E:\dev\CSEP\
 | **사용처** | 내부 (서비스사) | 외부 (A/S 업체) |
 | **규모** | 중소규모 | 확장형 (1인~다인) |
 | **주 기능** | 임대, 수리, 청구 | 접수, 배정, 판매, ERP |
-| **Repository** | GitHub field-service | E:\dev\CSEP |
+| **Repository** | GitHub field-service | E:\Production program\CSEP |
 | **서버** | Render | ? (미정) |
 
 ---
@@ -276,7 +276,7 @@ DevOps:
 
 이 프로젝트는 개인 프로젝트입니다. 
 
-- 피드백, 아이디어: E:\dev\CSEP\ 내 .md 파일 수정
+- 피드백, 아이디어: E:\Production program\CSEP\ 내 .md 파일 수정
 - 기술 관련 질문: Claude Code와 상담
 
 ---
