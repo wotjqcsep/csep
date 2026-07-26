@@ -302,13 +302,14 @@ function renderProcessing(){
         <div style="font-weight:700;margin-bottom:8px">📝 처리 결과 입력</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${S.presets.map((p,i)=>`<span onclick="appendField('p_desc',S.presets[${i}].text)" style="padding:5px 10px;background:#e7f5ff;color:#1971c2;border-radius:14px;font-size:12px;cursor:pointer">✓ ${esc(p.text)}</span>`).join('')}</div>
         <div class="fg"><label>처리 내용 *</label>
-          <textarea id="p_desc" placeholder="처리 내용을 입력하세요" style="width:100%">${esc(r.work_description||'')}</textarea>
+          <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="p_desc" placeholder="처리 내용을 입력하세요" style="flex:1">${esc(r.work_description||'')}</textarea>${micBtn('p_desc')}</div>
         </div>
-        <div class="fg"><label>교체 부품 (없으면 빈칸, 직접입력 가능)</label><input id="p_parts" value="${esc(r.parts_used||'')}">
+        <div class="fg"><label>교체 부품 (없으면 빈칸, 직접입력 가능)</label>
+          <div style="display:flex;gap:6px;align-items:center"><input id="p_parts" value="${esc(r.parts_used||'')}" style="flex:1">${micBtn('p_parts')}</div>
           ${S.parts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.parts.slice(0,12).map((p,i)=>`<span onclick="appendField('p_parts',S.parts[${i}].part_name)" style="padding:5px 10px;background:#f1f3f5;border-radius:14px;font-size:12px;cursor:pointer">+ ${esc(p.part_name)}</span>`).join('')}</div>`:''}
         </div>
-        <div class="fg"><label>다음 방문시 필요 부품 및 조치</label><input id="p_next" value="${esc(r.next_visit_parts||'')}"></div>
-        <div class="fg"><label>고객 요청사항</label><input id="p_req" value="${esc(r.customer_request||'')}"></div>
+        <div class="fg"><label>다음 방문시 필요 부품 및 조치</label><div style="display:flex;gap:6px;align-items:center"><input id="p_next" value="${esc(r.next_visit_parts||'')}" style="flex:1">${micBtn('p_next')}</div></div>
+        <div class="fg"><label>고객 요청사항</label><div style="display:flex;gap:6px;align-items:center"><input id="p_req" value="${esc(r.customer_request||'')}" style="flex:1">${micBtn('p_req')}</div></div>
         <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcProcPay()"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcProcPay()"></div></div>
         <div class="fg"><label>결제수단 *</label><select id="p_paymethod" onchange="calcProcPay()">
           <option value="cash">현금 (입금완료)</option><option value="card">카드 (입금완료)</option><option value="transfer">계좌이체 (입금완료)</option><option value="unpaid">미수 (나중에 받음)</option></select></div>
@@ -376,7 +377,7 @@ function renderWoTab(){
   el.innerHTML=`
     <div class="fg"><label>고객 검색 *</label>
       ${sel?`<div class="wo-selected"><span><strong>${esc(sel.name)||esc(sel.phone)}</strong>${sel.name&&sel.phone?` <span style="color:var(--gray-500);font-size:13px">${esc(sel.phone)}</span>`:''}${sel.address?`<div style="font-size:12px;color:var(--gray-500);margin-top:3px">📍 ${esc(sel.address)}</div>`:''}</span><button onclick="woClear()" style="border:none;background:none;font-size:22px;color:var(--gray-500);cursor:pointer">×</button></div>`
-        :`<input id="woT_search" placeholder="이름 또는 전화번호 입력" value="${esc(woState.search||'')}" oninput="woSearch(this.value)" autocomplete="off" inputmode="search" style="width:100%">
+        :`<div style="display:flex;gap:6px;align-items:center"><input id="woT_search" placeholder="이름 또는 전화번호 입력" value="${esc(woState.search||'')}" oninput="woSearch(this.value)" autocomplete="off" inputmode="search" style="flex:1">${micBtn('woT_search',false)}</div>
           <div id="woT_results"></div>
           <button class="btn btn-ghost" style="margin-top:10px" onclick="openCustomerAdd('')">🧑 새 고객 등록</button>`}
     </div>
@@ -384,7 +385,7 @@ function renderWoTab(){
     ${comps.length?`<div class="fg"><label>장비 (선택)</label><select id="woT_comp" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
     <div class="sec-label">📋 작업 지시</div>
     <div class="fg"><label>작업 내용 / 증상 *</label>
-      <textarea id="woT_symptom" placeholder="작업 지시 내용" style="width:100%" oninput="woState.symptom=this.value">${esc(woState.symptom||'')}</textarea>
+      <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="woT_symptom" placeholder="작업 지시 내용" style="flex:1" oninput="woState.symptom=this.value">${esc(woState.symptom||'')}</textarea>${micBtn('woT_symptom')}</div>
     </div>
     <div class="fg"><label>담당 기사 *</label><select id="woT_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''} style="color:${engColor(e)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
     <button class="btn btn-primary" onclick="submitWoTab()">작업지시 + 배정</button>`:''}`;
@@ -504,9 +505,9 @@ function renderScheduleSheet(){
 function openAddSchedule(){
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
     <div class="sheet"><h3>일정 추가 (${schedState.sel})</h3>
-      <div class="fg"><label>제목 *</label><input id="sc_title" placeholder="예: 정기점검 방문"></div>
+      <div class="fg"><label>제목 *</label><div style="display:flex;gap:6px;align-items:center"><input id="sc_title" placeholder="예: 정기점검 방문" style="flex:1">${micBtn('sc_title')}</div></div>
       <div class="fg"><label>담당 기사</label><select id="sc_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">전체</option>${S.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div>
-      <div class="fg"><label>메모</label><textarea id="sc_memo"></textarea></div>
+      <div class="fg"><label>메모</label><div style="display:flex;gap:6px;align-items:flex-start"><textarea id="sc_memo" style="flex:1"></textarea>${micBtn('sc_memo')}</div></div>
       <button class="btn btn-primary" onclick="submitSchedule()">저장</button>
       <button class="btn btn-ghost" onclick="document.getElementById('ov2').remove()">취소</button>
     </div></div>`);
@@ -538,7 +539,7 @@ async function openLeaveMy(){
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🏖️ 휴가 신청</h3>
       <div class="row2"><div class="fg"><label>시작일</label><input type="date" id="lv_start"></div><div class="fg"><label>종료일</label><input type="date" id="lv_end"></div></div>
-      <div class="fg"><label>사유</label><input id="lv_reason" placeholder="선택"></div>
+      <div class="fg"><label>사유</label><div style="display:flex;gap:6px;align-items:center"><input id="lv_reason" placeholder="선택" style="flex:1">${micBtn('lv_reason')}</div></div>
       <button class="btn btn-primary" onclick="submitLeave()">신청</button>
       <div style="margin-top:14px;font-size:13px;font-weight:600">내 신청 내역</div>
       ${mine.length?mine.map(l=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px"><span>${l.start_date}~${l.end_date}</span><span class="badge ${(lb[l.status]||[])[1]}">${(lb[l.status]||[l.status])[0]}</span></div>`).join(''):'<div style="color:var(--gray-400);font-size:13px;padding:6px 0">내역 없음</div>'}
@@ -625,10 +626,11 @@ function openComplete(id){
     <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
       <div class="sheet">
         <h3>작업 완료 - ${esc(r.customer_name)||'고객'}</h3>
-        <div class="fg"><label>작업 내용 *</label><textarea id="w_desc" placeholder="처리한 작업을 입력하세요"></textarea>
+        <div class="fg"><label>작업 내용 *</label>
+          <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="w_desc" placeholder="처리한 작업을 입력하세요" style="flex:1"></textarea>${micBtn('w_desc')}</div>
           ${S.presets.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.presets.map((p,i)=>`<span onclick="appendField('w_desc',S.presets[${i}].text)" style="padding:5px 10px;background:#e7f5ff;color:#1971c2;border-radius:14px;font-size:12px;cursor:pointer">${esc(p.text)}</span>`).join('')}</div>`:''}
         </div>
-        <div class="fg"><label>사용 부품</label><input id="w_parts" placeholder="예: SSD 500GB">
+        <div class="fg"><label>사용 부품</label><div style="display:flex;gap:6px;align-items:center"><input id="w_parts" placeholder="예: SSD 500GB" style="flex:1">${micBtn('w_parts')}</div>
           ${S.parts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.parts.slice(0,12).map((p,i)=>`<span onclick="appendField('w_parts',S.parts[${i}].part_name)" style="padding:5px 10px;background:#f1f3f5;color:#495057;border-radius:14px;font-size:12px;cursor:pointer">${esc(p.part_name)}</span>`).join('')}</div>`:''}
         </div>
         <div class="row2">
@@ -728,6 +730,7 @@ function renderChat(id,msgs){
       <div style="display:flex;gap:6px;align-items:center;border-top:1px solid #eee;padding-top:8px;margin-top:8px">
         <label style="cursor:pointer;font-size:22px;line-height:1">📷<input type="file" accept="image/*" capture="environment" onchange="sendChatPhoto(${id},this)" style="display:none"></label>
         <input id="chatText" placeholder="메시지 입력" style="flex:1;padding:10px 12px;border:1px solid #dee2e6;border-radius:9px;font-size:15px" onkeydown="if(event.key==='Enter')sendChat(${id})">
+        ${micBtn('chatText')}
         <button class="btn btn-primary" style="width:auto;margin:0;padding:10px 16px" onclick="sendChat(${id})">전송</button>
       </div>
     </div></div>`;
@@ -834,10 +837,14 @@ function registerIncoming(id){
 }
 
 // ── 텍스트 입력 필드 (음성입력은 휴대폰 키보드 자체 마이크 사용 — 필드서비스와 동일) ──
+// 어떤 입력칸에도 붙일 수 있는 마이크 버튼 (id는 대상 입력칸 id)
+function micBtn(id, append){ const ap=(append===false)?'false':'true'; return `<button id="mic_${id}" type="button" onclick="startVoice('${id}',${ap})" style="border:1px solid #dee2e6;background:#fff;border-radius:9px;width:44px;height:42px;font-size:20px;cursor:pointer;flex:none">🎤</button>`; }
 function micField(id, label, val, placeholder){
   return `<div class="fg"><label>${label}</label>
-    <input id="${id}" value="${esc(val)||''}" placeholder="${placeholder||''}" style="width:100%">
-    </div>`;
+    <div style="display:flex;gap:6px;align-items:center">
+      <input id="${id}" value="${esc(val)||''}" placeholder="${placeholder||''}" style="flex:1">
+      ${micBtn(id)}
+    </div></div>`;
 }
 
 // ── 대표: 현장 고객 등록 ──
