@@ -140,7 +140,9 @@ function renderReceptions(){
   const byDesc = (a,b)=>(b.received_at||'').localeCompare(a.received_at||'');  // 처리(접수) 날짜순, 최신 위
   // 완료 후 24시간 지난 건은 작업현황에서 숨김(일정표에서 확인)
   const within24h = r => { const d=recDate(r.completed_at||r.received_at); return !d || (Date.now()-d.getTime()) <= 24*60*60*1000; };
-  const pending   = rs.filter(r=>recSection(r)==='pending').sort(byDesc);
+  // 진행중(기사가 네비 실행 등)은 미처리에서 분리해 맨 위로
+  const inProgress= rs.filter(r=>recSection(r)==='pending' && r.status==='in_progress').sort(byDesc);
+  const pending   = rs.filter(r=>recSection(r)==='pending' && r.status!=='in_progress').sort(byDesc);
   const reserved  = rs.filter(r=>recSection(r)==='reserved').sort(byDesc);
   const completed = rs.filter(r=>recSection(r)==='completed' && within24h(r)).sort(byDesc);
   // 구간 헤더(구분선) + 2열 카드
@@ -148,6 +150,7 @@ function renderReceptions(){
     ? `<div class="ws-sec" style="--sec:${color}"><span style="background:${color}">${title} ${list.length}</span></div><div class="ws-grid">${list.map(recCard).join('')}</div>`
     : '';
   const body = [
+    section('🔵 진행중', '#1971c2',        inProgress),  // 맨 위
     section('🔴 미처리', 'var(--danger)',  pending),
     section('🟡 예약',   'var(--warning)', reserved),
     section('🟢 완료',   'var(--success)', completed),   // 맨 아래
