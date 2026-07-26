@@ -21,11 +21,28 @@ function comboField(id,label,val,listId,options){
     <input id="${id}" list="${listId}" value="${esc(val)||''}" placeholder="선택 또는 직접 입력" autocomplete="off">
     <datalist id="${listId}">${options.map(o=>`<option value="${o}"></option>`).join('')}</datalist></div>`;
 }
-// 여러 개 입력(RAM/SSD/HDD) — JSON으로 저장. RAM은 합계 자동계산
+// ── 부품 프리셋 (선택 + 직접입력 겸용) ──
+const CPU_LIST = {
+  Intel:['Core i9-14900K','Core i9-13900K','Core i7-14700K','Core i7-13700K','Core i7-12700','Core i5-14600K','Core i5-13600K','Core i5-13400','Core i5-12400','Core i3-13100','Core i3-12100','Pentium Gold G7400','Celeron G6900'],
+  AMD:['Ryzen 9 7950X','Ryzen 9 7900X','Ryzen 9 5900X','Ryzen 7 7800X3D','Ryzen 7 7700X','Ryzen 7 5800X','Ryzen 7 5700X','Ryzen 5 7600X','Ryzen 5 7600','Ryzen 5 5600X','Ryzen 5 5600','Ryzen 5 5500','Ryzen 3 4100']
+};
+const MB_MAKERS=['ASUS','MSI','GIGABYTE','ASROCK','BIOSTAR','기타'];
+const MB_CHIPSET={
+  Intel:['H610','B660','B760','H670','H770','Z690','Z790'],
+  AMD:['A520','A620','B550','B650','B650E','X570','X670','X670E']
+};
+function optHtml(list){ return list.map(o=>`<option value="${o}"></option>`).join(''); }
+function updateCpuOpts(){ const p=v('p_cpu_plat'); const list=p?(CPU_LIST[p]||[]):[].concat(CPU_LIST.Intel,CPU_LIST.AMD); const dl=document.getElementById('cpu_list'); if(dl) dl.innerHTML=optHtml(list); }
+function updateMbChipset(){ const p=v('p_mb_plat'); const list=p?(MB_CHIPSET[p]||[]):[].concat(MB_CHIPSET.Intel,MB_CHIPSET.AMD); const dl=document.getElementById('mb_chipset_list'); if(dl) dl.innerHTML=optHtml(list); }
+function mbParse(raw){ if(!raw) return {}; try{ const o=JSON.parse(raw); if(o&&typeof o==='object'&&!Array.isArray(o)) return o; }catch(e){} return {model:String(raw)}; }
+function collectMb(){ const o={plat:v('p_mb_plat'),maker:v('p_mb_maker'),chipset:v('p_mb_chipset'),model:v('p_mb_model')}; return Object.values(o).some(x=>x)? JSON.stringify(o):''; }
+function mbSummary(raw){ const o=mbParse(raw); return [o.plat,o.maker,o.chipset,o.model].filter(Boolean).join(' '); }
+
+// 여러 개 입력(RAM/SSD/HDD) — JSON으로 저장. RAM은 합계 자동계산. opts 있으면 선택+직접입력
 const MULTI_SPECS = {
-  ram: { calc:true,  legacy:'note', fields:[{k:'size',ph:'용량(GB)',type:'number',flex:1},{k:'note',ph:'규격/제조사 (선택)',flex:2}] },
-  ssd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량 (예: 512GB)',flex:1},{k:'model',ph:'모델 (선택)',flex:2}] },
-  hdd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량 (예: 2TB)',flex:1},{k:'model',ph:'모델 (선택)',flex:2}] },
+  ram: { calc:true,  legacy:'maker', fields:[{k:'size',ph:'용량(GB)',type:'number',flex:1},{k:'spec',ph:'규격',flex:1,opts:['DDR3','DDR4','DDR5','DDR6']},{k:'maker',ph:'제조사',flex:1,opts:['삼성','SK하이닉스','마이크론','G.SKILL','커세어','팀그룹','기타']}] },
+  ssd: { calc:false, legacy:'cap',  fields:[{k:'type',ph:'방식',flex:1,opts:['2.5인치 SATA','NVMe M.2','M.2 SATA','기타']},{k:'cap',ph:'용량(예:512GB)',flex:1},{k:'maker',ph:'제조사/모델',flex:2}] },
+  hdd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량(예:2TB)',flex:1},{k:'maker',ph:'제조사',flex:2,opts:['WD','씨게이트','도시바','기타']}] },
 };
 function parseSpecList(kind, raw){
   if(!raw) return [];
@@ -34,13 +51,14 @@ function parseSpecList(kind, raw){
 }
 function multiRow(kind, item){
   item=item||{}; const cfg=MULTI_SPECS[kind];
-  const inputs=cfg.fields.map(f=>`<input class="ms-${kind}-${f.k}" placeholder="${f.ph}"${f.type?` type="${f.type}" min="0"`:''} value="${esc(item[f.k])||''}" style="flex:${f.flex}"${cfg.calc?` oninput="calcMulti('${kind}')"`:''}>`).join('');
+  const inputs=cfg.fields.map(f=>`<input class="ms-${kind}-${f.k}" placeholder="${f.ph}"${f.type?` type="${f.type}" min="0"`:''}${f.opts?` list="ms-${kind}-${f.k}-list"`:''} value="${esc(item[f.k])||''}" style="flex:${f.flex}"${cfg.calc?` oninput="calcMulti('${kind}')"`:''} autocomplete="off">`).join('');
   return `<div class="ms-${kind}-row" style="display:flex;gap:6px;margin-bottom:6px">${inputs}<button type="button" class="btn btn-sm btn-danger" style="flex:none" onclick="this.parentElement.remove();${cfg.calc?`calcMulti('${kind}')`:''}">−</button></div>`;
 }
 function multiBlock(kind, raw){
   const cfg=MULTI_SPECS[kind]; const list=parseSpecList(kind, raw);
   const rows=(list.length?list:[{}]).map(i=>multiRow(kind,i)).join('');
-  return `<div id="ms-${kind}-rows">${rows}</div>
+  const datalists=cfg.fields.filter(f=>f.opts).map(f=>`<datalist id="ms-${kind}-${f.k}-list">${optHtml(f.opts)}</datalist>`).join('');
+  return `${datalists}<div id="ms-${kind}-rows">${rows}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
       <button type="button" class="btn btn-sm btn-secondary" onclick="addMulti('${kind}')">+ 추가</button>
       ${cfg.calc?`<span style="font-size:12px;color:var(--gray-500)">합계: <strong id="ms-${kind}-total">-</strong></span>`:''}
@@ -57,10 +75,11 @@ function calcMulti(kind){ if(!MULTI_SPECS[kind].calc) return;
 // 목록 표시용 요약
 function specSummary(kind, raw){
   const list=parseSpecList(kind, raw); if(!list.length) return '';
+  const cfg=MULTI_SPECS[kind];
   if(kind==='ram'){ const total=list.reduce((s,x)=>s+(parseFloat(x.size)||0),0);
-    const parts=list.map(x=>[(x.size?x.size+'GB':''),x.note].filter(Boolean).join(' ')).filter(Boolean).join(' + ');
+    const parts=list.map(x=>[(x.size?x.size+'GB':''),x.spec,x.maker].filter(Boolean).join(' ')).filter(Boolean).join(' + ');
     return (total?total+'GB':'')+(parts?' ('+parts+')':''); }
-  return list.map(x=>[x.cap,x.model].filter(Boolean).join(' ')).filter(Boolean).join(', ');
+  return list.map(x=>cfg.fields.map(f=>x[f.k]).filter(Boolean).join(' ')).filter(Boolean).join(', ');
 }
 // 프린터: 여러 대 가능 (프린터명/모델 + IP). DB의 printer 컬럼에 JSON으로 저장
 function parsePrinters(raw){ if(!raw) return []; try{ const a=JSON.parse(raw); return Array.isArray(a)?a:[]; }catch(e){ return raw?[{name:String(raw),ip:''}]:[]; } }
@@ -112,6 +131,7 @@ function openComputerModal(id, customerId){
   const cid = c.customer_id;
   const cust = state.customers.find(x=>x.id==cid) || {};
   const cname = cust.company_name || cust.name || cust.phone || ('고객'+cid);
+  const mb = mbParse(c.motherboard);
   const body = `
     <div class="form-group"><label>거래처 (고정)</label>
       <input type="hidden" id="p_cust" value="${cid||''}">
@@ -123,7 +143,21 @@ function openComputerModal(id, customerId){
       ${field('p_name','장비명 (선택)',c.name)}
     </div>
     <div class="form-section">하드웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(추후 스마트폰 AI 사진으로 자동 입력 예정)</span></div>
-    <div class="form-row">${field('p_cpu','CPU',c.cpu)}${field('p_mb','메인보드',c.motherboard)}</div>
+    <div class="form-group"><label>CPU</label>
+      <div style="display:flex;gap:6px">
+        <select id="p_cpu_plat" onchange="updateCpuOpts()" style="flex:none;width:100px"><option value="">플랫폼</option><option>Intel</option><option>AMD</option></select>
+        <input id="p_cpu" list="cpu_list" value="${esc(c.cpu)||''}" placeholder="모델 선택 또는 직접 입력" style="flex:1" autocomplete="off">
+        <datalist id="cpu_list"></datalist>
+      </div></div>
+    <div class="form-group"><label>메인보드</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="p_mb_plat" onchange="updateMbChipset()" style="flex:none;width:100px"><option value="">플랫폼</option><option ${mb.plat==='Intel'?'selected':''}>Intel</option><option ${mb.plat==='AMD'?'selected':''}>AMD</option></select>
+        <input id="p_mb_maker" list="mb_maker_list" value="${esc(mb.maker)||''}" placeholder="제조사" style="flex:1;min-width:100px" autocomplete="off">
+        <input id="p_mb_chipset" list="mb_chipset_list" value="${esc(mb.chipset)||''}" placeholder="칩셋" style="flex:1;min-width:100px" autocomplete="off">
+        <input id="p_mb_model" value="${esc(mb.model)||''}" placeholder="세부 모델(선택)" style="flex:2;min-width:130px">
+      </div>
+      <datalist id="mb_maker_list">${optHtml(MB_MAKERS)}</datalist>
+      <datalist id="mb_chipset_list"></datalist></div>
     <div class="form-row">${field('p_gpu','GPU',c.gpu)}${field('p_power','파워',c.power)}</div>
     ${field('p_monitor','모니터',c.monitor)}
     <div class="form-group"><label>RAM (모듈별 입력 · 합계 자동계산)</label>${multiBlock('ram',c.ram)}</div>
@@ -152,12 +186,12 @@ function openComputerModal(id, customerId){
     ${area('p_notes','메모',c.notes)}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveComputer(${id||'null'})">저장</button></div>`;
   modal(isEdit?'장치 수정':'장치 추가', body, true);
-  calcMulti('ram');
+  calcMulti('ram'); updateCpuOpts(); updateMbChipset();
 }
 async function saveComputer(id){
   const data = {
     customer_id:Number(v('p_cust')), name:v('p_name'), device_type:v('p_type'), serial_number:v('p_serial'),
-    cpu:v('p_cpu'), ram:JSON.stringify(collectMulti('ram')), ssd:JSON.stringify(collectMulti('ssd')), hdd:JSON.stringify(collectMulti('hdd')), motherboard:v('p_mb'), gpu:v('p_gpu'),
+    cpu:v('p_cpu'), ram:JSON.stringify(collectMulti('ram')), ssd:JSON.stringify(collectMulti('ssd')), hdd:JSON.stringify(collectMulti('hdd')), motherboard:collectMb(), gpu:v('p_gpu'),
     power:v('p_power'), monitor:v('p_monitor'),
     os:v('p_os'), office_version:v('p_office'), cad:v('p_cad'), adobe:v('p_adobe'), etc_program1:v('p_etc1'), etc_program2:v('p_etc2'),
     ip_address:v('p_ip'), mac_address:v('p_mac'), purchase_date:v('p_pdate'), warranty_expiry:v('p_warr'),
