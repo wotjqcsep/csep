@@ -640,6 +640,18 @@ app.put('/api/receptions/:id/reserve', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
+// 콜 취소 — 삭제하지 않고 '취소됨' 상태로 기록 보존
+app.put('/api/receptions/:id/cancel', wrap(async (req, res) => {
+  const reason = req.body.reason || '';
+  const { rows } = await pool.query(
+    `UPDATE receptions SET status='cancelled', outcome='cancelled', solution=CASE WHEN $2<>'' THEN $2 ELSE solution END WHERE id=$1 RETURNING *`,
+    [req.params.id, reason ? ('[콜취소] ' + reason) : '[콜취소]']
+  );
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
 // 처리 내용 기록 (+선택적 완료) — 관리자 PC
 app.put('/api/receptions/:id/solution', wrap(async (req, res) => {
   const b = req.body;

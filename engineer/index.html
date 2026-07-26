@@ -184,7 +184,7 @@ function cardHtml(r){
     ${isAdmin&&r.assigned_engineer_id?`<div class="info-line">👤 <span style="color:${engColorById(r.assigned_engineer_id)};font-weight:700">${esc(engName(r.assigned_engineer_id))}${engColorById(r.assigned_engineer_id)==='#e03131'?' (대표)':''}</span></div>`:''}
     ${r.customer_phone?`<div class="info-line">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
     ${r.customer_address?`<div class="info-line">📍 ${esc(r.customer_address)}</div>
-      <div style="display:flex;gap:6px;margin:6px 0"><button class="btn" style="flex:1;margin:0;background:#4263eb;color:#fff;padding:8px" onclick="navTmapFor(${r.id})">🧭 티맵</button><button class="btn" style="flex:1;margin:0;background:#fab005;color:#3d3000;padding:8px" onclick="navKakaoFor(${r.id})">🗺️ 카카오맵</button></div>`:''}
+      <div style="display:flex;gap:6px;margin:6px 0"><button class="btn" style="flex:1;margin:0;background:#03c75a;color:#fff;padding:8px" onclick="navNaverHere()">🗺️ 네이버지도 (내 위치)</button></div>`:''}
     <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
     ${r.reserved_date&&r.status!=='completed'?`<div class="info-line" style="color:var(--warning)">📅 예약: ${esc(r.reserved_date)}</div>`:''}
     <div class="info-line" style="color:var(--gray-400);font-size:12px">${(r.received_at||'').slice(0,16).replace('T',' ')}</div>
@@ -198,6 +198,30 @@ function cardHtml(r){
 // ── 길찾기 (티맵 / 카카오맵) ──
 // 지도 실행 = 출동 → 자동 '수거·견적대기중' 표시
 function markPickup(id){ const r=S.receptions.find(x=>x.id==id); if(r && (r.status==='new'||r.status==='assigned')){ r.status='in_progress'; r.picked_up=true; } try{ api('PUT',`/receptions/${id}/pickup`).catch(()=>{}); }catch(e){} }
+// 목록: 현재 위치 기준 네이버 지도 열기
+function navNaverHere(){
+  const go=(lat,lng)=>{ if(lat&&lng) window.location.href=`nmap://map?lat=${lat}&lng=${lng}&zoom=15&appname=csep`; else window.location.href='https://map.naver.com/'; };
+  if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>go(p.coords.latitude,p.coords.longitude), ()=>go(), {enableHighAccuracy:true,timeout:5000});
+  else go();
+}
+// 대표: 콜 취소(무료) — 삭제 아님, 기록 보존
+async function engCancel(id){
+  if(!confirm('이 콜을 취소하시겠습니까? (내역은 보존됩니다)')) return;
+  const reason=prompt('취소 사유 (선택):','')||'';
+  try{ await api('PUT',`/receptions/${id}/cancel`,{reason}); }catch(e){ alert('취소 실패'); return; }
+  S.processing=null; loadReceptions();
+}
+// 대표: 비용청구 취소 — 출장비 청구 후 종료
+async function engChargedCancel(id){
+  const fee=prompt('청구할 출장비 금액:', '');
+  if(fee===null) return;
+  const amt=Number(String(fee).replace(/[^0-9]/g,''))||0;
+  const pm=prompt('결제수단 (현금/카드/이체/미수):','현금')||'현금';
+  const pmMap={'현금':'cash','카드':'card','이체':'transfer','계좌이체':'transfer','미수':'unpaid','미수금':'unpaid'};
+  try{ await api('PUT',`/receptions/${id}/payment`,{ visit_fee:amt, labor_fee:0, parts_fee:0, payment_method:(pmMap[pm.trim()]||'cash'), outcome:'charged_cancel', solution:'[비용청구 취소] 이동 중 고객 취소', complete:true }); }
+  catch(e){ alert('처리 실패'); return; }
+  S.processing=null; loadReceptions();
+}
 function navTmapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address){ markPickup(id); navTmap(r.customer_address); } else alert('주소가 없습니다'); }
 function navKakaoFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address){ markPickup(id); navKakao(r.customer_address); } else alert('주소가 없습니다'); }
 async function navTmap(addr){
@@ -265,6 +289,10 @@ function renderProcessing(){
       </div>
       <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
       <button class="btn btn-ghost" onclick="openHistory(${r.customer_id})" style="border:1px solid var(--warning);color:var(--warning)">🕘 이 거래처 수리/점검 이력 보기</button>
+      ${(S.engineer&&S.engineer.is_admin&&!done)?`<div class="row2" style="margin-top:8px">
+        <button class="btn" style="background:#e8590c;color:#fff;margin:0" onclick="engChargedCancel(${r.id})">💰 비용청구 취소</button>
+        <button class="btn btn-ghost" style="margin:0;border:1px solid #e03131;color:#e03131" onclick="engCancel(${r.id})">✕ 콜 취소</button>
+      </div>`:''}
       ${done?renderProcDone(r):`
       <div class="card">
         <div style="font-weight:700;margin-bottom:8px">📝 처리 결과 입력</div>

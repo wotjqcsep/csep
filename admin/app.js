@@ -123,14 +123,14 @@ function recCard(r){
       ${r.status!=='completed'?`<button class="btn btn-sm" onclick="openEngineerChange(${r.id})">👤 기사 변경</button>
       <button class="btn btn-sm" style="background:#7048e8" onclick="openScheduleChange(${r.id})">📅 일정 변경</button>`:''}
       <button class="btn btn-sm btn-secondary" onclick="openAdminChat(${r.id})">💬 대화${adminChatUnread[r.id]?` (${adminChatUnread[r.id]})`:''}</button>
-      ${r.status!=='completed'?`<button class="btn btn-sm" style="background:#e8590c" onclick="openChargedCancel(${r.id})">💰 비용청구취소</button>`:''}
-      <button class="btn btn-sm btn-danger" onclick="deleteReception(${r.id})">✕ 취소</button>
+      <button class="btn btn-sm btn-danger" onclick="cancelReception(${r.id})">✕ 취소</button>
     </div>
     <div class="ws-time">${fmtRecTime(r.received_at)}</div>
   </div>`;
 }
 // 구간 분류: 완료 → 완료칸 / 예약일 있고 미완료 → 예약칸 / 그 외 미완료 → 미처리칸
 function recSection(r){
+  if(r.status==='cancelled') return 'cancelled';
   if(r.status==='completed') return 'completed';
   if(r.reserved_date) return 'reserved';
   return 'pending';
@@ -159,23 +159,13 @@ function renderReceptions(){
   </div>`;
 }
 async function setRecStatus(id,status){ await api('PUT',`/receptions/${id}/status?status=${status}`); await loadAll(); }
-async function deleteReception(id){ if(!confirm('이 콜을 취소(삭제)하시겠습니까?'))return; await api('DELETE','/receptions/'+id); await loadAll(); }
-// 비용 청구 콜취소 (이동 중 고객 일방 취소 → 출장비 청구)
-function openChargedCancel(recId){
-  const r=state.receptions.find(x=>x.id==recId); if(!r) return;
-  const def=(state.settings||{}).visit_fee||'';
-  const body=`
-    <div style="margin-bottom:12px;font-size:13px;color:var(--gray-600)">고객: <strong>${esc(custName(r.customer_id))}</strong><br>이동 중 고객이 취소 → 출장비만 청구하고 종료합니다.</div>
-    <div class="form-group"><label>출장비 (변경 가능)</label><input id="cc_fee" type="number" min="0" value="${esc(def)}"></div>
-    <div class="form-group"><label>결제수단</label><select id="cc_pm">${['cash','transfer','card','unpaid'].map(k=>`<option value="${k}">${PM_LABEL[k]}</option>`).join('')}</select></div>
-    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">닫기</button><button class="btn btn-danger" onclick="doChargedCancel(${recId})">비용 청구 후 종료</button></div>`;
-  modal(`💰 비용 청구 콜취소 - ${esc(custName(r.customer_id))}`, body);
-}
-async function doChargedCancel(recId){
-  const fee=Number(v('cc_fee'))||0;
-  try{ await api('PUT',`/receptions/${recId}/payment`,{ visit_fee:fee, labor_fee:0, parts_fee:0, payment_method:v('cc_pm'), outcome:'charged_cancel', solution:'[비용청구 콜취소] 이동 중 고객 취소', complete:true }); }
-  catch(e){ alert('처리 실패: '+(e&&e.message?e.message:e)); return; }
-  closeModal(); await loadAll();
+// 콜 취소 — 삭제 아님, '취소됨'으로 기록 보존
+async function cancelReception(id){
+  const reason = prompt('취소 사유 (선택):', '');
+  if(reason===null) return;  // 취소 눌림
+  try{ await api('PUT',`/receptions/${id}/cancel`, { reason }); }
+  catch(e){ alert('취소 실패: '+(e&&e.message?e.message:e)); return; }
+  await loadAll();
 }
 // 기사 변경 (재배정)
 function openEngineerChange(recId){
@@ -530,9 +520,10 @@ async function saveVisitFee(){ await api('PUT','/settings/visit_fee',{value:v('p
 //  일정표 (달력)
 // ============================================================
 let scheduleState = { y:null, m:null, sel:null };
-const CAL_COLOR = { pending:'var(--danger)', reserved:'var(--warning)', completed:'var(--success)' };
-const CAL_LABEL = { pending:'미처리', reserved:'예약', completed:'완료' };
+const CAL_COLOR = { pending:'var(--danger)', reserved:'var(--warning)', completed:'var(--success)', cancelled:'var(--gray-400)' };
+const CAL_LABEL = { pending:'미처리', reserved:'예약', completed:'완료', cancelled:'취소' };
 function recCalInfo(r){
+  if(r.status==='cancelled') return { date: localDateKey(r.completed_at||r.received_at), sec:'cancelled' };
   if(r.status==='completed') return { date: localDateKey(r.completed_at||r.received_at), sec:'completed' };
   if(r.reserved_date) return { date: String(r.reserved_date).slice(0,10), sec:'reserved' };
   return { date: localDateKey(r.received_at), sec:'pending' };
@@ -553,7 +544,7 @@ function renderSchedule(){
   const grid=cells.map(d=>{
     if(!d) return `<div class="cal-day empty"></div>`;
     const k=key(d), items=byDate[k]||[];
-    const dots=['pending','reserved','completed'].filter(s=>items.some(x=>x.sec===s))
+    const dots=['pending','reserved','completed','cancelled'].filter(s=>items.some(x=>x.sec===s))
       .map(s=>`<span style="width:8px;height:8px;border-radius:50%;background:${CAL_COLOR[s]};display:inline-block;margin:1px"></span>`).join('');
     const dowIdx=(startDow+d-1)%7, nc=dowIdx===0?'color:var(--danger)':dowIdx===6?'color:#1971c2':'';
     return `<div class="cal-day ${scheduleState.sel===k?'sel':''} ${k===todayKey?'today':''}" onclick="scheduleState.sel='${k}';renderInto()">
