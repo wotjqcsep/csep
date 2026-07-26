@@ -140,7 +140,7 @@ function render(){
   if(!S.engineer)return renderLogin();
   if(S.processing){ renderProcessing(); return; }
   const isAdmin=S.engineer.is_admin, myId=S.engineer.id;
-  const notDone=r=>r.status!=='completed';
+  const notDone=r=>r.status!=='completed'&&r.status!=='cancelled';   // 취소건은 진행목록에서 제외
   const reserved=r=>r.reserved_date&&notDone(r);
   const mineActive=S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r));
   const done=S.receptions.filter(r=>r.status==='completed');
@@ -176,8 +176,8 @@ function setTab(t){ S.tab=t; if(t==='sched'){ schedState={ym:new Date().toISOStr
 
 function cardHtml(r){
   const isAdmin=S.engineer.is_admin, mine=r.assigned_engineer_id==S.engineer.id;
-  const isRes=r.reserved_date&&r.status!=='completed';
-  const st=isRes?'예약':({new:'미처리',assigned:'미처리',in_progress:'진행중',completed:'완료'}[r.status]||r.status);
+  const isRes=r.reserved_date&&r.status!=='completed'&&r.status!=='cancelled';
+  const st=isRes?'예약':({new:'미처리',assigned:'미처리',in_progress:'진행중',completed:'완료',cancelled:'취소'}[r.status]||r.status);
   const badgeClass=isRes?'assigned':r.status;
   const stClass=isRes?'st-reserved':('st-'+r.status);
   return `<div class="card ${stClass}">
@@ -873,7 +873,7 @@ const legColor=i=>LEG_COLORS[i%LEG_COLORS.length];
 const TRAFFIC={2:{c:'#fab005',w:8,t:'서행'},3:{c:'#f76707',w:9,t:'지체'},4:{c:'#e03131',w:11,t:'정체'}};
 async function openRouteOptimizer(){
   const myId=S.engineer.id;
-  const notDone=r=>r.status!=='completed';
+  const notDone=r=>r.status!=='completed'&&r.status!=='cancelled';   // 취소건은 진행목록에서 제외
   // 앱 '미처리' 칩과 동일 정의: 완료 아님 + 예약 아님 (예약 건은 배차 경로에서 제외)
   const pending=S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r)&&!r.reserved_date);
   if(!pending.length){ alert('미처리 작업이 없습니다 (예약 건은 제외됩니다)'); return; }
