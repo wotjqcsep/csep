@@ -885,7 +885,7 @@ async function openRouteOptimizer(){
     alert(`⚠️ ${noAddr.length}건은 주소가 없어 제외됨:\n` + noAddr.map(r=>r.customer_name||r.customer_phone).join(', '));
   }
   routeState.loading=true;
-  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()"><div class="sheet" style="max-height:88vh;display:flex;flex-direction:column;padding:0"><div style="padding:22px;flex-shrink:0"><h3 style="margin:0">🗺️ 배차 경로 최적화</h3><div style="font-size:12px;color:var(--gray-500);margin-top:4px">현재 위치 기준 · 주소있음 ${withAddr.length}건</div></div><div id="routeContainer" style="flex:1;overflow:hidden;display:flex;flex-direction:column"><div style="text-align:center;padding:40px 20px;color:var(--gray-400)">계산 중...</div></div></div></div>`);
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()"><div class="sheet" style="height:88vh;max-height:88vh;display:flex;flex-direction:column;padding:0;overflow:hidden"><div style="padding:18px 22px;flex-shrink:0"><h3 style="margin:0">🗺️ 배차 경로 최적화</h3><div style="font-size:12px;color:var(--gray-500);margin-top:4px">현재 위치 기준 · 주소있음 ${withAddr.length}건</div></div><div id="routeContainer" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column"><div style="text-align:center;padding:40px 20px;color:var(--gray-400)">계산 중...</div></div></div></div>`);
   try{
     await ensureKakao();
     const currentLoc=await getCurrentLocation();
@@ -984,9 +984,9 @@ function renderRouteOptimized(optimized, currentLoc){
   if(!container)return;
   // 모바일 세로 배치: 위=지도(고정 높이), 아래=리스트(스크롤)
   container.innerHTML=`
-    <div style="display:flex;flex-direction:column;height:100%;gap:10px;padding:12px">
-      <div style="height:42vh;min-height:220px;flex-shrink:0;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e3e7ec" id="mapDiv"></div>
-      <div style="flex:1;background:#f8f9fa;border-radius:12px;overflow-y:auto;border:1px solid #e3e7ec;padding:12px" id="routeList"></div>
+    <div style="display:flex;flex-direction:column;height:100%;min-height:0;gap:10px;padding:12px">
+      <div style="height:38vh;min-height:200px;flex-shrink:0;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e3e7ec" id="mapDiv"></div>
+      <div style="flex:1;min-height:0;background:#f8f9fa;border-radius:12px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid #e3e7ec;padding:12px" id="routeList"></div>
     </div>`;
   initRouteMap(currentLoc, optimized);
   renderRouteList(optimized, currentLoc);
