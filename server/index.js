@@ -665,10 +665,14 @@ app.put('/api/receptions/:id/payment', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
-// 수거·견적대기중 표시 (지도 실행 시 자동 호출)
+// 수거·견적대기중 + 진행중 (지도 실행 시 자동 호출) — 미처리(new/assigned)면 진행중으로
 app.put('/api/receptions/:id/pickup', wrap(async (req, res) => {
-  const { rows } = await pool.query('UPDATE receptions SET picked_up=TRUE WHERE id=$1 RETURNING *', [req.params.id]);
+  const { rows } = await pool.query(
+    `UPDATE receptions SET picked_up=TRUE, status=CASE WHEN status IN ('new','assigned') THEN 'in_progress' ELSE status END WHERE id=$1 RETURNING *`,
+    [req.params.id]
+  );
   if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  await pool.query(`UPDATE jobs SET status='in_progress', started_at=COALESCE(started_at, NOW()) WHERE reception_id=$1 AND status <> 'completed'`, [req.params.id]);
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));

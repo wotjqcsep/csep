@@ -197,7 +197,7 @@ function cardHtml(r){
 
 // ── 길찾기 (티맵 / 카카오맵) ──
 // 지도 실행 = 출동 → 자동 '수거·견적대기중' 표시
-function markPickup(id){ try{ api('PUT',`/receptions/${id}/pickup`).catch(()=>{}); }catch(e){} }
+function markPickup(id){ const r=S.receptions.find(x=>x.id==id); if(r && (r.status==='new'||r.status==='assigned')){ r.status='in_progress'; r.picked_up=true; } try{ api('PUT',`/receptions/${id}/pickup`).catch(()=>{}); }catch(e){} }
 function navTmapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address){ markPickup(id); navTmap(r.customer_address); } else alert('주소가 없습니다'); }
 function navKakaoFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address){ markPickup(id); navKakao(r.customer_address); } else alert('주소가 없습니다'); }
 async function navTmap(addr){
@@ -255,12 +255,12 @@ function renderProcessing(){
     <div class="content">
       <div class="card">
         <div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>
-        <span class="badge ${done?'completed':'new'}">● ${done?'완료':'미처리'}</span>
+        ${done?`<span class="badge completed">● 완료</span>`:(r.status==='in_progress'?`<span class="badge" style="background:#1971c2;color:#fff">● 진행중</span>`:`<span class="badge new">● 미처리</span>`)}
         ${r.customer_phone?`<div class="info-line" style="margin-top:6px">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
         ${addr?`<div class="info-line">📍 ${esc(addr)}</div>`:''}
         <div class="row2" style="margin-top:8px">
-          <button class="btn" style="background:#4263eb;color:#fff;margin:0" onclick="navTmap('${esc(addr)}')">🧭 티맵</button>
-          <button class="btn" style="background:#fab005;color:#3d3d00;margin:0" onclick="navKakao('${esc(addr)}')">🗺️ 카카오맵</button>
+          <button class="btn" style="background:#4263eb;color:#fff;margin:0" onclick="navTmapFor(${r.id})">🧭 티맵</button>
+          <button class="btn" style="background:#fab005;color:#3d3d00;margin:0" onclick="navKakaoFor(${r.id})">🗺️ 카카오맵</button>
         </div>
       </div>
       <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
