@@ -173,7 +173,7 @@ function render(){
   if(S.tab==='wo')renderWoTab();
   if(S.tab==='sched')renderScheduleInline();
 }
-function setTab(t){ S.tab=t; if(t==='sched'){ schedState={ym:new Date().toISOString().slice(0,7),sel:null}; loadSchedules().then(render); return; } render(); }
+function setTab(t){ S.tab=t; if(t==='sched'){ schedState={ym:ymStr(new Date()),sel:null}; loadSchedules().then(render); return; } render(); }
 
 function cardHtml(r){
   const isAdmin=S.engineer.is_admin, mine=r.assigned_engineer_id==S.engineer.id;
@@ -477,11 +477,13 @@ function openStats(){
 }
 
 // ── 대표: 일정 (달력) ──
-let schedState={ ym:new Date().toISOString().slice(0,7), sel:null };
+// 로컬(KST) 기준 YYYY-MM 문자열 — toISOString은 UTC라 8월↔7월 경계 오류 발생
+const ymStr=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+let schedState={ ym:ymStr(new Date()), sel:null };
 async function loadSchedules(){ try{ S.schedules=await api('GET',`/schedules?month=${schedState.ym}`); }catch(e){ S.schedules=[]; } }
-async function openSchedule(){ schedState={ ym:new Date().toISOString().slice(0,7), sel:null }; await loadSchedules(); renderScheduleSheet(); }
+async function openSchedule(){ schedState={ ym:ymStr(new Date()), sel:null }; await loadSchedules(); renderScheduleSheet(); }
 function reSched(){ if(document.getElementById('schedInline'))renderScheduleInline(); else renderScheduleSheet(); }
-async function shiftMonth(d){ const [y,m]=schedState.ym.split('-').map(Number); const nd=new Date(y,m-1+d,1); schedState.ym=nd.toISOString().slice(0,7); schedState.sel=null; await loadSchedules(); reSched(); }
+async function shiftMonth(d){ const [y,m]=schedState.ym.split('-').map(Number); const nd=new Date(y,m-1+d,1); schedState.ym=ymStr(nd); schedState.sel=null; await loadSchedules(); reSched(); }
 function renderScheduleSheet(){
   const [y,m]=schedState.ym.split('-').map(Number);
   const startDow=new Date(y,m-1,1).getDay(); const days=new Date(y,m,0).getDate();
