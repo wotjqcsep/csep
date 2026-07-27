@@ -193,7 +193,7 @@ function cardHtml(r){
     ${r.reserved_date&&r.status!=='completed'?`<div class="info-line" style="color:var(--warning)">📅 예약: ${esc(r.reserved_date)}</div>`:''}
     <div class="info-line" style="color:var(--gray-400);font-size:12px">${(r.received_at||'').slice(0,16).replace('T',' ')}</div>
     ${r.status==='new'&&isAdmin?`<button class="btn btn-primary" onclick="openAssign(${r.id})">기사 배정</button>`:''}
-    ${r.status!=='new'&&(mine||isAdmin)?`<button class="btn btn-primary" onclick="openProcessing(${r.id})">상세보기 / 처리하기 →</button>`:''}
+    ${r.status!=='new'&&(mine||isAdmin)?`<button class="btn btn-primary" onclick="openProcessing(${r.id})">${r.status==='completed'?'상세보기 →':'상세보기 / 처리하기 →'}</button>`:''}
     ${r.status!=='new'?`<button class="btn" style="background:#7048e8;color:#fff" onclick="openChat(${r.id})">💬 대화${S.chatUnread[r.id]?` (${S.chatUnread[r.id]})`:''}</button>`:''}
     ${isAdmin&&r.status!=='completed'&&r.assigned_engineer_id?`<button class="btn btn-ghost" onclick="openAssign(${r.id})">🔁 기사 재배정</button>`:''}
   </div>`;
@@ -286,10 +286,10 @@ function renderProcessing(){
         ${done?`<span class="badge completed">● 완료</span>`:(r.status==='in_progress'?`<span class="badge" style="background:#1971c2;color:#fff">● 진행중</span>`:`<span class="badge new">● 미처리</span>`)}
         ${r.customer_phone?`<div class="info-line" style="margin-top:6px">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
         ${addr?`<div class="info-line">📍 ${esc(addr)}</div>`:''}
-        <div class="row2" style="margin-top:8px">
+        ${!done?`<div class="row2" style="margin-top:8px">
           <button class="btn" style="background:#4263eb;color:#fff;margin:0" onclick="navTmapFor(${r.id})">🧭 티맵</button>
           <button class="btn" style="background:#fab005;color:#3d3d00;margin:0" onclick="navKakaoFor(${r.id})">🗺️ 카카오맵</button>
-        </div>
+        </div>`:''}
       </div>
       <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
       <button class="btn btn-ghost" onclick="openHistory(${r.customer_id})" style="border:1px solid var(--warning);color:var(--warning)">🕘 이 거래처 수리/점검 이력 보기</button>
