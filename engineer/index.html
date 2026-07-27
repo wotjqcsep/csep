@@ -208,23 +208,34 @@ function navNaverHere(){
   if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>go(p.coords.latitude,p.coords.longitude), ()=>go(), {enableHighAccuracy:true,timeout:5000});
   else go();
 }
-// 대표: 콜 취소(무료) — 삭제 아님, 기록 보존
+// 대표: 비용 미청구 (콜 취소) — 조건없이 무조건 취소, 기록 보존
 async function engCancel(id){
-  if(!confirm('이 콜을 취소하시겠습니까? (내역은 보존됩니다)')) return;
+  if(!confirm('비용 미청구로 콜을 취소하시겠습니까?\n(금액 청구 없음 · 내역은 기록에 남습니다)')) return;
   const reason=prompt('취소 사유 (선택):','')||'';
   try{ await api('PUT',`/receptions/${id}/cancel`,{reason}); }catch(e){ alert('취소 실패'); return; }
   S.processing=null; loadReceptions();
 }
-// 대표: 비용청구 취소 — 출장비 청구 후 종료
-async function engChargedCancel(id){
-  const fee=prompt('청구할 출장비 금액:', '');
-  if(fee===null) return;
-  const amt=Number(String(fee).replace(/[^0-9]/g,''))||0;
-  const pm=prompt('결제수단 (현금/카드/이체/미수):','현금')||'현금';
-  const pmMap={'현금':'cash','카드':'card','이체':'transfer','계좌이체':'transfer','미수':'unpaid','미수금':'unpaid'};
-  try{ await api('PUT',`/receptions/${id}/payment`,{ visit_fee:amt, labor_fee:0, parts_fee:0, payment_method:(pmMap[pm.trim()]||'cash'), outcome:'charged_cancel', solution:'[비용청구 취소] 이동 중 고객 취소', complete:true }); }
-  catch(e){ alert('처리 실패'); return; }
-  S.processing=null; loadReceptions();
+// 대표: 비용청구 (콜 취소) — 콜은 취소하되 출장비 청구. 결제수단 선택 모달
+function engChargedCancel(id){
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
+    <div class="sheet"><h3>💰 비용청구 (콜 취소)</h3>
+      <div style="font-size:13px;color:var(--gray-500);margin-bottom:12px">콜은 취소하되 출장비를 청구합니다. 내역은 기록에 남습니다.</div>
+      <div class="fg"><label>청구 금액 *</label><input id="cc_amt" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div>
+      <div class="fg"><label>결제수단 *</label><select id="cc_pm" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px">
+        <option value="cash">현금 (입금완료)</option><option value="card">카드 (입금완료)</option><option value="transfer">계좌이체 (입금완료)</option><option value="unpaid">미수 (나중에 받음)</option></select></div>
+      <div class="fg"><label>사유 (선택)</label><div style="display:flex;gap:6px;align-items:center"><input id="cc_reason" placeholder="예: 이동 중 고객 취소" style="flex:1">${micBtn('cc_reason')}</div></div>
+      <button class="btn btn-primary" onclick="submitChargedCancel(${id})">청구 후 콜 취소</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('ov2').remove()">닫기</button>
+    </div></div>`);
+}
+async function submitChargedCancel(id){
+  const amt=moneyVal('cc_amt'); if(!amt){ alert('청구 금액을 입력하세요'); return; }
+  const pm=document.getElementById('cc_pm').value;
+  const reason=(document.getElementById('cc_reason')||{}).value||'';
+  try{ await api('PUT',`/receptions/${id}/payment`,{ visit_fee:amt, labor_fee:0, parts_fee:0, payment_method:pm, outcome:'charged_cancel', solution:'[비용청구 콜취소]'+(reason?' '+reason:''), complete:true }); }
+  catch(e){ alert('처리 실패: '+(e&&e.message||e)); return; }
+  const ov=document.getElementById('ov2'); if(ov)ov.remove();
+  S.processing=null; await loadReceptions(); alert('비용청구 후 콜 취소되었습니다');
 }
 function navTmapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address){ markPickup(id); navTmap(r.customer_address); } else alert('주소가 없습니다'); }
 function navKakaoFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address){ markPickup(id); navKakao(r.customer_address); } else alert('주소가 없습니다'); }
@@ -294,8 +305,8 @@ function renderProcessing(){
       <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
       <button class="btn btn-ghost" onclick="openHistory(${r.customer_id})" style="border:1px solid var(--warning);color:var(--warning)">🕘 이 거래처 수리/점검 이력 보기</button>
       ${(S.engineer&&S.engineer.is_admin&&!done)?`<div class="row2" style="margin-top:8px">
-        <button class="btn" style="background:#e8590c;color:#fff;margin:0" onclick="engChargedCancel(${r.id})">💰 비용청구 취소</button>
-        <button class="btn btn-ghost" style="margin:0;border:1px solid #e03131;color:#e03131" onclick="engCancel(${r.id})">✕ 콜 취소</button>
+        <button class="btn" style="background:#e8590c;color:#fff;margin:0" onclick="engChargedCancel(${r.id})">💰 비용청구 (콜 취소)</button>
+        <button class="btn btn-ghost" style="margin:0;border:1px solid #e03131;color:#e03131" onclick="engCancel(${r.id})">✕ 비용 미청구 (콜 취소)</button>
       </div>`:''}
       ${done?renderProcDone(r):`
       <div class="card">
