@@ -357,6 +357,7 @@ function renderProcessing(){
       <button class="btn btn-ghost" onclick="closeProcessing()">← 돌아가기</button>
     </div>`;
   if(!done) renderProcPhotos();
+  window.scrollTo(0,0);   // 처리 화면은 항상 맨 위부터
 }
 function renderProcDone(r){
   return `<div class="card">
