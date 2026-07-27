@@ -385,7 +385,7 @@ function renderWoTab(){
     <button class="btn btn-ghost" style="margin:0 0 8px;border:1px solid var(--warning);color:var(--warning)" onclick="openHistory(${woState.customerId})">🕘 거래처 이력</button>
     ${comps.length?`<div class="sec-label">🖥️ 등록 장치 (${comps.length})</div>
       ${comps.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#fff;border:1px solid #e3e7ec;border-radius:9px;margin-bottom:6px">
-        <div style="min-width:0"><strong>${esc(c.name)||'장비'}</strong> <span style="font-size:12px;color:var(--gray-500)">${DEVICE_TYPES[c.device_type]||esc(c.device_type)||''}</span>${(c.cpu||c.ram||c.ssd)?`<div style="font-size:11px;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${[c.cpu,c.ram,c.ssd].filter(Boolean).map(esc).join(' · ')}</div>`:''}</div>
+        <div style="min-width:0"><strong>${esc(c.name)||'장비'}</strong> <span style="font-size:12px;color:var(--gray-500)">${DEVICE_TYPES[c.device_type]||esc(c.device_type)||''}</span>${[c.cpu,devSpec('ram',c.ram),devSpec('ssd',c.ssd)].filter(Boolean).length?`<div style="font-size:11px;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${[c.cpu,devSpec('ram',c.ram),devSpec('ssd',c.ssd)].filter(Boolean).map(esc).join(' · ')}</div>`:''}</div>
         <button class="btn" style="width:auto;margin:0;padding:7px 14px;background:#e7f5ff;color:#1971c2;flex:none" onclick="openDeviceView(${c.id})">장치 열람</button>
       </div>`).join('')}`:''}
     <div class="sec-label">📋 작업 지시</div>
