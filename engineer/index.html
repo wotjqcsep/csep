@@ -431,16 +431,38 @@ async function woLoadComps(id){
   try{ const comps=await api('GET','/customers/'+id+'/computers'); woState.comps=comps||[]; }catch(e){ woState.comps=[]; }
   if(String(woState.customerId)===String(id)) renderWoTab();
 }
-// ── 장치(컴퓨터) 정보 열람 (읽기 전용 — 스마트폰 등록/수정은 안 함) ──
-const DEV_FIELDS=[['name','장치 이름'],['cpu','CPU'],['ram','RAM'],['ssd','SSD'],['hdd','HDD'],['gpu','그래픽'],['motherboard','메인보드'],['os','운영체제'],['os_version','OS 버전'],['office_version','오피스'],['antivirus','백신'],['ip_address','IP 주소'],['mac_address','MAC 주소'],['serial_number','시리얼'],['monitor','모니터'],['printer_model','프린터 모델'],['notes','메모']];
+// ── 장치(컴퓨터) 정보 열람 (읽기 전용) — JSON 필드(RAM/SSD/HDD/메인보드/프린터) 파싱 ──
+function devSpec(kind, raw){
+  let list=[]; if(raw){ try{ const a=JSON.parse(raw); if(Array.isArray(a)) list=a; }catch(e){ if(String(raw).trim()) return String(raw); } }
+  if(!list.length) return '';
+  if(kind==='ram'){ const total=list.reduce((s,x)=>s+(parseFloat(x.size)||0),0);
+    const parts=list.map(x=>[(x.size?x.size+'GB':''),x.spec,x.maker].filter(Boolean).join(' ')).filter(Boolean).join(' + ');
+    return (total?total+'GB':'')+(parts?' ('+parts+')':''); }
+  if(kind==='ssd') return list.map(x=>[x.type,x.cap,x.maker].filter(Boolean).join(' ')).filter(Boolean).join(', ');
+  if(kind==='hdd') return list.map(x=>[x.cap,x.maker].filter(Boolean).join(' ')).filter(Boolean).join(', ');
+  return list.map(x=>Object.values(x).filter(Boolean).join(' ')).filter(Boolean).join(', ');
+}
+function devMb(raw){ if(!raw) return ''; try{ const o=JSON.parse(raw); if(o&&typeof o==='object'&&!Array.isArray(o)) return [o.plat,o.maker,o.chipset,o.model].filter(Boolean).join(' '); }catch(e){} return String(raw); }
+function devPrinters(raw){ if(!raw) return []; try{ const a=JSON.parse(raw); if(Array.isArray(a)) return a; }catch(e){ if(String(raw).trim()) return [{name:String(raw)}]; } return []; }
 function openDeviceView(id){
   const c=(woState.comps||[]).find(x=>String(x.id)===String(id)); if(!c) return;
-  const rows=DEV_FIELDS.filter(([f])=>c[f]!=null&&String(c[f]).trim()!=='')
-    .map(([f,l])=>`<div style="display:flex;padding:8px 0;border-bottom:1px solid #f1f3f5"><div style="width:90px;flex:none;color:var(--gray-500);font-size:13px">${l}</div><div style="flex:1;font-size:14px;word-break:break-word">${esc(c[f])}</div></div>`).join('');
+  const row=(l,v)=> (v!=null&&String(v).trim()!=='') ? `<div style="display:flex;padding:7px 0;border-bottom:1px solid #f1f3f5"><div style="width:92px;flex:none;color:var(--gray-500);font-size:13px">${l}</div><div style="flex:1;font-size:14px;word-break:break-word">${esc(v)}</div></div>` : '';
+  const sec=(title,rows)=> rows.filter(Boolean).length ? `<div class="sec-label">${title}</div>${rows.filter(Boolean).join('')}` : '';
+  const printers=devPrinters(c.printer).map(p=>[p.name,p.ip].filter(Boolean).join(' · ')).filter(Boolean);
+  const printerSec = printers.length ? `<div class="sec-label">🖨️ 프린터</div>${printers.map(t=>`<div style="padding:7px 0;border-bottom:1px solid #f1f3f5;font-size:14px">🖨️ ${esc(t)}</div>`).join('')}` : '';
+  const html=[
+    sec('🖥️ 기본',[row('장비명',c.name),row('종류',DEVICE_TYPES[c.device_type]||c.device_type)]),
+    sec('🔧 하드웨어',[row('CPU',c.cpu),row('메인보드',devMb(c.motherboard)),row('그래픽',c.gpu),row('파워',c.power),row('모니터',c.monitor),row('RAM',devSpec('ram',c.ram)),row('SSD',devSpec('ssd',c.ssd)),row('HDD',devSpec('hdd',c.hdd)),row('시리얼',c.serial_number)]),
+    sec('💿 소프트웨어',[row('OS',c.os),row('OS버전',c.os_version),row('Office',c.office_version),row('CAD',c.cad),row('Adobe',c.adobe),row('백신',c.antivirus),row('기타1',c.etc_program1),row('기타2',c.etc_program2)]),
+    sec('🌐 네트워크',[row('IP',c.ip_address),row('MAC',c.mac_address),row('구입일',c.purchase_date),row('보증만료',c.warranty_expiry)]),
+    printerSec,
+    sec('🗄️ NAS',[row('이름',c.nas_name),row('모델',c.nas_model),row('IP',c.nas_ip),row('총용량',c.nas_total_capacity),row('파티션',c.nas_partition_info),row('관리자ID',c.nas_admin_id),row('관리자PW',c.nas_admin_password),row('점검주기',c.nas_maintenance_period),row('점검메모',c.nas_maintenance_notes)]),
+    sec('📡 공유기',[row('이름',c.router_name),row('모델',c.router_model),row('IP',c.router_ip),row('허브수',c.router_hub_count),row('관리자ID',c.router_admin_id),row('관리자PW',c.router_admin_password)]),
+    sec('📝 메모',[row('메모',c.notes)]),
+  ].filter(Boolean).join('');
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
     <div class="sheet"><h3>🖥️ 장치 열람</h3>
-      <div style="font-size:13px;color:var(--gray-500);margin-bottom:8px">${DEVICE_TYPES[c.device_type]||esc(c.device_type)||'장치'}</div>
-      ${rows||'<div class="empty">등록된 상세 정보가 없습니다</div>'}
+      ${html||'<div class="empty">등록된 상세 정보가 없습니다</div>'}
       <button class="btn btn-ghost" style="margin-top:14px" onclick="document.getElementById('ov2').remove()">닫기</button>
     </div></div>`);
 }
