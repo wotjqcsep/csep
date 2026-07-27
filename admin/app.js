@@ -328,7 +328,7 @@ function vendorCard(c){
 function vendorResultsHtml(){
   const q=vendorState.search.trim().toLowerCase();
   let list=state.customers;
-  if(q) list=list.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q));
+  if(q) list=list.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q)||(c.address||'').toLowerCase().includes(q));
   const shown=list.slice(0,80);
   return list.length
     ? shown.map(vendorCard).join('') + (list.length>80?`<div class="empty-state" style="padding:14px">외 ${list.length-80}건 — 검색어를 입력해 좁히세요</div>`:'')
@@ -420,8 +420,8 @@ function woVendorCard(c){
 function woResultsHtml(){
   const q=woListState.search.trim().toLowerCase();
   // 거래처가 많을 수 있으므로 검색어가 있을 때만 목록 렌더 (필드서비스 방식)
-  if(!q) return `<div class="empty-state" style="padding:50px 20px">🔎 거래처명 또는 전화번호를 입력하면<br>작업지시할 거래처가 표시됩니다</div>`;
-  const list=state.customers.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q));
+  if(!q) return `<div class="empty-state" style="padding:50px 20px">🔎 거래처명·전화번호·주소를 입력하면<br>작업지시할 거래처가 표시됩니다</div>`;
+  const list=state.customers.filter(c=>vdName(c).toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.name||'').toLowerCase().includes(q)||(c.address||'').toLowerCase().includes(q));
   const shown=list.slice(0,50);
   return list.length
     ? shown.map(woVendorCard).join('') + (list.length>50?`<div class="empty-state" style="padding:14px">외 ${list.length-50}건 — 검색어를 더 입력하세요</div>`:'')

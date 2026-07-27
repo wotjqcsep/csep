@@ -393,7 +393,7 @@ app.get('/api/customers', wrap(async (req, res) => {
   let q = 'SELECT * FROM customers';
   const params = [];
   if (search) {
-    q += ' WHERE name ILIKE $1 OR phone ILIKE $1 OR phone2 ILIKE $1 OR company_name ILIKE $1';
+    q += ' WHERE name ILIKE $1 OR phone ILIKE $1 OR phone2 ILIKE $1 OR company_name ILIKE $1 OR address ILIKE $1';
     params.push(`%${search}%`);
   }
   q += ' ORDER BY id';
