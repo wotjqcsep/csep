@@ -36,7 +36,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 .badge.completed{background:#e9ecef;color:#868e96}
 .info-line{font-size:13px;color:var(--gray-600);margin:3px 0}
 .info-line a{color:var(--primary);text-decoration:none}
-.symptom{background:var(--bg);border-radius:8px;padding:10px;margin:8px 0;font-size:14px}
+.symptom{background:#fff9db;border:2px solid #f59f00;border-radius:8px;padding:12px 14px;margin:10px 0;font-size:16px;font-weight:600;color:#343a40;line-height:1.5}
 .btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px}
 .btn-primary{background:var(--primary);color:#fff}
 .btn-success{background:var(--success);color:#fff}
@@ -382,8 +382,17 @@ function renderWoTab(){
           <button class="btn btn-ghost" style="margin-top:10px" onclick="openCustomerAdd('')">🧑 새 고객 등록</button>`}
     </div>
     ${sel?`
-    ${comps.length?`<div class="fg"><label>장비 (선택)</label><select id="woT_comp" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <button class="btn btn-ghost" style="flex:1;margin:0;border:1px solid var(--warning);color:var(--warning)" onclick="openHistory(${woState.customerId})">🕘 거래처 이력</button>
+      <button class="btn btn-ghost" style="flex:1;margin:0;border:1px solid var(--primary);color:var(--primary)" onclick="openDeviceEdit(0)">➕ 장치 등록</button>
+    </div>
+    ${comps.length?`<div class="sec-label">🖥️ 등록 장치 (${comps.length})</div>
+      ${comps.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#fff;border:1px solid #e3e7ec;border-radius:9px;margin-bottom:6px">
+        <div style="min-width:0"><strong>${esc(c.name)||'장비'}</strong> <span style="font-size:12px;color:var(--gray-500)">${DEVICE_TYPES[c.device_type]||esc(c.device_type)||''}</span>${(c.cpu||c.ram||c.ssd)?`<div style="font-size:11px;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${[c.cpu,c.ram,c.ssd].filter(Boolean).map(esc).join(' · ')}</div>`:''}</div>
+        <button class="btn" style="width:auto;margin:0;padding:7px 12px;background:#e7f5ff;color:#1971c2;flex:none" onclick="openDeviceEdit(${c.id})">보기/수정</button>
+      </div>`).join('')}`:''}
     <div class="sec-label">📋 작업 지시</div>
+    ${comps.length?`<div class="fg"><label>작업 대상 장비 (선택)</label><select id="woT_comp" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
     <div class="fg"><label>작업 내용 / 증상 *</label>
       <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="woT_symptom" placeholder="작업 지시 내용" style="flex:1" oninput="woState.symptom=this.value">${esc(woState.symptom||'')}</textarea>${micBtn('woT_symptom')}</div>
     </div>
@@ -424,6 +433,40 @@ function woClear(){ const seq=woState.searchSeq||0; woState={customerId:'',custo
 async function woLoadComps(id){
   try{ const comps=await api('GET','/customers/'+id+'/computers'); woState.comps=comps||[]; }catch(e){ woState.comps=[]; }
   if(String(woState.customerId)===String(id)) renderWoTab();
+}
+// ── 장치(컴퓨터) 정보 열람/수정 (작업지시 탭) ──
+const DEV_FIELDS=[['name','장치 이름'],['cpu','CPU'],['ram','RAM'],['ssd','SSD'],['hdd','HDD'],['gpu','그래픽'],['motherboard','메인보드'],['os','운영체제'],['os_version','OS 버전'],['office_version','오피스'],['antivirus','백신'],['ip_address','IP 주소'],['mac_address','MAC 주소'],['serial_number','시리얼'],['monitor','모니터'],['printer_model','프린터 모델'],['notes','메모']];
+function openDeviceEdit(id){
+  const c=(id? (woState.comps||[]).find(x=>String(x.id)===String(id)) : null) || {};
+  const typeOpts=Object.entries(DEVICE_TYPES).map(([v,l])=>`<option value="${v}" ${c.device_type===v?'selected':''}>${l}</option>`).join('');
+  const fieldHtml=([f,l])=> (f==='name'||f==='notes')
+    ? `<div class="fg"><label>${l}</label><div style="display:flex;gap:6px;align-items:${f==='notes'?'flex-start':'center'}">${f==='notes'?`<textarea id="dev_${f}" style="flex:1">${esc(c[f]||'')}</textarea>`:`<input id="dev_${f}" value="${esc(c[f]||'')}" style="flex:1">`}${micBtn('dev_'+f)}</div></div>`
+    : `<div class="fg"><label>${l}</label><input id="dev_${f}" value="${esc(c[f]||'')}" style="width:100%"></div>`;
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
+    <div class="sheet"><h3>🖥️ ${id?'장치 정보':'장치 등록'}</h3>
+      <div class="fg"><label>종류</label><select id="dev_device_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px">${typeOpts}</select></div>
+      ${DEV_FIELDS.map(fieldHtml).join('')}
+      <button class="btn btn-primary" onclick="saveDeviceEdit(${id||0})">저장</button>
+      ${id?`<button class="btn" style="background:#fff;border:1px solid var(--danger);color:var(--danger)" onclick="delDevice(${id})">🗑️ 이 장치 삭제</button>`:''}
+      <button class="btn btn-ghost" onclick="document.getElementById('ov2').remove()">닫기</button>
+    </div></div>`);
+}
+async function saveDeviceEdit(id){
+  const g=f=>{const el=document.getElementById('dev_'+f);return el?el.value:'';};
+  const body={device_type:g('device_type')};
+  DEV_FIELDS.forEach(([f])=>{ body[f]=g(f); });
+  if(!id) body.customer_id=Number(woState.customerId);
+  try{ await api(id?'PUT':'POST', id?('/computers/'+id):'/computers', body); }
+  catch(e){ alert('저장 실패: '+(e&&e.message||e)); return; }
+  const ov=document.getElementById('ov2'); if(ov)ov.remove();
+  await woLoadComps(woState.customerId);
+  alert('장치 정보 저장됨');
+}
+async function delDevice(id){
+  if(!confirm('이 장치를 삭제하시겠습니까?')) return;
+  try{ await api('DELETE','/computers/'+id); }catch(e){ alert('삭제 실패: '+(e&&e.message||e)); return; }
+  const ov=document.getElementById('ov2'); if(ov)ov.remove();
+  await woLoadComps(woState.customerId);
 }
 // 전화 수신 등록 등에서 고객 객체로 바로 진입
 function woEnterWithCustomer(cust){
