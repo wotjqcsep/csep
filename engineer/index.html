@@ -316,7 +316,10 @@ function renderProcessing(){
         </div>`:''}
       </div>
       <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
-      <button class="btn btn-ghost" onclick="openHistory(${r.customer_id})" style="border:1px solid var(--warning);color:var(--warning)">🕘 이 거래처 수리/점검 이력 보기</button>
+      <div class="row2" style="margin-top:8px">
+        <button class="btn btn-ghost" onclick="openHistory(${r.customer_id})" style="margin:0;border:1px solid var(--warning);color:var(--warning)">🕘 수리/점검 이력</button>
+        <button class="btn btn-ghost" onclick="openCustDevices(${r.customer_id})" style="margin:0;border:1px solid var(--primary);color:var(--primary)">🖥️ 등록 장치 정보</button>
+      </div>
       ${done?renderProcDone(r):`
       <div class="card">
         <div style="font-weight:700;margin-bottom:8px">📝 처리 결과 입력</div>
@@ -467,13 +470,13 @@ function devSpec(kind, raw){
 }
 function devMb(raw){ if(!raw) return ''; try{ const o=JSON.parse(raw); if(o&&typeof o==='object'&&!Array.isArray(o)) return [o.plat,o.maker,o.chipset,o.model].filter(Boolean).join(' '); }catch(e){} return String(raw); }
 function devPrinters(raw){ if(!raw) return []; try{ const a=JSON.parse(raw); if(Array.isArray(a)) return a; }catch(e){ if(String(raw).trim()) return [{name:String(raw)}]; } return []; }
-function openDeviceView(id){
-  const c=(woState.comps||[]).find(x=>String(x.id)===String(id)); if(!c) return;
+// 장치 1대의 상세 HTML (섹션별). 여러 곳에서 재사용
+function deviceDetailHtml(c){
   const row=(l,v)=> (v!=null&&String(v).trim()!=='') ? `<div style="display:flex;padding:7px 0;border-bottom:1px solid #f1f3f5"><div style="width:92px;flex:none;color:var(--gray-500);font-size:13px">${l}</div><div style="flex:1;font-size:14px;word-break:break-word">${esc(v)}</div></div>` : '';
   const sec=(title,rows)=> rows.filter(Boolean).length ? `<div class="sec-label">${title}</div>${rows.filter(Boolean).join('')}` : '';
   const printers=devPrinters(c.printer).map(p=>[p.name,p.ip].filter(Boolean).join(' · ')).filter(Boolean);
   const printerSec = printers.length ? `<div class="sec-label">🖨️ 프린터</div>${printers.map(t=>`<div style="padding:7px 0;border-bottom:1px solid #f1f3f5;font-size:14px">🖨️ ${esc(t)}</div>`).join('')}` : '';
-  const html=[
+  return [
     sec('🖥️ 기본',[row('장비명',c.name),row('종류',DEVICE_TYPES[c.device_type]||c.device_type)]),
     sec('🔧 하드웨어',[row('CPU',c.cpu),row('메인보드',devMb(c.motherboard)),row('그래픽',c.gpu),row('파워',c.power),row('모니터',c.monitor),row('RAM',devSpec('ram',c.ram)),row('SSD',devSpec('ssd',c.ssd)),row('HDD',devSpec('hdd',c.hdd)),row('시리얼',c.serial_number)]),
     sec('💿 소프트웨어',[row('OS',c.os),row('OS버전',c.os_version),row('Office',c.office_version),row('CAD',c.cad),row('Adobe',c.adobe),row('백신',c.antivirus),row('기타1',c.etc_program1),row('기타2',c.etc_program2)]),
@@ -482,11 +485,29 @@ function openDeviceView(id){
     sec('🗄️ NAS',[row('이름',c.nas_name),row('모델',c.nas_model),row('IP',c.nas_ip),row('총용량',c.nas_total_capacity),row('파티션',c.nas_partition_info),row('관리자ID',c.nas_admin_id),row('관리자PW',c.nas_admin_password),row('점검주기',c.nas_maintenance_period),row('점검메모',c.nas_maintenance_notes)]),
     sec('📡 공유기',[row('이름',c.router_name),row('모델',c.router_model),row('IP',c.router_ip),row('허브수',c.router_hub_count),row('관리자ID',c.router_admin_id),row('관리자PW',c.router_admin_password)]),
     sec('📝 메모',[row('메모',c.notes)]),
-  ].filter(Boolean).join('');
+  ].filter(Boolean).join('') || '<div class="empty">등록된 상세 정보가 없습니다</div>';
+}
+// 작업지시 탭: 선택 고객의 장치 1대 열람 (woState.comps 기준)
+function openDeviceView(id){
+  const c=(woState.comps||[]).find(x=>String(x.id)===String(id)); if(!c) return;
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
     <div class="sheet"><h3>🖥️ 장치 열람</h3>
-      ${html||'<div class="empty">등록된 상세 정보가 없습니다</div>'}
+      ${deviceDetailHtml(c)}
       <button class="btn btn-ghost" style="margin-top:14px" onclick="document.getElementById('ov2').remove()">닫기</button>
+    </div></div>`);
+}
+// 작업처리 등: 거래처의 등록 장치 전체 열람 (customer_id로 조회)
+async function openCustDevices(custId){
+  let comps=[];
+  try{ comps=await api('GET','/customers/'+custId+'/computers'); }catch(e){}
+  if(!comps||!comps.length){ alert('등록된 장치가 없습니다'); return; }
+  const blocks=comps.map(c=>`<div style="border:1px solid #e3e7ec;border-radius:10px;padding:12px 14px;margin-bottom:10px">
+    <div style="font-weight:700;font-size:15px;margin-bottom:4px">${esc(c.name)||'장비'} <span style="font-size:12px;color:var(--gray-500);font-weight:400">${DEVICE_TYPES[c.device_type]||esc(c.device_type)||''}</span></div>
+    ${deviceDetailHtml(c)}</div>`).join('');
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
+    <div class="sheet"><h3>🖥️ 등록 장치 (${comps.length})</h3>
+      ${blocks}
+      <button class="btn btn-ghost" style="margin-top:6px" onclick="document.getElementById('ov2').remove()">닫기</button>
     </div></div>`);
 }
 // 전화 수신 등록 등에서 고객 객체로 바로 진입
