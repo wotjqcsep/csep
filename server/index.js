@@ -767,8 +767,8 @@ app.post('/api/sales', wrap(async (req, res) => {
   const b = req.body;
   const { rows } = await pool.query(
     `INSERT INTO sales (customer_id, engineer_id, item_type, item_name, quantity, unit_price, total_price, sale_date, payment_method, paid)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,FALSE) RETURNING *`,
-    [b.customer_id, b.engineer_id || null, b.item_type, b.item_name, b.quantity, b.unit_price, b.total_price, b.sale_date, b.payment_method]
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [b.customer_id || null, b.engineer_id || null, b.item_type || null, b.item_name, b.quantity, b.unit_price, b.total_price, b.sale_date, b.payment_method, b.paid === true]
   );
   res.json(rows[0]);
 }));

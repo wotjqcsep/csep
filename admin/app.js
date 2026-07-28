@@ -654,6 +654,63 @@ function renderSales(){
 async function paySale(id){ await api('PUT',`/sales/${id}/pay`); await loadAll(); }
 async function deleteSale(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/sales/'+id); await loadAll(); }
 
+// ── 🛒 매장 판매 (워크인 POS) — 고객정보 없이 즉시 판매, 결산 자동 반영 ──
+function stMoney(el){ let x=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,''); el.value=x?Number(x).toLocaleString('en-US'):''; }
+function stCalc(){ const qty=Number(v('st_qty'))||0; const price=Number((v('st_price')||'').replace(/[^0-9]/g,''))||0; const t=qty*price; const el=document.getElementById('st_total'); if(el) el.value=t?Number(t).toLocaleString('en-US'):''; }
+function renderStore(){
+  const all=(state.sales||[]).filter(s=>!s.customer_id);   // 워크인(매장) 판매만
+  const now=new Date();
+  const todayStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const monthStr=todayStr.slice(0,7);
+  const sum=arr=>arr.reduce((t,s)=>t+(Number(s.total_price)||0),0);
+  const today=all.filter(s=>(s.sale_date||'').slice(0,10)===todayStr);
+  const month=all.filter(s=>(s.sale_date||'').slice(0,7)===monthStr);
+  const recent=[...all].sort((a,b)=>(b.sale_date||'').localeCompare(a.sale_date||'')||b.id-a.id).slice(0,50);
+  return `
+  <div class="page-header"><h2>🛒 매장 판매 <span style="font-size:13px;color:var(--gray-500)">— 워크인(고객정보 없이 즉시 판매). 결산에 자동 반영</span></h2></div>
+  <div class="stat-grid">
+    ${statCard('오늘 판매', won(sum(today)), 'var(--success)', 20)}
+    ${statCard('이달 판매', won(sum(month)), '', 20)}
+    ${statCard('오늘 건수', today.length+'건', '', 18)}
+  </div>
+  <div class="vd-card" style="margin-bottom:16px">
+    <div style="font-weight:800;margin-bottom:12px">빠른 판매 등록</div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2"><label>품목명 *</label><input id="st_item" placeholder="예: 중고 데스크탑 / SSD 512GB / HDMI 케이블"></div>
+      <div class="form-group"><label>수량</label><input id="st_qty" type="number" min="1" value="1" oninput="stCalc()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>단가</label><input id="st_price" type="text" inputmode="numeric" placeholder="0" oninput="stMoney(this);stCalc()"></div>
+      <div class="form-group"><label>합계</label><input id="st_total" readonly style="background:var(--gray-100);font-weight:700"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>결제수단</label><select id="st_pm"><option value="cash">현금</option><option value="card">카드</option><option value="transfer">계좌이체</option></select></div>
+      <div class="form-group"><label>메모 (선택)</label><input id="st_memo" placeholder="예: 신품 / 중고 / 고객 특이사항"></div>
+    </div>
+    <button class="btn" onclick="submitStoreSale()">+ 판매 등록</button>
+  </div>
+  <div class="table-container"><table class="table">
+    <thead><tr><th>일자</th><th>품목</th><th>수량</th><th>단가</th><th>금액</th><th>결제</th><th>액션</th></tr></thead>
+    <tbody>${recent.length? recent.map(s=>`<tr>
+      <td style="font-size:12px">${(s.sale_date||'').slice(0,10)}</td>
+      <td><strong>${esc(s.item_name)}</strong>${s.item_type&&s.item_type!=='매장'?`<div style="font-size:11px;color:var(--gray-400)">${esc(s.item_type)}</div>`:''}</td>
+      <td>${s.quantity||1}</td><td>${won(s.unit_price)}</td><td><strong>${won(s.total_price)}</strong></td>
+      <td><span class="chip">${payMethodLabel(s.payment_method)}</span></td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteSale(${s.id})">삭제</button></td></tr>`).join('') : '<tr><td colspan="7" class="empty-state">매장 판매 내역이 없습니다</td></tr>'}
+    </tbody></table></div>`;
+}
+async function submitStoreSale(){
+  const item=v('st_item').trim(); if(!item){ alert('품목명을 입력하세요'); return; }
+  const qty=Number(v('st_qty'))||1;
+  const price=Number((v('st_price')||'').replace(/[^0-9]/g,''))||0;
+  if(!price){ alert('단가를 입력하세요'); return; }
+  const memo=v('st_memo').trim();
+  const now=new Date(); const saleDate=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  try{ await api('POST','/sales',{ customer_id:null, item_type:memo||'매장', item_name:item, quantity:qty, unit_price:price, total_price:qty*price, sale_date:saleDate, payment_method:v('st_pm'), paid:true }); }
+  catch(e){ alert('등록 실패: '+(e&&e.message?e.message:e)); return; }
+  await loadAll();
+}
+
 // ── 재고 관리 ──
 function renderInventory(){
   const inv = state.inventory;
@@ -688,6 +745,10 @@ function renderPayments(){
   const inMonth=r=>{ const d=recDate(r.completed_at); return d && d.getFullYear()===y && d.getMonth()===m; };
   const done=(state.receptions||[]).filter(r=>r.status==='completed' && recRevenue(r)>0);
   const md=done.filter(inMonth);
+  // 판매(매장판매 포함) 이달 합산 — 직접판매라 우리사무기 15% 없이 전액 정산
+  const monthTag=`${y}-${String(m+1).padStart(2,'0')}`;
+  const salesMonth=(state.sales||[]).filter(s=>(s.sale_date||'').slice(0,7)===monthTag);
+  const salesRev=salesMonth.reduce((t,s)=>t+(Number(s.total_price)||0),0);
   const rev=md.reduce((s,r)=>s+recRevenue(r),0);
   const myTotal=md.reduce((s,r)=>s+mySettle(r),0);
   const wooriMonth=md.reduce((s,r)=>s+wooriCut(r),0);
@@ -696,6 +757,7 @@ function renderPayments(){
   const unpaid=done.filter(r=>r.payment_method==='unpaid');
   const unpaidAmt=unpaid.reduce((s,r)=>s+recRevenue(r),0);
   const byPM={card:0,cash:0,transfer:0,unpaid:0}; md.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
+  salesMonth.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
   const byCust={}; md.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); });
   const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
   return `
@@ -707,8 +769,9 @@ function renderPayments(){
     </div>
   </div>
   <div class="stat-grid">
-    ${statCard('이달 매출', won(rev), '', 20)}
-    ${statCard('이달 정산액', won(myTotal), 'var(--success)', 20)}
+    ${statCard('이달 매출', won(rev+salesRev), '', 20)}
+    ${statCard('이달 정산액', won(myTotal+salesRev), 'var(--success)', 20)}
+    ${statCard('이달 매장판매', won(salesRev), salesRev>0?'var(--primary)':'', 18)}
     ${statCard('우리사무기 받을 정산액', won(wooriPendingAmt), wooriPendingAmt>0?'var(--warning)':'', 18)}
     ${statCard('고객 미수금', won(unpaidAmt), unpaidAmt>0?'var(--danger)':'', 18)}
   </div>
