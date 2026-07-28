@@ -129,6 +129,7 @@ function monParse(raw){
   MONITOR_PORTS.slice().sort((a,b)=>b.length-a.length).forEach(p=>{ if(s.includes(p)){ ports.push(p); s=s.split(p).join(' '); } });
   return { inch, model:s.replace(/[,·]/g,' ').trim(), ports };
 }
+function monSummary(raw){ const o=monParse(raw); return [o.inch?o.inch+'인치':'', o.model, (o.ports||[]).join('/')].filter(Boolean).join(' · '); }
 
 // 여러 개 입력(RAM/SSD/HDD) — JSON으로 저장. RAM은 합계 자동계산. opts 있으면 선택+직접입력
 const MULTI_SPECS = {
