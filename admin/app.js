@@ -113,7 +113,7 @@ function recCard(r){
         ${r.reserved_date?`<div style="font-size:11px;color:var(--gray-500);margin-top:4px">접수 ${fmtRecDay(r.received_at)} · 처리예정 <strong style="color:var(--warning)">${esc(r.reserved_date)}</strong></div>`:''}
       </div>
     </div>
-    <div class="ws-row"><span class="ic">👤</span><span>담당: ${r.assigned_engineer_id?esc(engName(r.assigned_engineer_id)):'<span style="color:var(--gray-400)">미지정</span>'}</span></div>
+    <div class="ws-row"><span class="ic">👤</span><span>담당: ${engBadge(r.assigned_engineer_id)}</span></div>
     ${r.symptom?`<div class="ws-row"><span class="ic">🔧</span><span>${esc(r.symptom)}</span></div>`:''}
     ${phone?`<div class="ws-row"><span class="ic">📞</span><span>${esc(phone)}</span></div>`:''}
     ${addr?`<div class="ws-row"><span class="ic">📍</span><span>${esc(addr)}</span></div>`:''}
@@ -177,7 +177,7 @@ function openEngineerChange(recId){
     <div style="margin-bottom:12px;font-size:13px;color:var(--gray-600)">고객: <strong>${esc(custName(r.customer_id))}</strong></div>
     <div class="form-group"><label>담당 기사</label><select id="ec_eng">
       <option value="">선택하세요</option>
-      ${state.engineers.map(e=>`<option value="${e.id}" ${r.assigned_engineer_id==e.id?'selected':''}>${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}
+      ${state.engineers.map(e=>`<option value="${e.id}" ${r.assigned_engineer_id==e.id?'selected':''} style="color:${engColor(e.id)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}
     </select></div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="doEngineerChange(${recId})">변경</button></div>`;
   modal(`👤 기사 변경 - ${esc(custName(r.customer_id))}`, body);
@@ -216,7 +216,7 @@ async function openReceptionDetail(recId){
     ['전화', r.reception_phone||c.phone||''],
     ['주소', [c.address,c.address_detail].filter(Boolean).join(' ')],
     ['채널', CH[r.reception_channel]||r.reception_channel||''],
-    ['담당 기사', r.assigned_engineer_id?engName(r.assigned_engineer_id):'미지정'],
+    ['담당 기사', engBadge(r.assigned_engineer_id), true],
     ['접수일시', fmtRecTime(r.received_at)],
     ['처리 예정일', r.reserved_date||''],
     ['완료일시', r.completed_at?fmtRecTime(r.completed_at):''],
@@ -226,7 +226,7 @@ async function openReceptionDetail(recId){
       <span class="ws-pill" style="background:${st.c}">${st.l}</span>
       ${r.reserved_date?'<span class="ws-pill" style="background:var(--warning);margin-left:6px">예약</span>':''}
     </div>
-    ${rows.map(([k,val])=>`<div class="detail-row"><span class="detail-label">${k}</span><span class="detail-value">${esc(val)}</span></div>`).join('')}
+    ${rows.map(([k,val,raw])=>`<div class="detail-row"><span class="detail-label">${k}</span><span class="detail-value">${raw?val:esc(val)}</span></div>`).join('')}
     <div class="form-section">증상 / 요청</div>
     <div style="background:var(--gray-50);border-radius:8px;padding:10px;font-size:13px;white-space:pre-wrap">${esc(r.symptom)||'-'}${r.customer_request?'\n\n[고객요청] '+esc(r.customer_request):''}${r.initial_memo?'\n\n[메모] '+esc(r.initial_memo):''}</div>
     ${photos.length?`<div class="form-section">현장 사진 (${photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${photos.map(p=>`<img src="${p.photo}" style="width:92px;height:92px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--gray-200)" onclick="window.open(this.src,'_blank')">`).join('')}</div>`:''}
@@ -370,7 +370,7 @@ async function openVendorHistory(customerId){
   let rows=[];
   try{ rows=await api('GET','/customers/'+customerId+'/receptions'); }catch(e){}
   const body=`${rows.length? `<div class="table-container"><table class="table"><thead><tr><th>일시</th><th>증상</th><th>상태</th><th>담당</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td style="font-size:12px">${fmtRecTime(r.received_at)}</td><td>${esc(r.symptom)||'-'}</td><td>${statusLabel(r.status)}</td><td>${r.assigned_engineer_id?esc(engName(r.assigned_engineer_id)):'-'}</td></tr>`).join('')}
+    ${rows.map(r=>`<tr><td style="font-size:12px">${fmtRecTime(r.received_at)}</td><td>${esc(r.symptom)||'-'}</td><td>${statusLabel(r.status)}</td><td>${r.assigned_engineer_id?engBadge(r.assigned_engineer_id):'-'}</td></tr>`).join('')}
     </tbody></table></div>` : '<div class="empty-state">이력이 없습니다</div>'}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">닫기</button></div>`;
   modal(`📋 이력 - ${esc(vdName(cust))}`, body, true);
@@ -451,7 +451,7 @@ async function openWorkorderModal(customerId, siteId){
     <div style="color:#7048e8;font-weight:700;margin:6px 0 10px">➕ 작업지시 작성</div>
     <div class="form-group"><label>장비 선택 (선택사항)</label><select id="wo_comp"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>
     <div class="form-group"><label>작업 구분 (선택사항)</label><select id="wo_type"><option value="일반">일반</option><option value="점검">점검</option><option value="수리">수리</option><option value="설치">설치</option><option value="기타">기타</option></select></div>
-    <div class="form-group"><label>담당 기사 *</label><select id="wo_eng"><option value="">선택하세요</option>${state.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}</select></div>
+    <div class="form-group"><label>담당 기사 *</label><select id="wo_eng"><option value="">선택하세요</option>${state.engineers.map(e=>`<option value="${e.id}" style="color:${engColor(e.id)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}</select></div>
     ${area('wo_symptom','증상 또는 작업 내용 *','')}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-success" onclick="submitWorkorder(${customerId},${siteId||'null'})">📤 작업지시 전송</button></div>`;
   modal(`📋 ${esc(title)}`, body, true);
@@ -618,7 +618,7 @@ function renderEngineers(){
   <div class="table-container"><table class="table">
     <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>액션</th></tr></thead>
     <tbody>${es.length? es.map(e=>`<tr>
-      <td><strong>${esc(e.name)}</strong></td><td>${esc(e.phone)||'-'}</td>
+      <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${engColor(e.id)};margin-right:7px;vertical-align:middle"></span><strong style="color:${engColor(e.id)}">${esc(e.name)}</strong></td><td>${esc(e.phone)||'-'}</td>
       <td><span class="chip">${statusLabel(e.status)}</span></td>
       <td>${e.is_admin?'<span class="badge assigned">대표</span>':'기사'}</td>
       <td><button class="btn btn-sm btn-danger" onclick="deleteEngineer(${e.id})">삭제</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty-state">기사가 없습니다</td></tr>'}
@@ -633,7 +633,7 @@ function renderHistory(){
   <div class="table-container"><table class="table">
     <thead><tr><th>#</th><th>기사</th><th>작업내용</th><th>부품</th><th>비용</th><th>상태</th></tr></thead>
     <tbody>${js.length? js.map(j=>`<tr>
-      <td style="color:var(--gray-400)">${j.id}</td><td>${esc(engName(j.engineer_id))}</td>
+      <td style="color:var(--gray-400)">${j.id}</td><td>${engBadge(j.engineer_id)}</td>
       <td>${esc(j.work_description)||'-'}</td><td>${esc(j.parts_used)||'-'}</td>
       <td>${won(j.total_cost)}</td><td><span class="badge ${j.status}">${statusLabel(j.status)}</span></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">이력이 없습니다</td></tr>'}
     </tbody></table></div>`;

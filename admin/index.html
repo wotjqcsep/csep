@@ -272,6 +272,11 @@ function statCard(label,value,color,size){ return `<div class="stat-card"><div c
 function statusLabel(s){ return {idle:'대기',on_the_way:'출동',working:'작업중',off_duty:'퇴근',new:'미처리',assigned:'미처리',in_progress:'진행중',completed:'완료'}[s]||s; }
 function custName(id){ const c=state.customers.find(c=>c.id==id); if(!c) return id?`고객${id}`:'-'; return c.name||c.phone||`고객${c.id}`; }
 function engName(id){ return (state.engineers.find(e=>e.id==id)||{}).name || '-'; }
+// 담당별 색 (기사앱과 동일 규칙: 대표=빨강, 기사=id별 고정색)
+const ENG_PALETTE=['#1971c2','#2f9e44','#e8590c','#6741d9','#0c8599','#c2255c','#5c940d','#1098ad'];
+function engColor(id){ const e=state.engineers.find(x=>x.id==id); if(!e) return '#868e96'; if(e.is_admin) return '#e03131'; return ENG_PALETTE[(Number(e.id)||0)%ENG_PALETTE.length]; }
+// 담당 이름을 색+굵게 (대표 표시 포함). 미지정은 회색
+function engBadge(id){ if(!id) return '<span style="color:var(--gray-400)">미지정</span>'; const c=engColor(id); const e=state.engineers.find(x=>x.id==id); return `<span style="color:${c};font-weight:700">${esc(engName(id))}${e&&e.is_admin?' (대표)':''}</span>`; }
 
 // (페이지 렌더러/모달은 app.js, modals.js)
 </script>
