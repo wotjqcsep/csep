@@ -217,12 +217,6 @@ function cardHtml(r){
 // ── 길찾기 (티맵 / 카카오맵) ──
 // 지도 실행 = 출동 → 자동 '수거·견적대기중' 표시
 function markPickup(id){ const r=S.receptions.find(x=>x.id==id); if(r && (r.status==='new'||r.status==='assigned')){ r.status='in_progress'; r.picked_up=true; } try{ api('PUT',`/receptions/${id}/pickup`).catch(()=>{}); }catch(e){} }
-// 목록: 현재 위치 기준 네이버 지도 열기
-function navNaverHere(){
-  const go=(lat,lng)=>{ if(lat&&lng) window.location.href=`nmap://map?lat=${lat}&lng=${lng}&zoom=15&appname=csep`; else window.location.href='https://map.naver.com/'; };
-  if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>go(p.coords.latitude,p.coords.longitude), ()=>go(), {enableHighAccuracy:true,timeout:5000});
-  else go();
-}
 // 대표: 비용 미청구 (콜 취소) — 조건없이 무조건 취소, 기록 보존
 async function engCancel(id){
   if(!confirm('비용 미청구로 콜을 취소하시겠습니까?\n(금액 청구 없음 · 내역은 기록에 남습니다)')) return;
@@ -1059,8 +1053,6 @@ let routeState={map:null, markers:[], polylines:[], optimized:[], currentLoc:nul
 // 구간(1→2→3…) 구분용 중복 안 되는 색 팔레트 (마커·경로선·리스트 동일 색)
 const LEG_COLORS=['#4263eb','#f76707','#2f9e44','#ae3ec9','#1098ad','#e64980','#5c940d','#7048e8','#0ca678','#d6336c','#f59f00','#12b886'];
 const legColor=i=>LEG_COLORS[i%LEG_COLORS.length];
-// 교통 정체 강조색 (원활은 강조 안 함) — 서행/지체/정체
-const TRAFFIC={2:{c:'#fab005',w:8,t:'서행'},3:{c:'#f76707',w:9,t:'지체'},4:{c:'#e03131',w:11,t:'정체'}};
 async function openRouteOptimizer(){
   const myId=S.engineer.id;
   const notDone=r=>r.status!=='completed'&&r.status!=='cancelled';   // 취소건은 진행목록에서 제외
