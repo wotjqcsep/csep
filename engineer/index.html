@@ -73,7 +73,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], processing:null, statusFilter:'pending', procPhotos:[], procExisting:[], incomingCalls:[], modalRec:null };
+const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], processing:null, statusFilter:'pending', procPhotos:[], procExisting:[], incomingCalls:[], modalRec:null, settings:{} };
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString();
@@ -135,6 +135,7 @@ async function loadReceptions(showLoading){
     const all = S.engineer.is_admin ? '?all=1' : '';   // 대표는 전체 조회 (미배정·전체 탭용)
     S.receptions = await api('GET',`/engineer/${S.engineer.id}/receptions${all}`);
     try{ S.presets = await api('GET','/result-presets'); }catch(e){}   // PC 편집 반영 위해 매번 최신 로드
+    try{ S.settings = await api('GET','/settings')||{}; }catch(e){}     // 출장비 기본금액 등
     if(!S.parts.length){ try{ S.parts = await api('GET','/inventory'); }catch(e){} }
     try{ S.chatUnread = await api('GET',`/messages/unread-engineer/${S.engineer.id}`); }catch(e){}
     if(S.engineer.is_admin){
@@ -231,10 +232,12 @@ async function engCancel(id){
 }
 // 대표: 비용청구 (콜 취소) — 콜은 취소하되 출장비 청구. 결제수단 선택 모달
 function engChargedCancel(id){
+  const defFee=Number(String((S.settings||{}).visit_fee||'').replace(/[^0-9]/g,''))||0;   // 부품데이터에서 정한 출장비 기본금액
+  const defStr=defFee?defFee.toLocaleString('en-US'):'';
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
     <div class="sheet"><h3>💰 비용청구 (콜 취소)</h3>
       <div style="font-size:13px;color:var(--gray-500);margin-bottom:12px">콜은 취소하되 출장비를 청구합니다. 내역은 기록에 남습니다.</div>
-      <div class="fg"><label>청구 금액 *</label><input id="cc_amt" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this)"></div>
+      <div class="fg"><label>청구 금액 * ${defFee?'<span style="color:var(--gray-400);font-weight:400">(출장비 기본 자동입력)</span>':''}</label><input id="cc_amt" type="text" inputmode="numeric" value="${defStr}" placeholder="0" oninput="fmtMoney(this)"></div>
       <div class="fg"><label>결제수단 *</label>${payChips('cc_pm','cash')}</div>
       <div class="fg"><label>사유 (선택)</label><div style="display:flex;gap:6px;align-items:center"><input id="cc_reason" placeholder="예: 이동 중 고객 취소" style="flex:1">${micBtn('cc_reason')}</div></div>
       <button class="btn btn-primary" onclick="submitChargedCancel(${id})">청구 후 콜 취소</button>
@@ -333,10 +336,6 @@ function renderProcessing(){
         </div>
         <div class="fg"><label>다음 방문시 필요 부품 및 조치</label><div style="display:flex;gap:6px;align-items:center"><input id="p_next" value="${esc(r.next_visit_parts||'')}" style="flex:1">${micBtn('p_next')}</div></div>
         <div class="fg"><label>고객 요청사항</label><div style="display:flex;gap:6px;align-items:center"><input id="p_req" value="${esc(r.customer_request||'')}" style="flex:1">${micBtn('p_req')}</div></div>
-        <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcProcPay()"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcProcPay()"></div></div>
-        <div class="fg"><label>결제수단 *</label>${payChips('p_paymethod', r.payment_method||'cash')}</div>
-        <div class="fg"><label style="display:flex;align-items:center;gap:10px;padding:13px 14px;border:1px solid #dee2e6;border-radius:10px;cursor:pointer;font-weight:600;margin:0"><input type="checkbox" id="p_tax" onchange="calcProcPay()" style="width:20px;height:20px;flex:none;accent-color:var(--primary)"> 🧾 세금계산서 발급</label></div>
-        <div id="p_calc" style="background:#f1f3f5;border-radius:9px;padding:10px;font-size:13px"></div>
       </div>
       <div class="card">
         <div style="font-weight:700;margin-bottom:8px">📷 작업 사진 (관리자 전송)</div>
@@ -347,6 +346,13 @@ function renderProcessing(){
         <div id="p_photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
       </div>
       <div class="fg"><label>📅 예약 날짜 (미처리 예약 시)</label><input type="date" id="p_resdate" value="${esc(r.reserved_date||'')}"></div>
+      <div class="card">
+        <div style="font-weight:700;margin-bottom:8px">💰 비용 · 결제</div>
+        <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcProcPay()"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcProcPay()"></div></div>
+        <div class="fg"><label>결제수단 *</label>${payChips('p_paymethod', r.payment_method||'cash')}</div>
+        <div class="fg"><label style="display:flex;align-items:center;gap:10px;padding:13px 14px;border:1px solid #dee2e6;border-radius:10px;cursor:pointer;font-weight:600;margin:0"><input type="checkbox" id="p_tax" onchange="calcProcPay()" style="width:20px;height:20px;flex:none;accent-color:var(--primary)"> 🧾 세금계산서 발급</label></div>
+        <div id="p_calc" style="background:#f1f3f5;border-radius:9px;padding:10px;font-size:13px"></div>
+      </div>
       <button class="btn btn-success" onclick="submitProcessing(${r.id})">✅ 처리 완료</button>
       <button class="btn" style="background:#f76707;color:#fff" onclick="submitReserve(${r.id})">⏳ 미처리 (예약)</button>
       `}
