@@ -818,10 +818,11 @@ let completePhotos=[];
 function compressImage(file,cb){
   const reader=new FileReader();
   reader.onload=e=>{ const img=new Image(); img.onload=()=>{
-    const max=1000; let w=img.width,h=img.height;
+    // A/S 사진: 시리얼·에러화면 가독성 위해 해상도 1280·품질 0.72 (트래픽 대비 화질 균형)
+    const max=1280; let w=img.width,h=img.height;
     if(w>max||h>max){ if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
     const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
-    cb(c.toDataURL('image/jpeg',0.6));
+    cb(c.toDataURL('image/jpeg',0.72));
   }; img.src=e.target.result; };
   reader.readAsDataURL(file);
 }
