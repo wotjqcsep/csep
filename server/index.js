@@ -348,6 +348,8 @@ async function initDB() {
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS visit_fee DOUBLE PRECISION;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS picked_up BOOLEAN DEFAULT FALSE;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS outcome TEXT;
+    ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax_invoice BOOLEAN DEFAULT FALSE;
+    ALTER TABLE sales ADD COLUMN IF NOT EXISTS woori_settled BOOLEAN DEFAULT FALSE;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS next_visit_parts TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS cad TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS adobe TEXT;
@@ -766,11 +768,16 @@ app.get('/api/sales', wrap(async (req, res) => {
 app.post('/api/sales', wrap(async (req, res) => {
   const b = req.body;
   const { rows } = await pool.query(
-    `INSERT INTO sales (customer_id, engineer_id, item_type, item_name, quantity, unit_price, total_price, sale_date, payment_method, paid)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [b.customer_id || null, b.engineer_id || null, b.item_type || null, b.item_name, b.quantity, b.unit_price, b.total_price, b.sale_date, b.payment_method, b.paid === true]
+    `INSERT INTO sales (customer_id, engineer_id, item_type, item_name, quantity, unit_price, total_price, sale_date, payment_method, paid, tax_invoice)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    [b.customer_id || null, b.engineer_id || null, b.item_type || null, b.item_name, b.quantity, b.unit_price, b.total_price, b.sale_date, b.payment_method, b.paid === true, b.tax_invoice === true]
   );
   res.json(rows[0]);
+}));
+app.put('/api/sales/:id/woori-settle', wrap(async (req, res) => {
+  const val = req.body.settled !== false;
+  const { rows } = await pool.query('UPDATE sales SET woori_settled=$1 WHERE id=$2 RETURNING *', [val, req.params.id]);
+  res.json(rows[0] || {});
 }));
 
 app.put('/api/sales/:id/pay', wrap(async (req, res) => {

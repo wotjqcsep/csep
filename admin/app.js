@@ -687,6 +687,8 @@ function renderStore(){
       <div class="form-group"><label>결제수단</label><select id="st_pm"><option value="cash">현금</option><option value="card">카드</option><option value="transfer">계좌이체</option></select></div>
       <div class="form-group"><label>메모 (선택)</label><input id="st_memo" placeholder="예: 신품 / 중고 / 고객 특이사항"></div>
     </div>
+    <label style="display:flex;align-items:center;gap:8px;margin:4px 0 12px;font-weight:600;cursor:pointer"><input type="checkbox" id="st_tax" style="width:18px;height:18px"> 🧾 세금계산서 발행</label>
+    <div style="font-size:12px;color:var(--gray-400);margin-bottom:10px">※ 카드 결제 또는 세금계산서 발행 시 우리사무기 대행(매출의 15% 차감)이 적용됩니다.</div>
     <button class="btn" onclick="submitStoreSale()">+ 판매 등록</button>
   </div>
   <div style="font-weight:700;margin:6px 2px 8px">오늘 판매 내역 <span style="font-size:12px;color:var(--gray-400)">(전체 내역·집계는 결산 메뉴)</span></div>
@@ -706,7 +708,8 @@ async function submitStoreSale(){
   if(!price){ alert('단가를 입력하세요'); return; }
   const memo=v('st_memo').trim();
   const now=new Date(); const saleDate=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  try{ await api('POST','/sales',{ customer_id:null, item_type:memo||'매장', item_name:item, quantity:qty, unit_price:price, total_price:qty*price, sale_date:saleDate, payment_method:v('st_pm'), paid:true }); }
+  const tax=(document.getElementById('st_tax')||{}).checked;
+  try{ await api('POST','/sales',{ customer_id:null, item_type:memo||'매장', item_name:item, quantity:qty, unit_price:price, total_price:qty*price, sale_date:saleDate, payment_method:v('st_pm'), paid:true, tax_invoice:tax }); }
   catch(e){ alert('등록 실패: '+(e&&e.message?e.message:e)); return; }
   await loadAll();
 }
@@ -738,6 +741,7 @@ function mySettle(r){ return recRevenue(r)-wooriCut(r); }
 let settleState = { y:null, m:null };
 function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }
 async function doWooriSettle(id){ await api('PUT',`/receptions/${id}/woori-settle`,{settled:true}); await loadAll(); }
+async function doWooriSettleSale(id){ await api('PUT',`/sales/${id}/woori-settle`,{settled:true}); await loadAll(); }
 function renderPayments(){
   const now=new Date();
   if(settleState.y==null){ settleState.y=now.getFullYear(); settleState.m=now.getMonth(); }
@@ -745,10 +749,16 @@ function renderPayments(){
   const inMonth=r=>{ const d=recDate(r.completed_at); return d && d.getFullYear()===y && d.getMonth()===m; };
   const done=(state.receptions||[]).filter(r=>r.status==='completed' && recRevenue(r)>0);
   const md=done.filter(inMonth);
-  // 판매(매장판매 포함) 이달 합산 — 직접판매라 우리사무기 15% 없이 전액 정산
+  // 판매(매장판매 포함) 이달 합산 — 카드/계산서는 우리사무기 대행(15% 차감), 현금/이체는 전액
   const monthTag=`${y}-${String(m+1).padStart(2,'0')}`;
   const salesMonth=(state.sales||[]).filter(s=>(s.sale_date||'').slice(0,7)===monthTag);
+  const saleWoori=s=>(s.payment_method==='card'||s.tax_invoice)?Math.round((Number(s.total_price)||0)*0.15):0;
+  const saleMine=s=>(Number(s.total_price)||0)-saleWoori(s);
   const salesRev=salesMonth.reduce((t,s)=>t+(Number(s.total_price)||0),0);
+  const salesWoori=salesMonth.reduce((t,s)=>t+saleWoori(s),0);
+  const salesMine=salesRev-salesWoori;
+  const salesWpend=(state.sales||[]).filter(s=>(s.payment_method==='card'||s.tax_invoice)&&!s.woori_settled);
+  const salesWpendAmt=salesWpend.reduce((t,s)=>t+saleMine(s),0);
   const rev=md.reduce((s,r)=>s+recRevenue(r),0);
   const myTotal=md.reduce((s,r)=>s+mySettle(r),0);
   const wooriMonth=md.reduce((s,r)=>s+wooriCut(r),0);
@@ -770,21 +780,22 @@ function renderPayments(){
   </div>
   <div class="stat-grid">
     ${statCard('이달 매출', won(rev+salesRev), '', 20)}
-    ${statCard('이달 정산액', won(myTotal+salesRev), 'var(--success)', 20)}
+    ${statCard('이달 정산액', won(myTotal+salesMine), 'var(--success)', 20)}
     ${statCard('이달 매장판매', won(salesRev), salesRev>0?'var(--primary)':'', 18)}
-    ${statCard('우리사무기 받을 정산액', won(wooriPendingAmt), wooriPendingAmt>0?'var(--warning)':'', 18)}
+    ${statCard('우리사무기 받을 정산액', won(wooriPendingAmt+salesWpendAmt), (wooriPendingAmt+salesWpendAmt)>0?'var(--warning)':'', 18)}
     ${statCard('고객 미수금', won(unpaidAmt), unpaidAmt>0?'var(--danger)':'', 18)}
   </div>
   <div class="split" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
     <div class="detail-panel" style="position:static">
       <h3>이달 결제수단별</h3>
       ${['card','cash','transfer','unpaid'].map(k=>`<div class="detail-row"><span class="detail-value">${PM_LABEL[k]}</span><span class="detail-value" style="text-align:right"><strong>${won(byPM[k])}</strong></span></div>`).join('')}
-      <div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">우리사무기 15%(이달)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth)}</strong></span></div>
+      <div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">우리사무기 15%(이달, 판매 포함)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth+salesWoori)}</strong></span></div>
     </div>
     <div class="detail-panel" style="position:static">
-      <h3>우리사무기 받을 정산액 (미정산 ${wooriPending.length}건)</h3>
-      ${wooriPending.length? wooriPending.slice(0,8).map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} · ${PM_LABEL[r.payment_method]||''}${r.tax_invoice?'/계산서':''}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(mySettle(r))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettle(${r.id})">정산받음</button></span></div>`).join('') : '<div class="empty-state">받을 정산액 없음</div>'}
-      ${wooriPending.length>8?`<div style="font-size:12px;color:var(--gray-400);margin-top:6px">외 ${wooriPending.length-8}건</div>`:''}
+      <h3>우리사무기 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3>
+      ${wooriPending.slice(0,8).map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} · ${PM_LABEL[r.payment_method]||''}${r.tax_invoice?'/계산서':''}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(mySettle(r))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettle(${r.id})">정산받음</button></span></div>`).join('')}
+      ${salesWpend.slice(0,8).map(s=>`<div class="detail-row"><span class="detail-value">🛒 ${esc(s.item_name)} · ${PM_LABEL[s.payment_method]||''}${s.tax_invoice?'/계산서':''}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(saleMine(s))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettleSale(${s.id})">정산받음</button></span></div>`).join('')}
+      ${(wooriPending.length+salesWpend.length)===0?'<div class="empty-state">받을 정산액 없음</div>':''}
     </div>
   </div>
   <div class="table-container"><table class="table">
@@ -797,15 +808,17 @@ function renderPayments(){
       <td style="text-align:right;color:var(--warning)">${o.woori?won(o.woori):'-'}</td>
       <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>'}
     </tbody></table></div>
-  <div style="font-weight:700;margin:18px 2px 8px">🛒 이달 판매 내역 (매장 등) — ${salesMonth.length}건 · ${won(salesRev)}</div>
+  <div style="font-weight:700;margin:18px 2px 8px">🛒 이달 판매 내역 (매장 등) — ${salesMonth.length}건 · 매출 ${won(salesRev)} · 정산 ${won(salesMine)}</div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>일자</th><th>제품명</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>결제수단</th></tr></thead>
+    <thead><tr><th>일자</th><th>제품명</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>결제수단</th><th style="text-align:right">우리사무기15%</th><th style="text-align:right">정산액</th></tr></thead>
     <tbody>${salesMonth.length? [...salesMonth].sort((a,b)=>(b.sale_date||'').localeCompare(a.sale_date||'')||b.id-a.id).map(s=>`<tr>
       <td style="font-size:12px">${(s.sale_date||'').slice(0,10)}</td>
       <td><strong>${esc(s.item_name)}</strong>${s.customer_id?` <span style="font-size:11px;color:var(--gray-400)">(${esc(custName(s.customer_id))})</span>`:''}</td>
       <td style="text-align:right">${s.quantity||1}</td>
       <td style="text-align:right"><strong>${won(s.total_price)}</strong></td>
-      <td><span class="chip">${PM_LABEL[s.payment_method]||payMethodLabel(s.payment_method)}</span></td></tr>`).join('') : '<tr><td colspan="5" class="empty-state">이달 판매 내역이 없습니다</td></tr>'}
+      <td><span class="chip">${PM_LABEL[s.payment_method]||payMethodLabel(s.payment_method)}${s.tax_invoice?' /계산서':''}</span></td>
+      <td style="text-align:right;color:var(--warning)">${saleWoori(s)?won(saleWoori(s)):'-'}</td>
+      <td style="text-align:right;color:var(--success)"><strong>${won(saleMine(s))}</strong></td></tr>`).join('') : '<tr><td colspan="7" class="empty-state">이달 판매 내역이 없습니다</td></tr>'}
     </tbody></table></div>`;
 }
 
