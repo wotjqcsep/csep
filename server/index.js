@@ -35,7 +35,12 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use(express.static(path.join(__dirname, '../admin')));
+// 관리자(PC) 정적파일: HTML/JS/CSS는 캐시 금지 → 배포 즉시 최신 코드 로드 (옛/새 JS 섞임 방지)
+app.use(express.static(path.join(__dirname, '../admin'), {
+  setHeaders: (res, filePath) => {
+    if (/\.(html|js|css)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-store');
+  },
+}));
 // engineer HTML은 캐시 금지 (기사앱 APK 웹뷰가 항상 최신 코드 로드)
 app.use('/engineer', express.static(path.join(__dirname, '../engineer'), {
   setHeaders: (res, filePath) => {
