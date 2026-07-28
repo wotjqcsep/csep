@@ -122,8 +122,8 @@ function mbSummary(raw){ const o=mbParse(raw); return [o.plat,o.maker,o.chipset,
 
 // 여러 개 입력(RAM/SSD/HDD) — JSON으로 저장. RAM은 합계 자동계산. opts 있으면 선택+직접입력
 const MULTI_SPECS = {
-  ram: { calc:true,  legacy:'maker', fields:[{k:'size',ph:'용량(GB)',type:'number',flex:1},{k:'spec',ph:'규격',flex:1,opts:['DDR3','DDR4','DDR5','DDR6']},{k:'maker',ph:'제조사',flex:1,opts:['삼성','SK하이닉스','마이크론','G.SKILL','커세어','팀그룹','기타']}] },
-  ssd: { calc:false, legacy:'cap',  fields:[{k:'type',ph:'방식',flex:1,opts:['2.5인치 SATA','NVMe M.2','M.2 SATA','기타']},{k:'cap',ph:'용량(예:512GB)',flex:1},{k:'maker',ph:'제조사/모델',flex:2}] },
+  ram: { calc:true,  legacy:'maker', fields:[{k:'size',ph:'용량(GB) 선택/직접',flex:1,opts:['4','8','16','32','64','128']},{k:'spec',ph:'규격',flex:1,opts:['DDR3','DDR4','DDR5','DDR6']},{k:'maker',ph:'제조사',flex:1,opts:['삼성','SK하이닉스','마이크론','G.SKILL','커세어','팀그룹','기타']}] },
+  ssd: { calc:false, legacy:'cap',  fields:[{k:'type',ph:'방식(선택/직접)',flex:1,opts:['2.5인치 SATA','NVMe M.2','M.2 SATA']},{k:'cap',ph:'용량(예:512GB)',flex:1},{k:'maker',ph:'제조사/모델',flex:2}] },
   hdd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량(예:2TB)',flex:1},{k:'maker',ph:'제조사',flex:2,opts:['WD','씨게이트','도시바','기타']}] },
 };
 function parseSpecList(kind, raw){
@@ -203,7 +203,11 @@ async function saveCustomer(id){
 }
 
 // ── 장비 추가/수정 ──
-const OS_OPTS=['Windows XP','Windows 7','Windows 8.1','Windows 10','Windows 11'];
+const OS_OPTS=['Windows XP','Windows 7','Windows 8.1','Windows 10','Windows 11','Windows 12'];
+// 파워/모니터 선택 옵션
+const POWER_TYPES=['ATX','M-ATX','TFX'];
+const POWER_WATTS=['200~250W','300W~350W','400W~450W','500W~550W','600W~650W','700W~750W','800W~850W','900W~950W'];
+const MONITOR_PORTS=['HDMI','DP','DVI','RGB','썬더볼트','미니HDMI','마이크로HDMI'];
 const OFFICE_OPTS=['Office 2007','Office 2010','Office 2013','Office 2016','Office 2019','Office 2021','Microsoft 365'];
 const CAD_OPTS=['AutoCAD 2018','AutoCAD 2020','AutoCAD 2022','AutoCAD 2024','ZWCAD'];
 const ADOBE_OPTS=['Acrobat Reader','Acrobat Pro','Photoshop','Illustrator','Adobe CC'];
@@ -214,6 +218,11 @@ function openComputerModal(id, customerId){
   const cust = state.customers.find(x=>x.id==cid) || {};
   const cname = cust.company_name || cust.name || cust.phone || ('고객'+cid);
   const mb = mbParse(c.motherboard);
+  // 파워/모니터 기존값 분해 (선택식 프리필용)
+  const pwType = POWER_TYPES.slice().sort((a,b)=>b.length-a.length).find(t=>(c.power||'').includes(t)) || '';
+  const pwWatt = (c.power||'').replace(pwType,'').trim();
+  const monInch = (((c.monitor||'').match(/(\d+(?:\.\d+)?)\s*인치/)||[])[1]) || '';
+  const monPort = (c.monitor||'').replace(/\d+(?:\.\d+)?\s*인치/,'').trim();
   const body = `
     <div class="form-group"><label>거래처 (고정)</label>
       <input type="hidden" id="p_cust" value="${cid||''}">
@@ -249,8 +258,19 @@ function openComputerModal(id, customerId){
         <input id="p_gpu" list="vga_list" value="${esc(c.gpu)||''}" placeholder="모델 선택/입력" style="flex:1;min-width:150px" autocomplete="off">
         <datalist id="vga_list"></datalist>
       </div></div>
-    ${field('p_power','파워',c.power)}
-    ${field('p_monitor','모니터',c.monitor)}
+    <div class="form-group"><label>파워</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <input id="p_pw_type" list="pw_type_list" value="${esc(pwType)||''}" placeholder="종류(ATX 등)" style="flex:1;min-width:110px" autocomplete="off">
+        <input id="p_pw_watt" list="pw_watt_list" value="${esc(pwWatt)||''}" placeholder="와트(선택/1000W↑ 직접)" style="flex:2;min-width:150px" autocomplete="off">
+      </div>
+      <datalist id="pw_type_list">${optHtml(POWER_TYPES)}</datalist>
+      <datalist id="pw_watt_list">${optHtml(POWER_WATTS)}</datalist></div>
+    <div class="form-group"><label>모니터</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <input id="p_mon_inch" value="${esc(monInch)||''}" placeholder="인치(예: 27)" style="flex:1;min-width:100px" autocomplete="off">
+        <input id="p_mon_port" list="mon_port_list" value="${esc(monPort)||''}" placeholder="연결포트(HDMI 등 · 여러개 가능)" style="flex:2;min-width:160px" autocomplete="off">
+      </div>
+      <datalist id="mon_port_list">${optHtml(MONITOR_PORTS)}</datalist></div>
     <div class="form-group"><label>RAM (모듈별 입력 · 합계 자동계산)</label>${multiBlock('ram',c.ram)}</div>
     <div class="form-group"><label>SSD (여러 개 가능)</label>${multiBlock('ssd',c.ssd)}</div>
     <div class="form-group"><label>HDD (여러 개 가능)</label>${multiBlock('hdd',c.hdd)}</div>
@@ -266,14 +286,13 @@ function openComputerModal(id, customerId){
     <div id="printer_rows">${(parsePrinters(c.printer).length?parsePrinters(c.printer):[{}]).map(printerRowHtml).join('')}</div>
     <button type="button" class="btn btn-sm btn-secondary" onclick="addPrinterRow()">+ 프린터 추가</button>
     <div class="form-section">NAS (없으면 빈칸)</div>
-    <div class="form-row">${field('p_nasname','NAS 이름',c.nas_name)}${field('p_nasmodel','모델',c.nas_model)}</div>
-    <div class="form-row">${field('p_nasip','NAS IP',c.nas_ip)}${field('p_nascap','총 용량',c.nas_total_capacity)}</div>
-    ${field('p_naspart','파티션',c.nas_partition_info)}
+    <div class="form-row">${field('p_nasname','NAS 이름/모델',c.nas_name||c.nas_model)}${field('p_nasip','NAS IP',c.nas_ip)}</div>
+    <div class="form-row">${field('p_nascap','총 용량',c.nas_total_capacity)}${field('p_naspart','파티션',c.nas_partition_info)}</div>
     <div class="form-row">${field('p_nasid','관리자 ID',c.nas_admin_id)}${field('p_naspw','관리자 PW',c.nas_admin_password)}</div>
     <div class="form-section">공유기 (없으면 빈칸)</div>
-    <div class="form-row">${field('p_rtname','공유기 이름',c.router_name)}${field('p_rtmodel','모델',c.router_model)}</div>
-    <div class="form-row">${field('p_rtip','공유기 IP',c.router_ip)}${field('p_rthub','허브 연결 갯수',c.router_hub_count)}</div>
-    <div class="form-row">${field('p_rtid','관리자 ID',c.router_admin_id)}${field('p_rtpw','공유기 관리자 PW',c.router_admin_password)}</div>
+    <div class="form-row">${field('p_rtname','공유기 이름/모델',c.router_name||c.router_model)}${field('p_rtip','공유기 IP',c.router_ip)}</div>
+    <div class="form-row">${field('p_rthub','허브 연결 갯수',c.router_hub_count)}${field('p_rtid','관리자 ID',c.router_admin_id)}</div>
+    ${field('p_rtpw','공유기 관리자 PW',c.router_admin_password)}
     ${area('p_notes','메모',c.notes)}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveComputer(${id||'null'})">저장</button></div>`;
   modal(isEdit?'장치 수정':'장치 추가', body, true);
@@ -283,12 +302,12 @@ async function saveComputer(id){
   const data = {
     customer_id:Number(v('p_cust')), name:v('p_name'), device_type:v('p_type'), serial_number:v('p_serial'),
     cpu:v('p_cpu'), ram:JSON.stringify(collectMulti('ram')), ssd:JSON.stringify(collectMulti('ssd')), hdd:JSON.stringify(collectMulti('hdd')), motherboard:collectMb(), gpu:v('p_gpu'),
-    power:v('p_power'), monitor:v('p_monitor'),
+    power:[v('p_pw_type'),v('p_pw_watt')].filter(Boolean).join(' '), monitor:[v('p_mon_inch')?v('p_mon_inch')+'인치':'',v('p_mon_port')].filter(Boolean).join(' '),
     os:v('p_os'), office_version:v('p_office'), cad:v('p_cad'), adobe:v('p_adobe'), etc_program1:v('p_etc1'), etc_program2:v('p_etc2'),
     ip_address:v('p_ip'), mac_address:v('p_mac'), purchase_date:v('p_pdate'), warranty_expiry:v('p_warr'),
     printer:JSON.stringify(collectPrinters()),
-    nas_name:v('p_nasname'), nas_model:v('p_nasmodel'), nas_ip:v('p_nasip'), nas_total_capacity:v('p_nascap'), nas_partition_info:v('p_naspart'), nas_admin_id:v('p_nasid'), nas_admin_password:v('p_naspw'),
-    router_name:v('p_rtname'), router_model:v('p_rtmodel'), router_ip:v('p_rtip'), router_hub_count:v('p_rthub'), router_admin_id:v('p_rtid'), router_admin_password:v('p_rtpw'),
+    nas_name:v('p_nasname'), nas_model:'', nas_ip:v('p_nasip'), nas_total_capacity:v('p_nascap'), nas_partition_info:v('p_naspart'), nas_admin_id:v('p_nasid'), nas_admin_password:v('p_naspw'),
+    router_name:v('p_rtname'), router_model:'', router_ip:v('p_rtip'), router_hub_count:v('p_rthub'), router_admin_id:v('p_rtid'), router_admin_password:v('p_rtpw'),
     notes:v('p_notes'),
   };
   if(!data.customer_id){ alert('거래처 정보가 없습니다'); return; }
