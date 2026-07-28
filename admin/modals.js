@@ -76,6 +76,8 @@ const MB_CHIPSET={
 function optHtml(list){ return list.map(o=>`<option value="${o}"></option>`).join(''); }
 // 수동 추가 부품(part_options) 조회
 function partOpts(kind){ return (typeof state!=='undefined' && state.partOptions)? state.partOptions.filter(o=>o.kind===kind) : []; }
+// 단순 부품(제조사·OS 등) 사용자 추가값 목록
+function customOpts(kind){ return partOpts(kind).map(o=>o.value).filter(Boolean); }
 function customGroups(kind, first){ return [...new Set(partOpts(kind).filter(o=>(o.grp||'').split('||')[0]===first).map(o=>(o.grp||'').split('||')[1]).filter(Boolean))]; }
 function customVals(kind, first, second){ return partOpts(kind).filter(o=>{ const pp=(o.grp||'').split('||'); return pp[0]===first && (!second || pp[1]===second); }).map(o=>o.value); }
 function updateCpuSub(){
@@ -131,13 +133,13 @@ function parseSpecList(kind, raw){
 }
 function multiRow(kind, item){
   item=item||{}; const cfg=MULTI_SPECS[kind];
-  const inputs=cfg.fields.map(f=>`<input class="ms-${kind}-${f.k}" placeholder="${f.ph}"${f.type?` type="${f.type}" min="0"`:''}${f.opts?` list="ms-${kind}-${f.k}-list"`:''} value="${esc(item[f.k])||''}" style="flex:${f.flex}"${cfg.calc?` oninput="calcMulti('${kind}')"`:''} autocomplete="off">`).join('');
+  const inputs=cfg.fields.map(f=>`<input class="ms-${kind}-${f.k}" placeholder="${f.ph}"${f.type?` type="${f.type}" min="0"`:''}${(f.opts||f.k==='maker')?` list="ms-${kind}-${f.k}-list"`:''} value="${esc(item[f.k])||''}" style="flex:${f.flex}"${cfg.calc?` oninput="calcMulti('${kind}')"`:''} autocomplete="off">`).join('');
   return `<div class="ms-${kind}-row" style="display:flex;gap:6px;margin-bottom:6px">${inputs}<button type="button" class="btn btn-sm btn-danger" style="flex:none" onclick="this.parentElement.remove();${cfg.calc?`calcMulti('${kind}')`:''}">−</button></div>`;
 }
 function multiBlock(kind, raw){
   const cfg=MULTI_SPECS[kind]; const list=parseSpecList(kind, raw);
   const rows=(list.length?list:[{}]).map(i=>multiRow(kind,i)).join('');
-  const datalists=cfg.fields.filter(f=>f.opts).map(f=>`<datalist id="ms-${kind}-${f.k}-list">${optHtml(f.opts)}</datalist>`).join('');
+  const datalists=cfg.fields.filter(f=>f.opts||f.k==='maker').map(f=>`<datalist id="ms-${kind}-${f.k}-list">${optHtml([...(f.opts||[]),...(f.k==='maker'?customOpts(kind):[])])}</datalist>`).join('');
   return `${datalists}<div id="ms-${kind}-rows">${rows}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
       <button type="button" class="btn btn-sm btn-secondary" onclick="addMulti('${kind}')">+ 추가</button>
@@ -238,7 +240,7 @@ function openComputerModal(id, customerId){
         <input id="p_mb_chipset" list="mb_chipset_list" value="${esc(mb.chipset)||''}" placeholder="칩셋" style="flex:1;min-width:100px" autocomplete="off">
         <input id="p_mb_model" value="${esc(mb.model)||''}" placeholder="세부 모델(선택)" style="flex:2;min-width:130px">
       </div>
-      <datalist id="mb_maker_list">${optHtml(MB_MAKERS)}</datalist>
+      <datalist id="mb_maker_list">${optHtml([...MB_MAKERS,...customOpts('mbmaker')])}</datalist>
       <datalist id="mb_chipset_list"></datalist></div>
     <div class="form-group"><label>VGA (그래픽카드)</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -254,7 +256,7 @@ function openComputerModal(id, customerId){
     <div class="form-group"><label>HDD (여러 개 가능)</label>${multiBlock('hdd',c.hdd)}</div>
     ${field('p_serial','시리얼번호',c.serial_number)}
     <div class="form-section">소프트웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(설치 확인용 · 선택 또는 직접 입력)</span></div>
-    <div class="form-row">${comboField('p_os','OS',c.os,'os_list',OS_OPTS)}${comboField('p_office','Office',c.office_version,'office_list',OFFICE_OPTS)}</div>
+    <div class="form-row">${comboField('p_os','OS',c.os,'os_list',[...OS_OPTS,...customOpts('os')])}${comboField('p_office','Office',c.office_version,'office_list',[...OFFICE_OPTS,...customOpts('office')])}</div>
     <div class="form-row">${comboField('p_cad','캐드(CAD)',c.cad,'cad_list',CAD_OPTS)}${comboField('p_adobe','어도비(Adobe)',c.adobe,'adobe_list',ADOBE_OPTS)}</div>
     <div class="form-row">${field('p_etc1','기타 프로그램 1',c.etc_program1)}${field('p_etc2','기타 프로그램 2',c.etc_program2)}</div>
     <div class="form-section">네트워크</div>

@@ -473,7 +473,13 @@ async function submitWorkorder(customerId, siteId){
 let partForm = { kind:'cpu' };
 const PART_KINDS = {
   cpu: { label:'CPU', g1:{label:'플랫폼',opts:['Intel','AMD']}, g2:'세대/소켓 (예: 15세대, AM6)', val:'모델명 (예: Core i5-15400)' },
-  vga: { label:'VGA', g1:{label:'제조사',opts:['NVIDIA','AMD','Intel Arc','내장 그래픽']}, g2:'시리즈 (예: RTX 50)', val:'모델명 (예: RTX 5060)' },
+  vga: { label:'VGA (그래픽)', g1:{label:'제조사',opts:['NVIDIA','AMD','Intel Arc','내장 그래픽']}, g2:'시리즈 (예: RTX 50)', val:'모델명 (예: RTX 5060)' },
+  mbmaker: { label:'메인보드 제조사', simple:true, val:'제조사 (예: ASUS)' },
+  ram: { label:'RAM 제조사', simple:true, val:'제조사 (예: 삼성)' },
+  ssd: { label:'SSD 제조사/모델', simple:true, val:'제조사/모델 (예: 삼성 990 PRO)' },
+  hdd: { label:'HDD 제조사', simple:true, val:'제조사 (예: WD)' },
+  os: { label:'OS', simple:true, val:'예: Windows 11 Pro' },
+  office: { label:'Office', simple:true, val:'예: Office 2021' },
 };
 function renderPartsdata(){   // ⚠️ 이름은 renderPartsdata(소문자 d) — menu.js pageRenderer가 'partsdata'→'renderPartsdata'로 찾음
   const k=partForm.kind; const cfg=PART_KINDS[k];
@@ -494,11 +500,11 @@ function renderPartsdata(){   // ⚠️ 이름은 renderPartsdata(소문자 d) �
       <div class="form-group"><label>종류</label><select id="pd_kind" onchange="partForm.kind=this.value;renderInto()">
         ${Object.entries(PART_KINDS).map(([kk,c])=>`<option value="${kk}" ${k===kk?'selected':''}>${c.label}</option>`).join('')}
       </select></div>
-      <div class="form-row">
+      ${cfg.simple?'':`<div class="form-row">
         <div class="form-group"><label>${cfg.g1.label}</label><select id="pd_g1">${cfg.g1.opts.map(o=>`<option>${o}</option>`).join('')}</select></div>
         <div class="form-group"><label>${cfg.g2}</label><input id="pd_g2" placeholder="${cfg.g2}"></div>
-      </div>
-      <div class="form-group"><label>${cfg.val}</label><input id="pd_val" placeholder="${cfg.val}"></div>
+      </div>`}
+      <div class="form-group"><label>${cfg.val}</label><input id="pd_val" placeholder="${cfg.val}" onkeydown="if(event.key==='Enter')addPartOption()"></div>
       <button class="btn" onclick="addPartOption()">+ 추가</button>
     </div>
     <div class="vd-card">
@@ -539,10 +545,11 @@ async function deleteResultPreset(id){
   await loadAll();
 }
 async function addPartOption(){
-  const k=partForm.kind, g1=v('pd_g1'), g2=v('pd_g2'), val=v('pd_val');
-  if(!val){ alert('모델명을 입력하세요'); return; }
-  const grp=[g1,g2].filter(Boolean).join('||');
+  const k=partForm.kind, cfg=PART_KINDS[k], val=v('pd_val');
+  if(!val){ alert('값을 입력하세요'); return; }
+  const grp = cfg.simple ? '' : [v('pd_g1'),v('pd_g2')].filter(Boolean).join('||');
   try{ await api('POST','/part-options',{kind:k, grp, value:val}); }catch(e){ alert('추가 실패: '+(e&&e.message?e.message:e)); return; }
+  const el=document.getElementById('pd_val'); if(el)el.value='';
   await loadAll();
 }
 async function deletePartOption(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/part-options/'+id); await loadAll(); }
