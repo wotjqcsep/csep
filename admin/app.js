@@ -475,7 +475,7 @@ const PART_KINDS = {
   cpu: { label:'CPU', g1:{label:'플랫폼',opts:['Intel','AMD']}, g2:'세대/소켓 (예: 15세대, AM6)', val:'모델명 (예: Core i5-15400)' },
   vga: { label:'VGA', g1:{label:'제조사',opts:['NVIDIA','AMD','Intel Arc','내장 그래픽']}, g2:'시리즈 (예: RTX 50)', val:'모델명 (예: RTX 5060)' },
 };
-function renderPartsData(){
+function renderPartsdata(){   // ⚠️ 이름은 renderPartsdata(소문자 d) — menu.js pageRenderer가 'partsdata'→'renderPartsdata'로 찾음
   const k=partForm.kind; const cfg=PART_KINDS[k];
   const list=(state.partOptions||[]).filter(o=>o.kind===k);
   return `
