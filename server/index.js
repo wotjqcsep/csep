@@ -1234,6 +1234,11 @@ app.post('/api/result-presets', wrap(async (req, res) => {
   const { rows } = await pool.query('INSERT INTO result_presets (text, sort) VALUES ($1, (SELECT COALESCE(MAX(sort),0)+1 FROM result_presets)) RETURNING *', [req.body.text]);
   res.json(rows[0]);
 }));
+app.put('/api/result-presets/:id', wrap(async (req, res) => {
+  const { rows } = await pool.query('UPDATE result_presets SET text=$1 WHERE id=$2 RETURNING *', [req.body.text || '', req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '프리셋 없음' });
+  res.json(rows[0]);
+}));
 app.delete('/api/result-presets/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM result_presets WHERE id=$1', [req.params.id]);
   res.json({ ok: true });

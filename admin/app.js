@@ -507,7 +507,36 @@ function renderPartsData(){
         <span>${o.grp?`<span class="chip">${esc((o.grp||'').replace('||',' · '))}</span> `:''}${esc(o.value)}</span>
         <button class="btn btn-sm btn-danger" onclick="deletePartOption(${o.id})">삭제</button></div>`).join('') : '<div class="empty-state">추가된 항목이 없습니다</div>'}
     </div>
+    <div class="vd-card">
+      <div style="font-weight:800;margin-bottom:4px">📝 처리 결과 프리셋 (${(state.resultPresets||[]).length})</div>
+      <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px">기사앱 작업처리 화면에서 클릭 한 번으로 입력되는 문구입니다. (예: ✓ 재부팅/정상화)</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="pd_preset" placeholder="예: 랜선 교체" style="flex:1;padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px" onkeydown="if(event.key==='Enter')addResultPreset()">
+        <button class="btn" onclick="addResultPreset()">+ 추가</button>
+      </div>
+      ${(state.resultPresets||[]).length? state.resultPresets.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--gray-100);font-size:13px">
+        <span>✓ ${esc(p.text)}</span>
+        <span style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary" onclick="editResultPreset(${p.id})">수정</button><button class="btn btn-sm btn-danger" onclick="deleteResultPreset(${p.id})">삭제</button></span>
+      </div>`).join('') : '<div class="empty-state">등록된 프리셋이 없습니다</div>'}
+    </div>
   </div>`;
+}
+async function addResultPreset(){
+  const t=(v('pd_preset')||'').trim(); if(!t){ alert('문구를 입력하세요'); return; }
+  try{ await api('POST','/result-presets',{text:t}); }catch(e){ alert('추가 실패: '+(e&&e.message?e.message:e)); return; }
+  await loadAll();
+}
+async function editResultPreset(id){
+  const p=(state.resultPresets||[]).find(x=>x.id==id); if(!p) return;
+  const t=prompt('문구 수정:', p.text||''); if(t===null) return;
+  if(!t.trim()){ alert('빈 문구는 저장할 수 없습니다'); return; }
+  try{ await api('PUT','/result-presets/'+id,{text:t.trim()}); }catch(e){ alert('수정 실패: '+(e&&e.message?e.message:e)); return; }
+  await loadAll();
+}
+async function deleteResultPreset(id){
+  if(!confirm('이 프리셋을 삭제하시겠습니까?')) return;
+  try{ await api('DELETE','/result-presets/'+id); }catch(e){ alert('삭제 실패'); return; }
+  await loadAll();
 }
 async function addPartOption(){
   const k=partForm.kind, g1=v('pd_g1'), g2=v('pd_g2'), val=v('pd_val');

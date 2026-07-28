@@ -134,7 +134,7 @@ async function loadReceptions(showLoading){
   try{
     const all = S.engineer.is_admin ? '?all=1' : '';   // 대표는 전체 조회 (미배정·전체 탭용)
     S.receptions = await api('GET',`/engineer/${S.engineer.id}/receptions${all}`);
-    if(!S.presets.length){ try{ S.presets = await api('GET','/result-presets'); }catch(e){} }
+    try{ S.presets = await api('GET','/result-presets'); }catch(e){}   // PC 편집 반영 위해 매번 최신 로드
     if(!S.parts.length){ try{ S.parts = await api('GET','/inventory'); }catch(e){} }
     try{ S.chatUnread = await api('GET',`/messages/unread-engineer/${S.engineer.id}`); }catch(e){}
     if(S.engineer.is_admin){
