@@ -1,0 +1,29 @@
+{
+  "name": "csep-desktop",
+  "version": "1.0.0",
+  "description": "CSEP PC 버전 (Electron 데스크톱 앱)",
+  "main": "main.js",
+  "author": "CSEP",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.csep.desktop",
+    "productName": "CSEP",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "package.json"],
+    "win": { "target": "nsis" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "CSEP"
+    }
+  }
+}
