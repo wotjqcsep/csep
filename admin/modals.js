@@ -118,11 +118,21 @@ function updateVgaModels(){
 function updateMbChipset(){ const p=v('p_mb_plat'); const list=p?(MB_CHIPSET[p]||[]):[].concat(MB_CHIPSET.Intel,MB_CHIPSET.AMD); const dl=document.getElementById('mb_chipset_list'); if(dl) dl.innerHTML=optHtml(list); }
 function mbParse(raw){ if(!raw) return {}; try{ const o=JSON.parse(raw); if(o&&typeof o==='object'&&!Array.isArray(o)) return o; }catch(e){} return {model:String(raw)}; }
 function collectMb(){ const o={plat:v('p_mb_plat'),maker:v('p_mb_maker'),chipset:v('p_mb_chipset'),model:v('p_mb_model')}; return Object.values(o).some(x=>x)? JSON.stringify(o):''; }
+function collectMonitor(){ const inch=v('p_mon_inch'), model=v('p_mon_model'); const ports=MONITOR_PORTS.filter((p,i)=>(document.getElementById('mon_port_'+i)||{}).checked); return (inch||model||ports.length)? JSON.stringify({inch,model,ports}):''; }
 function mbSummary(raw){ const o=mbParse(raw); return [o.plat,o.maker,o.chipset,o.model].filter(Boolean).join(' '); }
+// 모니터 파싱: JSON {inch,model,ports[]} 우선, 구버전 문자열도 최대한 분해
+function monParse(raw){
+  if(!raw) return { inch:'', model:'', ports:[] };
+  try{ const o=JSON.parse(raw); if(o&&typeof o==='object'&&!Array.isArray(o)) return { inch:o.inch||'', model:o.model||'', ports:Array.isArray(o.ports)?o.ports:[] }; }catch(e){}
+  let s=String(raw); const inch=((s.match(/(\d+(?:\.\d+)?)\s*인치/)||[])[1])||'';
+  s=s.replace(/\d+(?:\.\d+)?\s*인치/,''); const ports=[];
+  MONITOR_PORTS.slice().sort((a,b)=>b.length-a.length).forEach(p=>{ if(s.includes(p)){ ports.push(p); s=s.split(p).join(' '); } });
+  return { inch, model:s.replace(/[,·]/g,' ').trim(), ports };
+}
 
 // 여러 개 입력(RAM/SSD/HDD) — JSON으로 저장. RAM은 합계 자동계산. opts 있으면 선택+직접입력
 const MULTI_SPECS = {
-  ram: { calc:true,  legacy:'maker', fields:[{k:'size',ph:'용량(GB) 선택/직접',flex:1,opts:['4','8','16','32','64','128']},{k:'spec',ph:'규격',flex:1,opts:['DDR3','DDR4','DDR5','DDR6']},{k:'maker',ph:'제조사',flex:1,opts:['삼성','SK하이닉스','마이크론','G.SKILL','커세어','팀그룹','기타']}] },
+  ram: { calc:true, init:2, legacy:'maker', fields:[{k:'size',ph:'용량(GB) 선택/직접',flex:1,opts:['4','8','16','32','64','128']},{k:'spec',ph:'규격',flex:1,opts:['DDR3','DDR4','DDR5','DDR6']},{k:'maker',ph:'제조사',flex:1,opts:['삼성','SK하이닉스','마이크론','G.SKILL','커세어','팀그룹','기타']}] },
   ssd: { calc:false, legacy:'cap',  fields:[{k:'type',ph:'방식(선택/직접)',flex:1,opts:['2.5인치 SATA','NVMe M.2','M.2 SATA']},{k:'cap',ph:'용량(예:512GB)',flex:1},{k:'maker',ph:'제조사/모델',flex:2}] },
   hdd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량(예:2TB)',flex:1},{k:'maker',ph:'제조사',flex:2,opts:['WD','씨게이트','도시바','기타']}] },
 };
@@ -131,14 +141,15 @@ function parseSpecList(kind, raw){
   try{ const a=JSON.parse(raw); if(Array.isArray(a)) return a; }catch(e){}
   const k=MULTI_SPECS[kind].legacy; return String(raw).trim()? [{[k]:String(raw)}] : [];
 }
-function multiRow(kind, item){
+function multiRow(kind, item, idx){
   item=item||{}; const cfg=MULTI_SPECS[kind];
+  const slot = kind==='ram' ? `<span style="flex:none;width:42px;text-align:center;font-size:12px;color:var(--gray-500);font-weight:700">슬롯${(idx||0)+1}</span>` : '';
   const inputs=cfg.fields.map(f=>`<input class="ms-${kind}-${f.k}" placeholder="${f.ph}"${f.type?` type="${f.type}" min="0"`:''}${(f.opts||f.k==='maker')?` list="ms-${kind}-${f.k}-list"`:''} value="${esc(item[f.k])||''}" style="flex:${f.flex}"${cfg.calc?` oninput="calcMulti('${kind}')"`:''} autocomplete="off">`).join('');
-  return `<div class="ms-${kind}-row" style="display:flex;gap:6px;margin-bottom:6px">${inputs}<button type="button" class="btn btn-sm btn-danger" style="flex:none" onclick="this.parentElement.remove();${cfg.calc?`calcMulti('${kind}')`:''}">−</button></div>`;
+  return `<div class="ms-${kind}-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">${slot}${inputs}<button type="button" class="btn btn-sm btn-danger" style="flex:none" onclick="this.parentElement.remove();${cfg.calc?`calcMulti('${kind}')`:''}">−</button></div>`;
 }
 function multiBlock(kind, raw){
   const cfg=MULTI_SPECS[kind]; const list=parseSpecList(kind, raw);
-  const rows=(list.length?list:[{}]).map(i=>multiRow(kind,i)).join('');
+  const rows=(list.length?list:Array(cfg.init||1).fill({})).map((it,idx)=>multiRow(kind,it,idx)).join('');
   const datalists=cfg.fields.filter(f=>f.opts||f.k==='maker').map(f=>`<datalist id="ms-${kind}-${f.k}-list">${optHtml([...(f.opts||[]),...(f.k==='maker'?customOpts(kind):[])])}</datalist>`).join('');
   return `${datalists}<div id="ms-${kind}-rows">${rows}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
@@ -146,7 +157,7 @@ function multiBlock(kind, raw){
       ${cfg.calc?`<span style="font-size:12px;color:var(--gray-500)">합계: <strong id="ms-${kind}-total">-</strong></span>`:''}
     </div>`;
 }
-function addMulti(kind){ document.getElementById('ms-'+kind+'-rows').insertAdjacentHTML('beforeend', multiRow(kind)); if(MULTI_SPECS[kind].calc) calcMulti(kind); }
+function addMulti(kind){ const n=document.querySelectorAll('#ms-'+kind+'-rows .ms-'+kind+'-row').length; document.getElementById('ms-'+kind+'-rows').insertAdjacentHTML('beforeend', multiRow(kind,null,n)); if(MULTI_SPECS[kind].calc) calcMulti(kind); }
 function collectMulti(kind){ const cfg=MULTI_SPECS[kind];
   return [...document.querySelectorAll('#ms-'+kind+'-rows .ms-'+kind+'-row')].map(r=>{ const o={}; cfg.fields.forEach(f=>o[f.k]=(r.querySelector('.ms-'+kind+'-'+f.k).value||'').trim()); return o; }).filter(o=>Object.values(o).some(x=>x));
 }
@@ -221,8 +232,7 @@ function openComputerModal(id, customerId){
   // 파워/모니터 기존값 분해 (선택식 프리필용)
   const pwType = POWER_TYPES.slice().sort((a,b)=>b.length-a.length).find(t=>(c.power||'').includes(t)) || '';
   const pwWatt = (c.power||'').replace(pwType,'').trim();
-  const monInch = (((c.monitor||'').match(/(\d+(?:\.\d+)?)\s*인치/)||[])[1]) || '';
-  const monPort = (c.monitor||'').replace(/\d+(?:\.\d+)?\s*인치/,'').trim();
+  const mon = monParse(c.monitor);
   const body = `
     <div class="form-group"><label>거래처 (고정)</label>
       <input type="hidden" id="p_cust" value="${cid||''}">
@@ -266,12 +276,15 @@ function openComputerModal(id, customerId){
       <datalist id="pw_type_list">${optHtml(POWER_TYPES)}</datalist>
       <datalist id="pw_watt_list">${optHtml(POWER_WATTS)}</datalist></div>
     <div class="form-group"><label>모니터</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <input id="p_mon_inch" value="${esc(monInch)||''}" placeholder="인치(예: 27)" style="flex:1;min-width:100px" autocomplete="off">
-        <input id="p_mon_port" list="mon_port_list" value="${esc(monPort)||''}" placeholder="연결포트(HDMI 등 · 여러개 가능)" style="flex:2;min-width:160px" autocomplete="off">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+        <input id="p_mon_inch" value="${esc(mon.inch)||''}" placeholder="인치(예: 27)" style="flex:1;min-width:90px" autocomplete="off">
+        <input id="p_mon_model" value="${esc(mon.model)||''}" placeholder="모델명(예: LG 27GL850 · 아답터 확인용)" style="flex:2;min-width:170px" autocomplete="off">
       </div>
-      <datalist id="mon_port_list">${optHtml(MONITOR_PORTS)}</datalist></div>
-    <div class="form-group"><label>RAM (모듈별 입력 · 합계 자동계산)</label>${multiBlock('ram',c.ram)}</div>
+      <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">연결포트 (복수 선택)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px">
+        ${MONITOR_PORTS.map((p,i)=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:400;cursor:pointer"><input type="checkbox" id="mon_port_${i}" ${mon.ports.includes(p)?'checked':''} style="width:16px;height:16px"> ${p}</label>`).join('')}
+      </div></div>
+    <div class="form-group"><label>RAM (슬롯당 메모리 · 합계 자동계산)</label>${multiBlock('ram',c.ram)}</div>
     <div class="form-group"><label>SSD (여러 개 가능)</label>${multiBlock('ssd',c.ssd)}</div>
     <div class="form-group"><label>HDD (여러 개 가능)</label>${multiBlock('hdd',c.hdd)}</div>
     ${field('p_serial','시리얼번호',c.serial_number)}
@@ -302,7 +315,7 @@ async function saveComputer(id){
   const data = {
     customer_id:Number(v('p_cust')), name:v('p_name'), device_type:v('p_type'), serial_number:v('p_serial'),
     cpu:v('p_cpu'), ram:JSON.stringify(collectMulti('ram')), ssd:JSON.stringify(collectMulti('ssd')), hdd:JSON.stringify(collectMulti('hdd')), motherboard:collectMb(), gpu:v('p_gpu'),
-    power:[v('p_pw_type'),v('p_pw_watt')].filter(Boolean).join(' '), monitor:[v('p_mon_inch')?v('p_mon_inch')+'인치':'',v('p_mon_port')].filter(Boolean).join(' '),
+    power:[v('p_pw_type'),v('p_pw_watt')].filter(Boolean).join(' '), monitor:collectMonitor(),
     os:v('p_os'), office_version:v('p_office'), cad:v('p_cad'), adobe:v('p_adobe'), etc_program1:v('p_etc1'), etc_program2:v('p_etc2'),
     ip_address:v('p_ip'), mac_address:v('p_mac'), purchase_date:v('p_pdate'), warranty_expiry:v('p_warr'),
     printer:JSON.stringify(collectPrinters()),
