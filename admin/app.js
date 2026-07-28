@@ -665,7 +665,7 @@ function renderStore(){
   const sum=arr=>arr.reduce((t,s)=>t+(Number(s.total_price)||0),0);
   const today=all.filter(s=>(s.sale_date||'').slice(0,10)===todayStr);
   const month=all.filter(s=>(s.sale_date||'').slice(0,7)===monthStr);
-  const recent=[...all].sort((a,b)=>(b.sale_date||'').localeCompare(a.sale_date||'')||b.id-a.id).slice(0,50);
+  const recent=[...today].sort((a,b)=>b.id-a.id);   // 오늘 판매만 (전체 내역은 결산 메뉴에서)
   return `
   <div class="page-header"><h2>🛒 매장 판매 <span style="font-size:13px;color:var(--gray-500)">— 워크인(고객정보 없이 즉시 판매). 결산에 자동 반영</span></h2></div>
   <div class="stat-grid">
@@ -689,14 +689,14 @@ function renderStore(){
     </div>
     <button class="btn" onclick="submitStoreSale()">+ 판매 등록</button>
   </div>
+  <div style="font-weight:700;margin:6px 2px 8px">오늘 판매 내역 <span style="font-size:12px;color:var(--gray-400)">(전체 내역·집계는 결산 메뉴)</span></div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>일자</th><th>품목</th><th>수량</th><th>단가</th><th>금액</th><th>결제</th><th>액션</th></tr></thead>
+    <thead><tr><th>품목</th><th>수량</th><th>단가</th><th>금액</th><th>결제</th><th>액션</th></tr></thead>
     <tbody>${recent.length? recent.map(s=>`<tr>
-      <td style="font-size:12px">${(s.sale_date||'').slice(0,10)}</td>
       <td><strong>${esc(s.item_name)}</strong>${s.item_type&&s.item_type!=='매장'?`<div style="font-size:11px;color:var(--gray-400)">${esc(s.item_type)}</div>`:''}</td>
       <td>${s.quantity||1}</td><td>${won(s.unit_price)}</td><td><strong>${won(s.total_price)}</strong></td>
       <td><span class="chip">${payMethodLabel(s.payment_method)}</span></td>
-      <td><button class="btn btn-sm btn-danger" onclick="deleteSale(${s.id})">삭제</button></td></tr>`).join('') : '<tr><td colspan="7" class="empty-state">매장 판매 내역이 없습니다</td></tr>'}
+      <td><button class="btn btn-sm btn-danger" onclick="deleteSale(${s.id})">삭제</button></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">오늘 판매가 없습니다</td></tr>'}
     </tbody></table></div>`;
 }
 async function submitStoreSale(){
@@ -796,6 +796,16 @@ function renderPayments(){
       <td style="text-align:right"><strong>${won(o.rev)}</strong></td>
       <td style="text-align:right;color:var(--warning)">${o.woori?won(o.woori):'-'}</td>
       <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>'}
+    </tbody></table></div>
+  <div style="font-weight:700;margin:18px 2px 8px">🛒 이달 판매 내역 (매장 등) — ${salesMonth.length}건 · ${won(salesRev)}</div>
+  <div class="table-container"><table class="table">
+    <thead><tr><th>일자</th><th>제품명</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>결제수단</th></tr></thead>
+    <tbody>${salesMonth.length? [...salesMonth].sort((a,b)=>(b.sale_date||'').localeCompare(a.sale_date||'')||b.id-a.id).map(s=>`<tr>
+      <td style="font-size:12px">${(s.sale_date||'').slice(0,10)}</td>
+      <td><strong>${esc(s.item_name)}</strong>${s.customer_id?` <span style="font-size:11px;color:var(--gray-400)">(${esc(custName(s.customer_id))})</span>`:''}</td>
+      <td style="text-align:right">${s.quantity||1}</td>
+      <td style="text-align:right"><strong>${won(s.total_price)}</strong></td>
+      <td><span class="chip">${PM_LABEL[s.payment_method]||payMethodLabel(s.payment_method)}</span></td></tr>`).join('') : '<tr><td colspan="5" class="empty-state">이달 판매 내역이 없습니다</td></tr>'}
     </tbody></table></div>`;
 }
 

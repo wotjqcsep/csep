@@ -213,7 +213,9 @@ async function loadAll(showLoading){
   document.getElementById('srvStatus').textContent = anyOk ? '● 서버 연결' : '● 연결 끊김';
   document.getElementById('srvStatus').style.color = anyOk ? 'var(--success)' : 'var(--danger)';
   // 검색 입력 중이면 배경 새로고침으로 화면을 다시 그리지 않음(포커스 유지)
-  const typing = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('vd-search');
+  // 입력 중(검색창·폼 입력칸)엔 배경 새로고침이 화면을 다시 그리지 않게 (타이핑 유실 방지)
+  const ae = document.activeElement;
+  const typing = ae && ( (ae.classList && ae.classList.contains('vd-search')) || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA');
   if(firstLoad){ firstLoad=false; render(); } else if(!document.querySelector('.modal-overlay') && !typing) render();
 }
 

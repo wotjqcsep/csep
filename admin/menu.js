@@ -22,7 +22,6 @@ const MENU_CONFIG = [
     { id: 'schedule',  icon: '📅', label: '일정표' },      // 메뉴만(준비 중)
   ]},
   { section: '매출 · 정산', items: [
-    { id: 'sales',     icon: '📑', label: '판매 관리' },
     { id: 'store',     icon: '🛒', label: '매장 판매' },
     { id: 'payments',  icon: '💳', label: '결산' },
   ]},
