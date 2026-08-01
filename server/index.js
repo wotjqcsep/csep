@@ -337,6 +337,8 @@ async function initDB() {
   await pool.query(`
     ALTER TABLE engineers ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
     ALTER TABLE engineers ADD COLUMN IF NOT EXISTS password TEXT;
+    ALTER TABLE engineers ADD COLUMN IF NOT EXISTS login_fail_count INTEGER DEFAULT 0;
+    ALTER TABLE engineers ADD COLUMN IF NOT EXISTS locked BOOLEAN DEFAULT FALSE;
     ALTER TABLE engineers ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'idle';
     ALTER TABLE engineers ADD COLUMN IF NOT EXISTS location TEXT;
     ALTER TABLE engineers ADD COLUMN IF NOT EXISTS total_jobs INTEGER DEFAULT 0;
@@ -550,14 +552,16 @@ app.delete('/api/computers/:id', wrap(async (req, res) => {
 // ============================================================
 //  기사 (engineers)
 // ============================================================
+function maskEngineer(e) { if (!e) return e; const { password, ...rest } = e; return { ...rest, has_password: !!(password && String(password).length) }; }
+
 app.get('/api/engineers', wrap(async (req, res) => {
-  res.json((await pool.query('SELECT * FROM engineers ORDER BY id')).rows);
+  res.json((await pool.query('SELECT * FROM engineers ORDER BY id')).rows.map(maskEngineer));
 }));
 
 app.get('/api/engineers/:id', wrap(async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM engineers WHERE id=$1', [req.params.id]);
   if (!rows[0]) return res.status(404).json({ error: '기사 없음' });
-  res.json(rows[0]);
+  res.json(maskEngineer(rows[0]));
 }));
 
 app.post('/api/engineers', wrap(async (req, res) => {
@@ -567,7 +571,21 @@ app.post('/api/engineers', wrap(async (req, res) => {
      VALUES ($1,$2,'idle',$3,$4,0,0) RETURNING *`,
     [b.name, b.phone, b.is_admin || false, b.password || null]
   );
-  res.json(rows[0]);
+  res.json(maskEngineer(rows[0]));
+}));
+
+app.put('/api/engineers/:id', wrap(async (req, res) => {
+  const b = req.body; const sets = [], vals = []; let i = 1;
+  if (b.name !== undefined)     { sets.push(`name=$${i++}`); vals.push(b.name); }
+  if (b.phone !== undefined)    { sets.push(`phone=$${i++}`); vals.push(b.phone); }
+  if (b.is_admin !== undefined) { sets.push(`is_admin=$${i++}`); vals.push(!!b.is_admin); }
+  if (b.clear_password)         { sets.push(`password=NULL`); }
+  else if (b.password)          { sets.push(`password=$${i++}`); vals.push(b.password); }  // 값 있을 때만 변경
+  if (b.unlock)                 { sets.push(`locked=FALSE`, `login_fail_count=0`); }
+  if (!sets.length) { const { rows } = await pool.query('SELECT * FROM engineers WHERE id=$1', [req.params.id]); return res.json(maskEngineer(rows[0])); }
+  vals.push(req.params.id);
+  const { rows } = await pool.query(`UPDATE engineers SET ${sets.join(',')} WHERE id=$${i} RETURNING *`, vals);
+  res.json(maskEngineer(rows[0]));
 }));
 
 app.put('/api/engineers/:id/status', wrap(async (req, res) => {
@@ -1265,7 +1283,16 @@ app.post('/api/engineer-login', wrap(async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM engineers WHERE id=$1', [engineer_id]);
   const e = rows[0];
   if (!e) return res.status(404).json({ error: '기사 없음' });
-  if (e.is_admin && e.password && e.password !== password) return res.status(401).json({ error: '비밀번호 오류' });
+  if (e.locked) return res.status(423).json({ error: '계정이 잠겼습니다. 관리자(CSEP)에게 문의하세요.', locked: true });
+  const hasPw = !!(e.password && String(e.password).length);
+  if (hasPw && password !== e.password) {
+    const cnt = (e.login_fail_count || 0) + 1;
+    const lock = cnt >= 3;
+    await pool.query('UPDATE engineers SET login_fail_count=$1, locked=$2 WHERE id=$3', [cnt, lock, e.id]);
+    if (lock) return res.status(423).json({ error: '비밀번호 3회 오류로 계정이 잠겼습니다. 관리자(CSEP)에게 문의하세요.', locked: true });
+    return res.status(401).json({ error: `비밀번호 오류 (남은 시도 ${3 - cnt}회)` });
+  }
+  if (hasPw && e.login_fail_count) await pool.query('UPDATE engineers SET login_fail_count=0 WHERE id=$1', [e.id]);
   res.json({ id: e.id, name: e.name, is_admin: e.is_admin });
 }));
 

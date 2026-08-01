@@ -460,18 +460,26 @@ async function saveReception(){
 }
 
 // ── 기사 추가 ──
-function openEngineerModal(){
+function openEngineerModal(id){
+  const e = id ? (state.engineers.find(x=>x.id==id)||{}) : {};
+  const isEdit = !!id;
   const body = `
-    <div class="form-row">${field('e_name','이름 *','')}${field('e_phone','전화번호','')}</div>
-    <div class="form-group"><label><input type="checkbox" id="e_admin" onchange="document.getElementById('e_pwGroup').style.display=this.checked?'block':'none'"> 대표 권한 (기사앱 대표 모드)</label></div>
-    <div id="e_pwGroup" style="display:none">${field('e_pw','대표 비밀번호','')}</div>
-    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveEngineer()">저장</button></div>`;
-  modal('기사 추가', body);
+    <div class="form-row">${field('e_name','이름 *',e.name||'')}${field('e_phone','전화번호',e.phone||'')}</div>
+    <div class="form-group"><label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" id="e_admin" ${e.is_admin?'checked':''}> 대표 권한 (기사앱 대표 모드 · 전체 배차/전화감지)</label></div>
+    <div class="form-group"><label>기사앱 로그인 비밀번호 ${isEdit?'<span style="font-weight:400;color:var(--gray-400)">(변경할 때만 입력)</span>':''}</label>
+      <input id="e_pw" type="text" autocomplete="off" placeholder="${isEdit?(e.has_password?'●●● 설정됨 — 바꾸려면 새 비번 입력':'미설정 — 입력하면 비번 설정'):'비워두면 비번 없이 로그인'}" style="padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px;width:100%"></div>
+    ${isEdit&&e.has_password?`<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;margin-bottom:8px"><input type="checkbox" id="e_clearpw"> 비밀번호 제거 (비번 없이 로그인)</label>`:''}
+    ${isEdit&&e.locked?`<div style="margin-bottom:10px;padding:9px 12px;background:#fff0f0;border-radius:8px;color:var(--danger);font-weight:600">🔒 계정 잠김 (비번 3회 오류) — <button class="btn btn-sm btn-success" onclick="unlockEngineer(${e.id});closeModal()">잠금 해제</button></div>`:''}
+    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveEngineer(${id||'null'})">저장</button></div>`;
+  modal(isEdit?'기사 편집':'기사 추가', body);
 }
-async function saveEngineer(){
+async function saveEngineer(id){
   const name=v('e_name'); if(!name){ alert('이름을 입력하세요'); return; }
-  const is_admin = document.getElementById('e_admin').checked;
-  await api('POST','/engineers', { name, phone:v('e_phone'), is_admin, password:is_admin?v('e_pw'):null });
+  const data = { name, phone:v('e_phone'), is_admin:document.getElementById('e_admin').checked };
+  const pw=v('e_pw'); if(pw) data.password=pw;
+  const clr=document.getElementById('e_clearpw'); if(clr&&clr.checked) data.clear_password=true;
+  if(id) await api('PUT','/engineers/'+id, data);
+  else await api('POST','/engineers', data);
   closeModal(); await loadAll();
 }
 

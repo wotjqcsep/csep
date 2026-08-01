@@ -260,12 +260,12 @@ async function openReceptionDetail(recId){
 function calcPay(){
   const labor=Number(v('rd_labor'))||0, parts=Number(v('rd_parts'))||0, pm=v('rd_pm');
   const tax=document.getElementById('rd_tax') && document.getElementById('rd_tax').checked;
-  const rev=labor+parts, woori=(pm==='card'||tax)?Math.round(rev*0.15):0, mine=rev-woori;
+  const ag=agencyOn(), rev=labor+parts, woori=(ag&&(pm==='card'||tax))?Math.round(rev*agencyRate()):0, mine=rev-woori;
   const el=document.getElementById('rd_calc'); if(!el) return;
   el.innerHTML = `매출 <strong>${won(rev)}</strong>`
-    + (woori?` · <span style="color:var(--warning)">우리사무기 15% ${won(woori)}</span>`:'')
+    + (woori?` · <span style="color:var(--warning)">${esc(agencyName())} ${agencyPct()}% ${won(woori)}</span>`:'')
     + ` · <span style="color:var(--success)">정산액 <strong>${won(mine)}</strong></span>`
-    + ((pm==='card'||tax)&&rev?`<div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ 카드/계산서 → 매출은 우리사무기 경유, 나중에 ${won(mine)} 현금 정산 받음</div>`:'');
+    + (woori?`<div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ 카드/계산서 → 매출은 ${esc(agencyName())} 경유, 나중에 ${won(mine)} 현금 정산 받음</div>`:'');
 }
 async function savePayment(recId, complete){
   const tax = !!(document.getElementById('rd_tax') && document.getElementById('rd_tax').checked);
@@ -640,18 +640,39 @@ function renderSchedule(){
 
 // ── 기사 관리 ──
 function renderEngineers(){
-  const es = state.engineers;
+  const es = state.engineers; const S = state.settings||{};
+  const rate = S.agency_rate!==undefined && S.agency_rate!=='' ? S.agency_rate : '15';
   return `
   <div class="page-header"><h2>👷 기사 관리 (${es.length}명)</h2><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="go('workorders')">← 작업지시</button><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div></div>
+  <div class="vd-card" style="margin-bottom:16px">
+    <div style="font-weight:800;margin-bottom:12px">⚙️ 결산 · 대행업체 설정</div>
+    <div class="form-row">
+      ${field('set_brand','상호/브랜드명 (결산 화면 표시)', S.brand_name||'')}
+      ${field('set_agency','대행업체명 (카드/계산서 경유)', S.agency_name||'')}
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>수수료율 (%) <span style="font-weight:400;color:var(--gray-400)">— 0 이면 대행 미사용</span></label><input id="set_rate" type="number" min="0" max="100" step="0.1" value="${esc(rate)}" style="padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px;width:100%"></div>
+      <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn" onclick="saveAgencySettings()">설정 저장</button></div>
+    </div>
+    <div style="font-size:12px;color:var(--gray-400)">카드·세금계산서 결제는 대행업체 경유로 수수료가 차감됩니다. 직접 거래(대행 미사용)면 수수료율을 0으로 두세요. (기본 대행업체명: 우리사무기 / 15%)</div>
+  </div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>액션</th></tr></thead>
+    <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>앱 로그인</th><th>액션</th></tr></thead>
     <tbody>${es.length? es.map(e=>`<tr>
       <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${engColor(e.id)};margin-right:7px;vertical-align:middle"></span><strong style="color:${engColor(e.id)}">${esc(e.name)}</strong></td><td>${esc(e.phone)||'-'}</td>
       <td><span class="chip">${statusLabel(e.status)}</span></td>
       <td>${e.is_admin?'<span class="badge assigned">대표</span>':'기사'}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deleteEngineer(${e.id})">삭제</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty-state">기사가 없습니다</td></tr>'}
+      <td>${e.locked?'<span style="color:var(--danger);font-weight:700">🔒 잠김</span>':(e.has_password?'🔑 비번 설정됨':'<span style="color:var(--gray-400)">비번 없음</span>')}</td>
+      <td><span style="display:flex;gap:6px">${e.locked?`<button class="btn btn-sm btn-success" onclick="unlockEngineer(${e.id})">잠금해제</button>`:''}<button class="btn btn-sm btn-secondary" onclick="openEngineerModal(${e.id})">편집</button><button class="btn btn-sm btn-danger" onclick="deleteEngineer(${e.id})">삭제</button></span></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">기사가 없습니다</td></tr>'}
     </tbody></table></div>`;
 }
+async function saveAgencySettings(){
+  await api('PUT','/settings/brand_name',{value:v('set_brand')||''});
+  await api('PUT','/settings/agency_name',{value:v('set_agency')||''});
+  await api('PUT','/settings/agency_rate',{value:(v('set_rate')||'0')});
+  await loadAll(); alert('설정이 저장되었습니다.');
+}
+async function unlockEngineer(id){ if(!confirm('이 기사의 잠금을 해제하고 로그인 실패 횟수를 초기화할까요?'))return; await api('PUT','/engineers/'+id,{unlock:true}); await loadAll(); }
 async function deleteEngineer(id){ if(!confirm('이 기사를 삭제하시겠습니까?'))return; await api('DELETE','/engineers/'+id); await loadAll(); }
 
 // ── 수리 이력 ──
@@ -716,7 +737,7 @@ function renderStore(){
       <div class="form-group"><label>메모 (선택)</label><input id="st_memo" placeholder="예: 신품 / 중고 / 고객 특이사항"></div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin:4px 0 12px;font-weight:600;cursor:pointer"><input type="checkbox" id="st_tax" style="width:18px;height:18px"> 🧾 세금계산서 발행</label>
-    <div style="font-size:12px;color:var(--gray-400);margin-bottom:10px">※ 카드 결제 또는 세금계산서 발행 시 우리사무기 대행(매출의 15% 차감)이 적용됩니다.</div>
+    ${agencyOn()?`<div style="font-size:12px;color:var(--gray-400);margin-bottom:10px">※ 카드 결제 또는 세금계산서 발행 시 ${esc(agencyName())} 대행(매출의 ${agencyPct()}% 차감)이 적용됩니다.</div>`:''}
     <button class="btn" onclick="submitStoreSale()">+ 판매 등록</button>
   </div>
   <div style="font-weight:700;margin:6px 2px 8px">오늘 판매 내역 <span style="font-size:12px;color:var(--gray-400)">(전체 내역·집계는 결산 메뉴)</span></div>
@@ -760,11 +781,17 @@ async function deleteInventory(id){ if(!confirm('삭제하시겠습니까?'))ret
 // ── 미수금 · 결제 (회계 장부: 어떤 작업으로 어떻게 입금됐는지) ──
 const PAY_METHODS = { cash:'현금', card:'카드', transfer:'계좌이체', unpaid:'미수' };
 function payMethodLabel(m){ return PAY_METHODS[m] || m || '-'; }
-// ── 결산 (컴플러스) ──
+// ── 결산 ──
 const PM_LABEL = { card:'카드', cash:'현금', transfer:'계좌이체', unpaid:'미수금' };
-function isWoori(r){ return r.payment_method==='card' || r.tax_invoice; }   // 우리사무기 경유(15%)
+// 대행업체(카드/계산서 경유) 설정 — 기사관리에서 변경. 이름/수수료율/사용여부 동적
+function agencyName(){ const n=(state.settings||{}).agency_name; return (n&&n.trim())? n.trim() : '우리사무기'; }
+function brandName(){ const n=(state.settings||{}).brand_name; return (n&&n.trim())? n.trim() : ''; }
+function agencyRate(){ const r=(state.settings||{}).agency_rate; if(r===undefined||r==='') return 0.15; return (Number(r)||0)/100; }
+function agencyOn(){ return agencyRate()>0; }
+function agencyPct(){ return Math.round(agencyRate()*10000)/100; }   // 예: 15
+function isWoori(r){ return agencyOn() && (r.payment_method==='card' || r.tax_invoice); }   // 대행 경유
 function recRevenue(r){ return (Number(r.labor_fee)||0)+(Number(r.parts_fee)||0)+(Number(r.visit_fee)||0); }
-function wooriCut(r){ return isWoori(r)? Math.round(recRevenue(r)*0.15):0; }
+function wooriCut(r){ return isWoori(r)? Math.round(recRevenue(r)*agencyRate()):0; }
 function mySettle(r){ return recRevenue(r)-wooriCut(r); }
 let settleState = { y:null, m:null };
 function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }
@@ -777,15 +804,16 @@ function renderPayments(){
   const inMonth=r=>{ const d=recDate(r.completed_at); return d && d.getFullYear()===y && d.getMonth()===m; };
   const done=(state.receptions||[]).filter(r=>r.status==='completed' && recRevenue(r)>0);
   const md=done.filter(inMonth);
-  // 판매(매장판매 포함) 이달 합산 — 카드/계산서는 우리사무기 대행(15% 차감), 현금/이체는 전액
+  // 판매(매장판매 포함) 이달 합산 — 카드/계산서는 대행 경유(수수료 차감), 현금/이체는 전액
+  const AG=agencyOn();
   const monthTag=`${y}-${String(m+1).padStart(2,'0')}`;
   const salesMonth=(state.sales||[]).filter(s=>(s.sale_date||'').slice(0,7)===monthTag);
-  const saleWoori=s=>(s.payment_method==='card'||s.tax_invoice)?Math.round((Number(s.total_price)||0)*0.15):0;
+  const saleWoori=s=>(AG && (s.payment_method==='card'||s.tax_invoice))?Math.round((Number(s.total_price)||0)*agencyRate()):0;
   const saleMine=s=>(Number(s.total_price)||0)-saleWoori(s);
   const salesRev=salesMonth.reduce((t,s)=>t+(Number(s.total_price)||0),0);
   const salesWoori=salesMonth.reduce((t,s)=>t+saleWoori(s),0);
   const salesMine=salesRev-salesWoori;
-  const salesWpend=(state.sales||[]).filter(s=>(s.payment_method==='card'||s.tax_invoice)&&!s.woori_settled);
+  const salesWpend=AG?(state.sales||[]).filter(s=>(s.payment_method==='card'||s.tax_invoice)&&!s.woori_settled):[];
   const salesWpendAmt=salesWpend.reduce((t,s)=>t+saleMine(s),0);
   const rev=md.reduce((s,r)=>s+recRevenue(r),0);
   const myTotal=md.reduce((s,r)=>s+mySettle(r),0);
@@ -799,7 +827,7 @@ function renderPayments(){
   const byCust={}; md.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); });
   const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
   return `
-  <div class="page-header"><h2>💳 결산 <span style="font-size:13px;color:var(--gray-500)">— 컴플러스</span></h2>
+  <div class="page-header"><h2>💳 결산${brandName()?` <span style="font-size:13px;color:var(--gray-500)">— ${esc(brandName())}</span>`:''}</h2>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-sm btn-secondary" onclick="settleMove(-1)">◀</button>
       <strong>${y}년 ${m+1}월</strong>
@@ -810,43 +838,43 @@ function renderPayments(){
     ${statCard('이달 매출', won(rev+salesRev), '', 20)}
     ${statCard('이달 정산액', won(myTotal+salesMine), 'var(--success)', 20)}
     ${statCard('이달 매장판매', won(salesRev), salesRev>0?'var(--primary)':'', 18)}
-    ${statCard('우리사무기 받을 정산액', won(wooriPendingAmt+salesWpendAmt), (wooriPendingAmt+salesWpendAmt)>0?'var(--warning)':'', 18)}
+    ${AG?statCard(`${agencyName()} 받을 정산액`, won(wooriPendingAmt+salesWpendAmt), (wooriPendingAmt+salesWpendAmt)>0?'var(--warning)':'', 18):''}
     ${statCard('고객 미수금', won(unpaidAmt), unpaidAmt>0?'var(--danger)':'', 18)}
   </div>
-  <div class="split" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
+  <div class="split" style="grid-template-columns:${AG?'1fr 1fr':'1fr'};margin-bottom:16px">
     <div class="detail-panel" style="position:static">
       <h3>이달 결제수단별</h3>
       ${['card','cash','transfer','unpaid'].map(k=>`<div class="detail-row"><span class="detail-value">${PM_LABEL[k]}</span><span class="detail-value" style="text-align:right"><strong>${won(byPM[k])}</strong></span></div>`).join('')}
-      <div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">우리사무기 15%(이달, 판매 포함)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth+salesWoori)}</strong></span></div>
+      ${AG?`<div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">${esc(agencyName())} ${agencyPct()}%(이달, 판매 포함)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth+salesWoori)}</strong></span></div>`:''}
     </div>
-    <div class="detail-panel" style="position:static">
-      <h3>우리사무기 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3>
+    ${AG?`<div class="detail-panel" style="position:static">
+      <h3>${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3>
       ${wooriPending.slice(0,8).map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} · ${PM_LABEL[r.payment_method]||''}${r.tax_invoice?'/계산서':''}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(mySettle(r))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettle(${r.id})">정산받음</button></span></div>`).join('')}
       ${salesWpend.slice(0,8).map(s=>`<div class="detail-row"><span class="detail-value">🛒 ${esc(s.item_name)} · ${PM_LABEL[s.payment_method]||''}${s.tax_invoice?'/계산서':''}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(saleMine(s))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettleSale(${s.id})">정산받음</button></span></div>`).join('')}
       ${(wooriPending.length+salesWpend.length)===0?'<div class="empty-state">받을 정산액 없음</div>':''}
-    </div>
+    </div>`:''}
   </div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th><th style="text-align:right">우리사무기15%</th><th style="text-align:right">정산액</th></tr></thead>
+    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())}${agencyPct()}%</th>`:''}<th style="text-align:right">정산액</th></tr></thead>
     <tbody>${custRows.length? custRows.map(([cid,o])=>`<tr>
       <td><strong>${esc(custName(cid))}</strong></td>
       <td style="text-align:right">${won(o.labor)}</td>
       <td style="text-align:right">${won(o.parts)}</td>
       <td style="text-align:right"><strong>${won(o.rev)}</strong></td>
-      <td style="text-align:right;color:var(--warning)">${o.woori?won(o.woori):'-'}</td>
-      <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>'}
+      ${AG?`<td style="text-align:right;color:var(--warning)">${o.woori?won(o.woori):'-'}</td>`:''}
+      <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`).join('') : `<tr><td colspan="${AG?6:5}" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>`}
     </tbody></table></div>
-  <div style="font-weight:700;margin:18px 2px 8px">🛒 이달 판매 내역 (매장 등) — ${salesMonth.length}건 · 매출 ${won(salesRev)} · 정산 ${won(salesMine)}</div>
+  <div style="font-weight:700;margin:18px 2px 8px">🛒 이달 판매 내역 (매장 등) — ${salesMonth.length}건 · 매출 ${won(salesRev)}${AG?` · 정산 ${won(salesMine)}`:''}</div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>일자</th><th>제품명</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>결제수단</th><th style="text-align:right">우리사무기15%</th><th style="text-align:right">정산액</th></tr></thead>
+    <thead><tr><th>일자</th><th>제품명</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>결제수단</th>${AG?`<th style="text-align:right">${esc(agencyName())}${agencyPct()}%</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
     <tbody>${salesMonth.length? [...salesMonth].sort((a,b)=>(b.sale_date||'').localeCompare(a.sale_date||'')||b.id-a.id).map(s=>`<tr>
       <td style="font-size:12px">${(s.sale_date||'').slice(0,10)}</td>
       <td><strong>${esc(s.item_name)}</strong>${s.customer_id?` <span style="font-size:11px;color:var(--gray-400)">(${esc(custName(s.customer_id))})</span>`:''}</td>
       <td style="text-align:right">${s.quantity||1}</td>
       <td style="text-align:right"><strong>${won(s.total_price)}</strong></td>
       <td><span class="chip">${PM_LABEL[s.payment_method]||payMethodLabel(s.payment_method)}${s.tax_invoice?' /계산서':''}</span></td>
-      <td style="text-align:right;color:var(--warning)">${saleWoori(s)?won(saleWoori(s)):'-'}</td>
-      <td style="text-align:right;color:var(--success)"><strong>${won(saleMine(s))}</strong></td></tr>`).join('') : '<tr><td colspan="7" class="empty-state">이달 판매 내역이 없습니다</td></tr>'}
+      ${AG?`<td style="text-align:right;color:var(--warning)">${saleWoori(s)?won(saleWoori(s)):'-'}</td>
+      <td style="text-align:right;color:var(--success)"><strong>${won(saleMine(s))}</strong></td>`:''}</tr>`).join('') : `<tr><td colspan="${AG?7:5}" class="empty-state">이달 판매 내역이 없습니다</td></tr>`}
     </tbody></table></div>`;
 }
 
