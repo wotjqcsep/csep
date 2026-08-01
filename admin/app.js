@@ -474,12 +474,21 @@ let partForm = { kind:'cpu' };
 const PART_KINDS = {
   cpu: { label:'CPU', g1:{label:'플랫폼',opts:['Intel','AMD']}, g2:'세대/소켓 (예: 15세대, AM6)', val:'모델명 (예: Core i5-15400)' },
   vga: { label:'VGA (그래픽)', g1:{label:'제조사',opts:['NVIDIA','AMD','Intel Arc','내장 그래픽']}, g2:'시리즈 (예: RTX 50)', val:'모델명 (예: RTX 5060)' },
-  mbmaker: { label:'메인보드 제조사', simple:true, val:'제조사 (예: ASUS)' },
-  ram: { label:'RAM 제조사', simple:true, val:'제조사 (예: 삼성)' },
-  ssd: { label:'SSD 제조사/모델', simple:true, val:'제조사/모델 (예: 삼성 990 PRO)' },
-  hdd: { label:'HDD 제조사', simple:true, val:'제조사 (예: WD)' },
-  os: { label:'OS', simple:true, val:'예: Windows 11 Pro' },
-  office: { label:'Office', simple:true, val:'예: Office 2021' },
+  mbmaker:   { label:'메인보드 제조사', simple:true, val:'제조사 (예: ASUS)' },
+  mbchipset: { label:'메인보드 칩셋', simple:true, val:'칩셋 (예: B760, X670)' },
+  pwtype:    { label:'파워 종류', simple:true, val:'종류 (예: ATX, M-ATX, TFX)' },
+  pwwatt:    { label:'파워 와트', simple:true, val:'와트 (예: 500W~550W)' },
+  monport:   { label:'모니터 연결포트', simple:true, val:'포트 (예: HDMI, DP, USB-C)' },
+  ramsize:   { label:'RAM 용량(GB)', simple:true, val:'용량 (예: 16, 32)' },
+  ramspec:   { label:'RAM 규격', simple:true, val:'규격 (예: DDR5)' },
+  ram:       { label:'RAM 제조사', simple:true, val:'제조사 (예: 삼성)' },
+  ssdtype:   { label:'SSD 방식', simple:true, val:'방식 (예: NVMe M.2)' },
+  ssd:       { label:'SSD 제조사/모델', simple:true, val:'제조사/모델 (예: 삼성 990 PRO)' },
+  hdd:       { label:'HDD 제조사', simple:true, val:'제조사 (예: WD)' },
+  os:        { label:'OS', simple:true, val:'예: Windows 11 Pro' },
+  office:    { label:'Office', simple:true, val:'예: Office 2021' },
+  cad:       { label:'캐드(CAD)', simple:true, val:'예: AutoCAD 2024' },
+  adobe:     { label:'어도비(Adobe)', simple:true, val:'예: Photoshop 2024' },
 };
 function renderPartsdata(){   // ⚠️ 이름은 renderPartsdata(소문자 d) — menu.js pageRenderer가 'partsdata'→'renderPartsdata'로 찾음
   const k=partForm.kind; const cfg=PART_KINDS[k];

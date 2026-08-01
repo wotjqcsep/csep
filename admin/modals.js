@@ -115,10 +115,10 @@ function updateVgaModels(){
   list=list.concat(customVals('vga',m,s));
   if(dl) dl.innerHTML=optHtml(list);
 }
-function updateMbChipset(){ const p=v('p_mb_plat'); const list=p?(MB_CHIPSET[p]||[]):[].concat(MB_CHIPSET.Intel,MB_CHIPSET.AMD); const dl=document.getElementById('mb_chipset_list'); if(dl) dl.innerHTML=optHtml(list); }
+function updateMbChipset(){ const p=v('p_mb_plat'); const list=[...(p?(MB_CHIPSET[p]||[]):[].concat(MB_CHIPSET.Intel,MB_CHIPSET.AMD)),...customOpts('mbchipset')]; const dl=document.getElementById('mb_chipset_list'); if(dl) dl.innerHTML=optHtml(list); }
 function mbParse(raw){ if(!raw) return {}; try{ const o=JSON.parse(raw); if(o&&typeof o==='object'&&!Array.isArray(o)) return o; }catch(e){} return {model:String(raw)}; }
 function collectMb(){ const o={plat:v('p_mb_plat'),maker:v('p_mb_maker'),chipset:v('p_mb_chipset'),model:v('p_mb_model')}; return Object.values(o).some(x=>x)? JSON.stringify(o):''; }
-function collectMonitor(){ const inch=v('p_mon_inch'), model=v('p_mon_model'); const ports=MONITOR_PORTS.filter((p,i)=>(document.getElementById('mon_port_'+i)||{}).checked); return (inch||model||ports.length)? JSON.stringify({inch,model,ports}):''; }
+function collectMonitor(){ const inch=v('p_mon_inch'), model=v('p_mon_model'); const ports=[...document.querySelectorAll('.mon-port:checked')].map(el=>el.value); return (inch||model||ports.length)? JSON.stringify({inch,model,ports}):''; }
 function mbSummary(raw){ const o=mbParse(raw); return [o.plat,o.maker,o.chipset,o.model].filter(Boolean).join(' '); }
 // 모니터 파싱: JSON {inch,model,ports[]} 우선, 구버전 문자열도 최대한 분해
 function monParse(raw){
@@ -133,9 +133,9 @@ function monSummary(raw){ const o=monParse(raw); return [o.inch?o.inch+'인치':
 
 // 여러 개 입력(RAM/SSD/HDD) — JSON으로 저장. RAM은 합계 자동계산. opts 있으면 선택+직접입력
 const MULTI_SPECS = {
-  ram: { calc:true, init:2, legacy:'maker', fields:[{k:'size',ph:'용량(GB) 선택/직접',flex:1,opts:['4','8','16','32','64','128']},{k:'spec',ph:'규격',flex:1,opts:['DDR3','DDR4','DDR5','DDR6']},{k:'maker',ph:'제조사',flex:1,opts:['삼성','SK하이닉스','마이크론','G.SKILL','커세어','팀그룹','기타']}] },
-  ssd: { calc:false, legacy:'cap',  fields:[{k:'type',ph:'방식(선택/직접)',flex:1,opts:['2.5인치 SATA','NVMe M.2','M.2 SATA']},{k:'cap',ph:'용량(예:512GB)',flex:1},{k:'maker',ph:'제조사/모델',flex:2}] },
-  hdd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량(예:2TB)',flex:1},{k:'maker',ph:'제조사',flex:2,opts:['WD','씨게이트','도시바','기타']}] },
+  ram: { calc:true, init:2, legacy:'maker', fields:[{k:'size',ph:'용량(GB) 선택/직접',flex:1,opts:['4','8','16','32','64','128'],optKind:'ramsize'},{k:'spec',ph:'규격',flex:1,opts:['DDR3','DDR4','DDR5','DDR6'],optKind:'ramspec'},{k:'maker',ph:'제조사',flex:1,opts:['삼성','SK하이닉스','마이크론','G.SKILL','커세어','팀그룹','기타'],optKind:'ram'}] },
+  ssd: { calc:false, legacy:'cap',  fields:[{k:'type',ph:'방식(선택/직접)',flex:1,opts:['2.5인치 SATA','NVMe M.2','M.2 SATA'],optKind:'ssdtype'},{k:'cap',ph:'용량(예:512GB)',flex:1},{k:'maker',ph:'제조사/모델',flex:2,optKind:'ssd'}] },
+  hdd: { calc:false, legacy:'cap',  fields:[{k:'cap',ph:'용량(예:2TB)',flex:1},{k:'maker',ph:'제조사',flex:2,opts:['WD','씨게이트','도시바','기타'],optKind:'hdd'}] },
 };
 function parseSpecList(kind, raw){
   if(!raw) return [];
@@ -145,13 +145,13 @@ function parseSpecList(kind, raw){
 function multiRow(kind, item, idx){
   item=item||{}; const cfg=MULTI_SPECS[kind];
   const slot = kind==='ram' ? `<span style="flex:none;width:42px;text-align:center;font-size:12px;color:var(--gray-500);font-weight:700">슬롯${(idx||0)+1}</span>` : '';
-  const inputs=cfg.fields.map(f=>`<input class="ms-${kind}-${f.k}" placeholder="${f.ph}"${f.type?` type="${f.type}" min="0"`:''}${(f.opts||f.k==='maker')?` list="ms-${kind}-${f.k}-list"`:''} value="${esc(item[f.k])||''}" style="flex:${f.flex}"${cfg.calc?` oninput="calcMulti('${kind}')"`:''} autocomplete="off">`).join('');
+  const inputs=cfg.fields.map(f=>`<input class="ms-${kind}-${f.k}" placeholder="${f.ph}"${f.type?` type="${f.type}" min="0"`:''}${(f.opts||f.optKind)?` list="ms-${kind}-${f.k}-list"`:''} value="${esc(item[f.k])||''}" style="flex:${f.flex}"${cfg.calc?` oninput="calcMulti('${kind}')"`:''} autocomplete="off">`).join('');
   return `<div class="ms-${kind}-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">${slot}${inputs}<button type="button" class="btn btn-sm btn-danger" style="flex:none" onclick="this.parentElement.remove();${cfg.calc?`calcMulti('${kind}')`:''}">−</button></div>`;
 }
 function multiBlock(kind, raw){
   const cfg=MULTI_SPECS[kind]; const list=parseSpecList(kind, raw);
   const rows=(list.length?list:Array(cfg.init||1).fill({})).map((it,idx)=>multiRow(kind,it,idx)).join('');
-  const datalists=cfg.fields.filter(f=>f.opts||f.k==='maker').map(f=>`<datalist id="ms-${kind}-${f.k}-list">${optHtml([...(f.opts||[]),...(f.k==='maker'?customOpts(kind):[])])}</datalist>`).join('');
+  const datalists=cfg.fields.filter(f=>f.opts||f.optKind).map(f=>`<datalist id="ms-${kind}-${f.k}-list">${optHtml([...(f.opts||[]),...(f.optKind?customOpts(f.optKind):[])])}</datalist>`).join('');
   return `${datalists}<div id="ms-${kind}-rows">${rows}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
       <button type="button" class="btn btn-sm btn-secondary" onclick="addMulti('${kind}')">+ 추가</button>
@@ -274,8 +274,8 @@ function openComputerModal(id, customerId){
         <input id="p_pw_type" list="pw_type_list" value="${esc(pwType)||''}" placeholder="종류(ATX 등)" style="flex:1;min-width:110px" autocomplete="off">
         <input id="p_pw_watt" list="pw_watt_list" value="${esc(pwWatt)||''}" placeholder="와트(선택/1000W↑ 직접)" style="flex:2;min-width:150px" autocomplete="off">
       </div>
-      <datalist id="pw_type_list">${optHtml(POWER_TYPES)}</datalist>
-      <datalist id="pw_watt_list">${optHtml(POWER_WATTS)}</datalist></div>
+      <datalist id="pw_type_list">${optHtml([...POWER_TYPES,...customOpts('pwtype')])}</datalist>
+      <datalist id="pw_watt_list">${optHtml([...POWER_WATTS,...customOpts('pwwatt')])}</datalist></div>
     <div class="form-group"><label>모니터</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
         <input id="p_mon_inch" value="${esc(mon.inch)||''}" placeholder="인치(예: 27)" style="flex:1;min-width:90px" autocomplete="off">
@@ -283,7 +283,7 @@ function openComputerModal(id, customerId){
       </div>
       <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px">연결포트 (복수 선택)</div>
       <div style="display:flex;flex-wrap:wrap;gap:12px">
-        ${MONITOR_PORTS.map((p,i)=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:400;cursor:pointer"><input type="checkbox" id="mon_port_${i}" ${mon.ports.includes(p)?'checked':''} style="width:16px;height:16px"> ${p}</label>`).join('')}
+        ${[...new Set([...MONITOR_PORTS,...customOpts('monport'),...mon.ports])].map(p=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:400;cursor:pointer"><input type="checkbox" class="mon-port" value="${esc(p)}" ${mon.ports.includes(p)?'checked':''} style="width:16px;height:16px"> ${esc(p)}</label>`).join('')}
       </div></div>
     <div class="form-group"><label>RAM (슬롯당 메모리 · 합계 자동계산)</label>${multiBlock('ram',c.ram)}</div>
     <div class="form-group"><label>SSD (여러 개 가능)</label>${multiBlock('ssd',c.ssd)}</div>
@@ -291,7 +291,7 @@ function openComputerModal(id, customerId){
     ${field('p_serial','시리얼번호',c.serial_number)}
     <div class="form-section">소프트웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(설치 확인용 · 선택 또는 직접 입력)</span></div>
     <div class="form-row">${comboField('p_os','OS',c.os,'os_list',[...OS_OPTS,...customOpts('os')])}${comboField('p_office','Office',c.office_version,'office_list',[...OFFICE_OPTS,...customOpts('office')])}</div>
-    <div class="form-row">${comboField('p_cad','캐드(CAD)',c.cad,'cad_list',CAD_OPTS)}${comboField('p_adobe','어도비(Adobe)',c.adobe,'adobe_list',ADOBE_OPTS)}</div>
+    <div class="form-row">${comboField('p_cad','캐드(CAD)',c.cad,'cad_list',[...CAD_OPTS,...customOpts('cad')])}${comboField('p_adobe','어도비(Adobe)',c.adobe,'adobe_list',[...ADOBE_OPTS,...customOpts('adobe')])}</div>
     <div class="form-row">${field('p_etc1','기타 프로그램 1',c.etc_program1)}${field('p_etc2','기타 프로그램 2',c.etc_program2)}</div>
     <div class="form-section">네트워크</div>
     <div class="form-row">${field('p_ip','IP주소',c.ip_address)}${field('p_mac','MAC주소',c.mac_address)}</div>
