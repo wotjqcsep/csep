@@ -474,21 +474,16 @@ let partForm = { kind:'cpu' };
 const PART_KINDS = {
   cpu: { label:'CPU', g1:{label:'플랫폼',opts:['Intel','AMD']}, g2:'세대/소켓 (예: 15세대, AM6)', val:'모델명 (예: Core i5-15400)' },
   vga: { label:'VGA (그래픽)', g1:{label:'제조사',opts:['NVIDIA','AMD','Intel Arc','내장 그래픽']}, g2:'시리즈 (예: RTX 50)', val:'모델명 (예: RTX 5060)' },
-  mbmaker:   { label:'메인보드 제조사', simple:true, val:'제조사 (예: ASUS)' },
-  mbchipset: { label:'메인보드 칩셋', simple:true, val:'칩셋 (예: B760, X670)' },
-  pwtype:    { label:'파워 종류', simple:true, val:'종류 (예: ATX, M-ATX, TFX)' },
-  pwwatt:    { label:'파워 와트', simple:true, val:'와트 (예: 500W~550W)' },
-  monport:   { label:'모니터 연결포트', simple:true, val:'포트 (예: HDMI, DP, USB-C)' },
-  ramsize:   { label:'RAM 용량(GB)', simple:true, val:'용량 (예: 16, 32)' },
-  ramspec:   { label:'RAM 규격', simple:true, val:'규격 (예: DDR5)' },
-  ram:       { label:'RAM 제조사', simple:true, val:'제조사 (예: 삼성)' },
-  ssdtype:   { label:'SSD 방식', simple:true, val:'방식 (예: NVMe M.2)' },
-  ssd:       { label:'SSD 제조사/모델', simple:true, val:'제조사/모델 (예: 삼성 990 PRO)' },
-  hdd:       { label:'HDD 제조사', simple:true, val:'제조사 (예: WD)' },
-  os:        { label:'OS', simple:true, val:'예: Windows 11 Pro' },
-  office:    { label:'Office', simple:true, val:'예: Office 2021' },
-  cad:       { label:'캐드(CAD)', simple:true, val:'예: AutoCAD 2024' },
-  adobe:     { label:'어도비(Adobe)', simple:true, val:'예: Photoshop 2024' },
+  mb:      { label:'메인보드', multi:[ {kind:'mbmaker',label:'제조사',ph:'예: ASUS'}, {kind:'mbchipset',label:'칩셋',ph:'예: B760, X670'} ] },
+  power:   { label:'파워', multi:[ {kind:'pwtype',label:'종류',ph:'예: ATX, M-ATX, TFX'}, {kind:'pwwatt',label:'와트',ph:'예: 500W~550W'} ] },
+  monport: { label:'모니터 연결포트', simple:true, val:'포트 (예: HDMI, DP, USB-C)' },
+  ram:     { label:'RAM', multi:[ {kind:'ramsize',label:'용량(GB)',ph:'예: 16, 32'}, {kind:'ramspec',label:'규격',ph:'예: DDR5'}, {kind:'ram',label:'제조사',ph:'예: 삼성'} ] },
+  ssd:     { label:'SSD', multi:[ {kind:'ssdtype',label:'방식',ph:'예: NVMe M.2'}, {kind:'ssd',label:'제조사/모델',ph:'예: 삼성 990 PRO'} ] },
+  hdd:     { label:'HDD 제조사', simple:true, val:'제조사 (예: WD)' },
+  os:      { label:'OS', simple:true, val:'예: Windows 11 Pro' },
+  office:  { label:'Office', simple:true, val:'예: Office 2021' },
+  cad:     { label:'캐드(CAD)', simple:true, val:'예: AutoCAD 2024' },
+  adobe:   { label:'어도비(Adobe)', simple:true, val:'예: Photoshop 2024' },
 };
 function renderPartsdata(){   // ⚠️ 이름은 renderPartsdata(소문자 d) — menu.js pageRenderer가 'partsdata'→'renderPartsdata'로 찾음
   const k=partForm.kind; const cfg=PART_KINDS[k];
@@ -506,21 +501,22 @@ function renderPartsdata(){   // ⚠️ 이름은 renderPartsdata(소문자 d) �
     </div>
     <div class="vd-card">
       <div style="font-weight:800;margin-bottom:12px">새 부품 추가 <span style="font-weight:400;color:var(--gray-500);font-size:12px">— 추가하면 장치정보 드롭다운에 바로 나타납니다</span></div>
-      <div class="form-group"><label>종류</label><select id="pd_kind" onchange="partForm.kind=this.value;renderInto()">
+      <div class="form-group"><label>부품 종류</label><select id="pd_kind" onchange="partForm.kind=this.value;renderInto()">
         ${Object.entries(PART_KINDS).map(([kk,c])=>`<option value="${kk}" ${k===kk?'selected':''}>${c.label}</option>`).join('')}
       </select></div>
-      ${cfg.simple?'':`<div class="form-row">
-        <div class="form-group"><label>${cfg.g1.label}</label><select id="pd_g1">${cfg.g1.opts.map(o=>`<option>${o}</option>`).join('')}</select></div>
-        <div class="form-group"><label>${cfg.g2}</label><input id="pd_g2" placeholder="${cfg.g2}"></div>
-      </div>`}
-      <div class="form-group"><label>${cfg.val}</label><input id="pd_val" placeholder="${cfg.val}" onkeydown="if(event.key==='Enter')addPartOption()"></div>
-      <button class="btn" onclick="addPartOption()">+ 추가</button>
-    </div>
-    <div class="vd-card">
-      <div style="font-weight:800;margin-bottom:10px">추가된 ${cfg.label} 목록 (${list.length})</div>
-      ${list.length? list.map(o=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--gray-100);font-size:13px">
-        <span>${o.grp?`<span class="chip">${esc((o.grp||'').replace('||',' · '))}</span> `:''}${esc(o.value)}</span>
-        <button class="btn btn-sm btn-danger" onclick="deletePartOption(${o.id})">삭제</button></div>`).join('') : '<div class="empty-state">추가된 항목이 없습니다</div>'}
+      ${cfg.multi
+        ? cfg.multi.map(sf=>partSubEditor(sf.kind, sf.label, sf.ph)).join('')
+        : `${cfg.simple?'':`<div class="form-row">
+            <div class="form-group"><label>${cfg.g1.label}</label><select id="pd_g1">${cfg.g1.opts.map(o=>`<option>${o}</option>`).join('')}</select></div>
+            <div class="form-group"><label>${cfg.g2}</label><input id="pd_g2" placeholder="${cfg.g2}"></div>
+          </div>`}
+          <div class="form-group"><label>${cfg.val}</label><input id="pd_val" placeholder="${cfg.val}" onkeydown="if(event.key==='Enter')addPartOption()"></div>
+          <button class="btn" onclick="addPartOption()">+ 추가</button>
+          <div style="margin-top:14px;border-top:1px solid var(--gray-100);padding-top:10px">
+            <div style="font-weight:700;font-size:13px;margin-bottom:6px">등록된 ${cfg.label} (${list.length})</div>
+            ${partOptChips(k)}
+          </div>`
+      }
     </div>
     <div class="vd-card">
       <div style="font-weight:800;margin-bottom:4px">📝 처리 결과 프리셋 (${(state.resultPresets||[]).length})</div>
@@ -539,6 +535,7 @@ function renderPartsdata(){   // ⚠️ 이름은 renderPartsdata(소문자 d) �
 async function addResultPreset(){
   const t=(v('pd_preset')||'').trim(); if(!t){ alert('문구를 입력하세요'); return; }
   try{ await api('POST','/result-presets',{text:t}); }catch(e){ alert('추가 실패: '+(e&&e.message?e.message:e)); return; }
+  const el=document.getElementById('pd_preset'); if(el){ el.value=''; el.blur(); }
   await loadAll();
 }
 async function editResultPreset(id){
@@ -553,12 +550,34 @@ async function deleteResultPreset(id){
   try{ await api('DELETE','/result-presets/'+id); }catch(e){ alert('삭제 실패'); return; }
   await loadAll();
 }
+// 부품 옵션: 종류별 등록값 칩 목록(삭제 가능)
+function partOptChips(kind){
+  const list=(state.partOptions||[]).filter(o=>o.kind===kind);
+  return list.length? `<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(o=>`<span class="chip" style="display:inline-flex;align-items:center;gap:5px">${o.grp?esc((o.grp||'').replace('||',' · '))+' · ':''}${esc(o.value)}<b style="cursor:pointer;color:var(--danger);font-size:15px;line-height:1" onclick="deletePartOption(${o.id})">×</b></span>`).join('')}</div>` : '<div style="color:var(--gray-400);font-size:12px">아직 없음</div>';
+}
+// multi 부품의 세부항목 편집기(라벨+입력+추가+칩목록)
+function partSubEditor(kind, label, ph){
+  return `<div style="margin-bottom:14px;padding:11px;border:1px solid var(--gray-200);border-radius:9px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:7px">${label}</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input id="pd_${kind}" placeholder="${ph||''}" style="flex:1;padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px" onkeydown="if(event.key==='Enter')addPartOptionSub('${kind}','pd_${kind}')">
+      <button class="btn btn-sm" onclick="addPartOptionSub('${kind}','pd_${kind}')">+ 추가</button>
+    </div>
+    ${partOptChips(kind)}
+  </div>`;
+}
+async function addPartOptionSub(kind, inputId){
+  const val=(v(inputId)||'').trim(); if(!val){ alert('값을 입력하세요'); return; }
+  try{ await api('POST','/part-options',{kind, grp:'', value:val}); }catch(e){ alert('추가 실패: '+(e&&e.message?e.message:e)); return; }
+  const el=document.getElementById(inputId); if(el){ el.value=''; el.blur(); }
+  await loadAll();
+}
 async function addPartOption(){
   const k=partForm.kind, cfg=PART_KINDS[k], val=v('pd_val');
   if(!val){ alert('값을 입력하세요'); return; }
   const grp = cfg.simple ? '' : [v('pd_g1'),v('pd_g2')].filter(Boolean).join('||');
   try{ await api('POST','/part-options',{kind:k, grp, value:val}); }catch(e){ alert('추가 실패: '+(e&&e.message?e.message:e)); return; }
-  const el=document.getElementById('pd_val'); if(el)el.value='';
+  const el=document.getElementById('pd_val'); if(el){ el.value=''; el.blur(); }
   await loadAll();
 }
 async function deletePartOption(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/part-options/'+id); await loadAll(); }
