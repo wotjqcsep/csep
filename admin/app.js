@@ -806,7 +806,7 @@ function renderEstimates(){
         <button class="btn btn-sm btn-secondary" onclick="estApplyBulk()">전체 적용</button></div>
     </div>
     <div id="est_paste_box" style="display:none;margin-bottom:10px">
-      <textarea id="est_paste" placeholder="컴퓨존 '견적서 소스 복사'의 [텍스트]를 복사해 여기에 붙여넣으세요 (또는 견적 내용 텍스트)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
+      <textarea id="est_paste" placeholder="컴퓨존 견적서 소스복사의 [텍스트]/[HTML] 또는 [URL 공유] 링크를 붙여넣으세요 (셋 다 인식)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
       <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this)">📋 이 내용 가져오기</button></div>
     </div>
     <div class="table-container"><table class="table">

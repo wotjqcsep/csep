@@ -758,7 +758,7 @@ async function aiJsonFromText(prompt) {
   if (gKey) {
     const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gKey },
-      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', temperature: 0, max_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
@@ -783,15 +783,28 @@ function estimatePrompt(txt) {
     '각 부품 필드: cat(분류), name(전체 품명/모델명 그대로), price(판매가격 원, 숫자만-콤마·"원" 제거), qty(수량, 없으면 1).',
     'cat은 다음 중 하나로 정규화: CPU, 메인보드, 메모리, 그래픽카드, SSD, HDD, 케이스, 파워, 쿨러/튜닝, 모니터, 소프트웨어, 주변기기, 조립비/AS.',
     '매핑 예: "AMD CPU"/"인텔 CPU"→CPU, "AMD 소켓"/"인텔 소켓"→메인보드, "RAM"→메모리, "VGA"/"그래픽카드"→그래픽카드, "M.2"/"NVMe"→SSD, "POWER"→파워, "쿨러"→쿨러/튜닝.',
+    '★중요: 목록에 있는 모든 구성 부품을 하나도 빠짐없이 전부 포함하세요. (쿨러/케이스/파워/모니터/소프트웨어/주변기기까지 전부). 개수를 임의로 줄이지 마세요.',
     '총 견적금액/합계/총액/배송비/할인 안내 줄은 제외하고 실제 부품만. 가격 없는 항목은 제외. HTML 태그는 무시하고 내용만.',
     'JSON 형식: {"items":[{"cat":"","name":"","price":0,"qty":1}]}',
     '견적 내용:', '"""', String(txt).slice(0, 8000), '"""',
   ].join('\n');
 }
-// 컴퓨존 견적 → AI로 부품·가격 파싱 (텍스트 붙여넣기 또는 스크린샷)
+// 컴퓨존 공유 URL(사용자 본인 견적 링크) → 페이지 텍스트 추출
+async function fetchQuoteText(url) {
+  const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko' } });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  let html = await resp.text();
+  return html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim();
+}
+// 컴퓨존 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
-  // 텍스트(소스복사) 우선 — OCR 불필요, 더 정확
-  const textIn = req.body && req.body.text;
+  // 텍스트/URL(소스복사·URL공유) 우선 — OCR 불필요, 더 정확
+  let textIn = req.body && (req.body.text || req.body.url);
+  if (typeof textIn === 'string' && /^https?:\/\//i.test(textIn.trim())) {
+    try { textIn = await fetchQuoteText(textIn.trim()); }
+    catch (e) { return res.status(502).json({ error: 'URL에서 견적을 불러오지 못했습니다: ' + e.message + ' (텍스트 복사나 캡처를 이용해보세요)' }); }
+  }
   if (typeof textIn === 'string' && textIn.trim()) {
     try { const out = await aiJsonFromText(estimatePrompt(textIn)); return res.json({ items: Array.isArray(out.items) ? out.items : [], _src: 'text' }); }
     catch (e) { console.log('[견적붙여넣기] AI 오류:', e.message); return res.status(502).json({ error: 'AI 분석 실패: ' + e.message }); }
