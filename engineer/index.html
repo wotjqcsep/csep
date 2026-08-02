@@ -532,11 +532,11 @@ function scanBiosPhoto(input){
   const f=input.files&&input.files[0]; input.value='';
   if(!f) return;
   const el=document.getElementById('custDevSheet');
-  if(el) el.innerHTML=`<h3>🖥️ BIOS 분석 중…</h3><div class="empty" style="padding:30px 0">📷 사진을 AI가 분석하고 있습니다.<br>잠시만 기다려주세요…</div>`;
+  if(el) el.innerHTML=`<h3>🖥️ 글자 인식 중…</h3><div class="empty" style="padding:30px 0">📷 사진에서 글자를 읽고 있습니다.<br>잠시만 기다려주세요…</div>`;
   compressImage(f,async d=>{
     let r={};
     try{ r=await api('POST','/computers/ai-scan',{image:d})||{}; }
-    catch(e){ alert('AI 분석 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); r={}; }
+    catch(e){ alert('글자 인식 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); r={}; }
     renderDevScanForm(r);
   });
 }
@@ -553,7 +553,8 @@ function renderDevScanForm(r){
   const rams=(Array.isArray(r.ram)&&r.ram.length)?r.ram:[{}];
   const inp=(id,v,ph)=>`<input id="${id}" value="${esc(v)||''}" placeholder="${ph||''}" style="width:100%;padding:10px;border:1px solid #dee2e6;border-radius:9px">`;
   el.innerHTML=`<h3>🖥️ 장치 등록 확인</h3>
-    <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px">AI가 추출한 값입니다. 확인·수정 후 저장하세요.</div>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px">OCR로 읽은 값입니다. 확인·수정 후 저장하세요.</div>
+    ${r._ocr?`<details style="margin-bottom:10px"><summary style="font-size:12px;color:var(--primary);cursor:pointer">📄 인식된 원문 보기 (참고용)</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:11px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:8px;max-height:160px;overflow:auto;margin:6px 0 0">${esc(r._ocr)}</pre></details>`:''}
     <div class="fg"><label>장비명 (선택)</label>${inp('ds_name',r.name,'예: 사무실 PC')}</div>
     <div class="fg"><label>종류</label><select id="ds_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px">
       ${Object.entries(DEVICE_TYPES).map(([k,l])=>`<option value="${k}" ${r.device_type===k?'selected':''}>${l}</option>`).join('')}</select></div>

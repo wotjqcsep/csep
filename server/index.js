@@ -532,78 +532,79 @@ app.post('/api/computers', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
-// BIOS 화면 사진 → 장치정보 자동추출 (하이브리드: Cloud Vision OCR → Gemini 정리)
-// env: GEMINI_API_KEY(필수), GOOGLE_VISION_API_KEY(권장). 둘 다 GOOGLE_API_KEY로 대체 가능.
-async function visionOcr(b64) {
+// BIOS 화면 사진 → 장치정보 자동추출 (Cloud Vision OCR 전용, 무료).
+// env: GOOGLE_VISION_API_KEY (또는 GOOGLE_API_KEY). 키 없으면 503.
+// OCR로 읽은 글자를 서버에서 규칙기반으로 파싱 → CPU/RAM/메인보드/시리얼 추정.
+function parseBiosText(text) {
+  const out = { name: '', device_type: 'desktop', cpu: '', serial_number: '',
+    motherboard: { plat: '', maker: '', chipset: '', model: '' }, ram: [] };
+  if (!text) return out;
+  const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const joined = lines.join('\n');
+  // CPU: 우선순위 Ryzen → Core i → Xeon → Pentium/Celeron/Athlon
+  const ry = joined.match(/Ryzen\s*(?:Threadripper\s*)?[3579]\s*\d{3,4}[A-Z0-9]{0,3}/i);
+  const ci = joined.match(/(?:Core\s*)?\bi[3579][\s-]?\d{4,5}[A-Z]{0,2}\b/i);
+  const xe = joined.match(/Xeon[\w-]*\s*[\w-]*\d{3,4}[A-Z0-9]{0,3}/i);
+  const pc = joined.match(/\b(?:Pentium|Celeron|Athlon)[\w\s-]*?\d{2,5}[A-Z0-9]{0,3}\b/i);
+  if (ry) { out.cpu = 'AMD ' + ry[0].replace(/\s+/g, ' ').trim(); out.motherboard.plat = 'AMD'; }
+  else if (ci) {
+    let t = ci[0].replace(/\s+/g, ' ').trim();
+    if (!/Core/i.test(t)) t = 'Intel Core ' + t;
+    out.cpu = t; out.motherboard.plat = 'Intel';
+  }
+  else if (xe) { out.cpu = 'Intel ' + xe[0].replace(/\s+/g, ' ').trim(); out.motherboard.plat = 'Intel'; }
+  else if (pc) { out.cpu = pc[0].replace(/\s+/g, ' ').trim(); }
+  if (!out.motherboard.plat) {
+    if (/\bAMD\b|Ryzen|Athlon/i.test(joined)) out.motherboard.plat = 'AMD';
+    else if (/\bIntel\b|Xeon|Pentium|Celeron/i.test(joined)) out.motherboard.plat = 'Intel';
+  }
+  // 메인보드 제조사: 실제 보드 브랜드 우선, 없으면 Intel
+  const brand = joined.match(/\b(ASUS|ASRock|GIGABYTE|MSI|BIOSTAR|SuperMicro|ECS|Foxconn|COLORFUL)\b/i);
+  if (brand) out.motherboard.maker = brand[1].toUpperCase() === 'ASUS' ? 'ASUS' : brand[1];
+  else if (/\bIntel\s+Corporation\b/i.test(joined)) out.motherboard.maker = 'Intel';
+  // 칩셋: B550, Z790, H610, X670 등 (뒤 폼팩터 M/D 등은 제외)
+  const chM = joined.match(/\b([ABHXZ]\d{2,3})[A-Z]?\b/);
+  if (chM) out.motherboard.chipset = chM[1];
+  // 시리얼
+  const snM = joined.match(/(?:Serial\s*(?:Number|No\.?|#)?|S\/N)\s*[:：]?\s*([A-Za-z0-9\-]{5,})/i);
+  if (snM) out.serial_number = snM[1];
+  // RAM: 총 용량(GB) + 규격(DDRx-속도)
+  const sizeM = joined.match(/(?:Total\s*Memory|Memory\s*Size|System\s*Memory|Installed\s*Memory)\s*[:：]?\s*(\d{1,3})\s*GB/i)
+    || joined.match(/\b(\d{1,3})\s*GB\b/i);
+  const ddrM = joined.match(/DDR[345]/i);
+  const mhzM = joined.match(/(\d{3,5})\s*MHz/i) || joined.match(/DDR[345][\s-]*(\d{3,5})/i);
+  let spec = '';
+  if (ddrM) spec = ddrM[0].toUpperCase() + (mhzM ? ('-' + mhzM[1]) : '');
+  else if (mhzM) spec = mhzM[1] + 'MHz';
+  if (sizeM || spec) out.ram.push({ size: sizeM ? sizeM[1] : '', spec, maker: '' });
+  return out;
+}
+app.post('/api/computers/ai-scan', wrap(async (req, res) => {
   const key = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) return '';   // Vision 키 없으면 OCR 생략 → Gemini 비전 단독
+  if (!key) return res.status(503).json({ error: 'OCR 키(GOOGLE_VISION_API_KEY)가 설정되지 않았습니다. 직접 입력해주세요.' });
+  const image = req.body && req.body.image;
+  if (!image) return res.status(400).json({ error: '이미지가 없습니다' });
+  // data URL 접두사 제거
+  const m = String(image).match(/^data:(image\/[^;]+);base64,(.*)$/s);
+  const b64 = m ? m[2] : String(image);
   try {
     const resp = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requests: [{ image: { content: b64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
     });
     const data = await resp.json();
-    if (!resp.ok) { console.log('[AI스캔] Vision 오류:', JSON.stringify(data).slice(0, 200)); return ''; }
-    const r = data.responses && data.responses[0];
-    return (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
-  } catch (e) { console.log('[AI스캔] Vision 예외:', e.message); return ''; }
-}
-app.post('/api/computers/ai-scan', wrap(async (req, res) => {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) return res.status(503).json({ error: 'AI 키(GEMINI_API_KEY)가 설정되지 않았습니다. 직접 입력해주세요.' });
-  const image = req.body && req.body.image;
-  if (!image) return res.status(400).json({ error: '이미지가 없습니다' });
-  // data URL 접두사 제거
-  const m = String(image).match(/^data:(image\/[^;]+);base64,(.*)$/s);
-  const mimeType = m ? m[1] : 'image/jpeg';
-  const b64 = m ? m[2] : String(image);
-  // 1단계: Cloud Vision OCR로 화면 글자를 정확히 추출 (실패해도 진행)
-  const ocrText = await visionOcr(b64);
-  // 2단계: Gemini에 사진 + OCR 텍스트를 함께 주고 항목별 JSON으로 정리
-  const prompt = [
-    '이 이미지는 PC의 BIOS/UEFI 설정 화면입니다. 화면에 실제로 보이는 하드웨어 정보만 추출하세요.',
-    ocrText ? '아래는 같은 화면을 OCR로 읽은 원문 텍스트입니다. 사진과 함께 참고해 정확도를 높이세요(OCR 오탈자는 사진으로 보정):' : '',
-    ocrText ? ('```\n' + ocrText.slice(0, 4000) + '\n```') : '',
-    '보이지 않는 값은 절대 지어내지 말고 빈 문자열("") 또는 빈 배열([])로 두세요.',
-    '아래 JSON 스키마 그대로, 다른 텍스트 없이 JSON만 반환하세요:',
-    '{',
-    '  "name": "",',
-    '  "device_type": "desktop|laptop|server|printer|other 중 하나(모르면 desktop)",',
-    '  "cpu": "CPU 모델명 (예: Intel Core i5-12400)",',
-    '  "serial_number": "",',
-    '  "motherboard": {"plat":"Intel 또는 AMD 또는 빈문자열","maker":"제조사","chipset":"칩셋","model":"세부모델"},',
-    '  "ram": [{"size":"용량GB 숫자만","spec":"규격(예: DDR4-3200)","maker":"제조사"}]',
-    '}',
-    'RAM은 슬롯/모듈별로 배열에 나눠 담되, 총합만 보이면 한 항목으로 담으세요.',
-  ].filter(Boolean).join('\n');
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [ { text: prompt }, { inline_data: { mime_type: mimeType, data: b64 } } ] }],
-        generationConfig: { temperature: 0, response_mime_type: 'application/json' },
-      }),
-    });
-    const data = await resp.json();
     if (!resp.ok) {
-      console.log('[AI스캔] Gemini 오류:', JSON.stringify(data).slice(0, 300));
-      return res.status(502).json({ error: 'AI 분석 실패: ' + ((data.error && data.error.message) || resp.status) });
+      console.log('[BIOS스캔] Vision 오류:', JSON.stringify(data).slice(0, 300));
+      return res.status(502).json({ error: 'OCR 실패: ' + ((data.error && data.error.message) || resp.status) });
     }
-    let text = '';
-    try { text = data.candidates[0].content.parts.map(p => p.text || '').join(''); } catch (e) {}
-    // 코드펜스/잡텍스트 방어: 첫 { ~ 마지막 } 만 파싱
-    const s = text.indexOf('{'), e2 = text.lastIndexOf('}');
-    if (s < 0 || e2 < 0) return res.status(500).json({ error: 'AI 응답을 해석하지 못했습니다', raw: text.slice(0, 200) });
-    let parsed;
-    try { parsed = JSON.parse(text.slice(s, e2 + 1)); }
-    catch (e) { return res.status(500).json({ error: 'AI 응답 JSON 파싱 실패', raw: text.slice(0, 200) }); }
-    parsed._ocr = !!ocrText;   // 디버그: OCR 사용 여부
+    const r = data.responses && data.responses[0];
+    const ocrText = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
+    const parsed = parseBiosText(ocrText);
+    parsed._ocr = ocrText.slice(0, 2000);   // 원문도 함께 반환(앱에서 참고/직접입력 보조)
     res.json(parsed);
   } catch (e) {
-    console.log('[AI스캔] 오류:', e.message);
-    res.status(500).json({ error: 'AI 스캔 중 오류: ' + e.message });
+    console.log('[BIOS스캔] 오류:', e.message);
+    res.status(500).json({ error: 'OCR 스캔 중 오류: ' + e.message });
   }
 }));
 
