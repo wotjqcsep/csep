@@ -798,11 +798,16 @@ function renderEstimates(){
   </div>
   <div class="vd-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-      <div style="display:flex;gap:8px;align-items:center;font-weight:800">품목
-        <label class="btn btn-sm" style="cursor:pointer;background:#f3e8ff;color:#7048e8;margin:0;font-weight:700">📷 컴퓨존 견적 가져오기(AI)<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label></div>
+      <div style="display:flex;gap:6px;align-items:center;font-weight:800;flex-wrap:wrap">품목
+        <label class="btn btn-sm" style="cursor:pointer;background:#f3e8ff;color:#7048e8;margin:0;font-weight:700">📷 캡처 가져오기<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label>
+        <button class="btn btn-sm" style="background:#e7f5ff;color:#1971c2;margin:0;font-weight:700" onclick="var b=document.getElementById('est_paste_box');b.style.display=b.style.display==='none'?'block':'none'">📋 붙여넣기 가져오기</button></div>
       <div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;color:var(--gray-500)">일괄 마진</span>
         <input id="est_bulk" type="number" value="10" style="width:56px"> %
         <button class="btn btn-sm btn-secondary" onclick="estApplyBulk()">전체 적용</button></div>
+    </div>
+    <div id="est_paste_box" style="display:none;margin-bottom:10px">
+      <textarea id="est_paste" placeholder="컴퓨존 '견적서 소스 복사'의 [텍스트]를 복사해 여기에 붙여넣으세요 (또는 견적 내용 텍스트)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
+      <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this)">📋 이 내용 가져오기</button></div>
     </div>
     <div class="table-container"><table class="table">
       <thead><tr><th>분류</th><th>품명</th><th>사양/비고</th><th>수량</th><th>매입가</th><th>마진</th><th>판매단가</th><th>금액</th><th></th></tr></thead>
@@ -896,6 +901,24 @@ async function estAiImport(input){
   const bulk=Number(v('est_bulk'))||10;
   items.forEach(it=>{ body.insertAdjacentHTML('beforeend', estRowHtml({ cat:it.cat||'', name:it.name||'', cost:(Number(it.price)||''), qty:(Number(it.qty)||1), margin:bulk })); });
   estCalc();
+  alert(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
+}
+async function estPasteImport(btn){
+  const t=(v('est_paste')||'').trim();
+  if(!t){ alert('붙여넣은 내용이 없습니다. 컴퓨존 견적서 소스복사의 [텍스트]를 붙여넣으세요.'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='⏳ 분석 중…'; }
+  let r;
+  try{ r=await api('POST','/estimate/scan',{text:t}); }
+  catch(e){ alert('가져오기 실패: '+(e&&e.message?e.message:e)); if(btn){btn.disabled=false;btn.textContent='📋 이 내용 가져오기';} return; }
+  if(btn){ btn.disabled=false; btn.textContent='📋 이 내용 가져오기'; }
+  const items=(r&&r.items)||[];
+  if(!items.length){ alert('부품을 인식하지 못했습니다. 붙여넣은 내용을 확인해주세요.'); return; }
+  const body=document.getElementById('est_body'); if(!body)return;
+  const bulk=Number(v('est_bulk'))||10;
+  items.forEach(it=>{ body.insertAdjacentHTML('beforeend', estRowHtml({ cat:it.cat||'', name:it.name||'', cost:(Number(it.price)||''), qty:(Number(it.qty)||1), margin:bulk })); });
+  estCalc();
+  const box=document.getElementById('est_paste_box'); if(box)box.style.display='none';
+  const ta=document.getElementById('est_paste'); if(ta)ta.value='';
   alert(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
 }
 
