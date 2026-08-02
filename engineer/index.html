@@ -551,17 +551,38 @@ function preprocessForOcr(dataUrl, cb){
   img.onerror=()=>cb(dataUrl);
   img.src=dataUrl;
 }
-function scanBiosPhoto(input){
+function scanBiosPhoto(input, merge){
   const f=input.files&&input.files[0]; input.value='';
   if(!f) return;
-  scanProgress('사진을 분석하고 있습니다…');
-  // Google Vision으로 전송 (사진 원본이 인식 정확도에 유리 — 전처리 없이 압축본만)
+  const cur = merge ? collectDevScanForm() : null;   // 보강이면 현재 값 보존
+  scanProgress(merge?'보강 사진을 분석하고 있습니다…':'사진을 분석하고 있습니다…');
   compressImage(f,async d=>{
     let r={};
     try{ r=await api('POST','/computers/ai-scan',{image:d})||{}; }
-    catch(e){ alert('글자 인식 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); renderDevScanForm({}); return; }
-    renderDevScanForm(r);
+    catch(e){ alert('글자 인식 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); renderDevScanForm(cur||{}); return; }
+    renderDevScanForm(merge?mergeDevData(cur,r):r);
   });
+}
+// 확인폼의 현재 입력값을 구조화 객체로 수집
+function collectDevScanForm(){
+  const val=id=>{ const e=document.getElementById(id); return e?e.value.trim():''; };
+  const ram=[...document.querySelectorAll('#ds_ram .dev-ram-row')].map(r=>({size:r.querySelector('.ram-size').value.trim(),spec:r.querySelector('.ram-spec').value.trim(),maker:r.querySelector('.ram-maker').value.trim()})).filter(x=>x.size||x.spec||x.maker);
+  const ssd=[...document.querySelectorAll('#ds_ssd .dev-ssd-row')].map(r=>({type:r.querySelector('.ssd-type').value.trim(),cap:r.querySelector('.ssd-cap').value.trim(),maker:r.querySelector('.ssd-maker').value.trim()})).filter(x=>x.type||x.cap||x.maker);
+  const hdd=[...document.querySelectorAll('#ds_hdd .dev-hdd-row')].map(r=>({cap:r.querySelector('.hdd-cap').value.trim(),maker:r.querySelector('.hdd-maker').value.trim()})).filter(x=>x.cap||x.maker);
+  return { name:val('ds_name'), device_type:val('ds_type'), cpu:val('ds_cpu'), serial_number:val('ds_serial'), bios_version:val('ds_bios'),
+    motherboard:{plat:val('ds_mb_plat'),maker:val('ds_mb_maker'),chipset:val('ds_mb_chipset'),model:val('ds_mb_model')}, ram, ssd, hdd, _ocr:(devScanLast&&devScanLast._ocr)||'' };
+}
+// 기존 값 유지 + 새 값으로 빈 칸 채움 + 배열은 중복 제외하고 추가
+function mergeDevData(cur,add){
+  cur=cur||{}; add=add||{}; const mb=add.motherboard||{}; const cmb=cur.motherboard||{};
+  const pick=(a,b)=>(a&&String(a).trim())?a:(b||'');
+  const key=x=>JSON.stringify(x).toLowerCase().replace(/[^a-z0-9]/g,'');
+  const mergeArr=(a,b)=>{ a=a||[];b=b||[]; const seen=new Set(a.map(key)); const out=[...a]; for(const x of b){ const k=key(x); if(k&&!seen.has(k)){seen.add(k);out.push(x);} } return out; };
+  return { name:pick(cur.name,add.name), device_type:cur.device_type||add.device_type||'desktop',
+    cpu:pick(cur.cpu,add.cpu), serial_number:pick(cur.serial_number,add.serial_number), bios_version:pick(cur.bios_version,add.bios_version),
+    motherboard:{plat:pick(cmb.plat,mb.plat),maker:pick(cmb.maker,mb.maker),chipset:pick(cmb.chipset,mb.chipset),model:pick(cmb.model,mb.model)},
+    ram:mergeArr(cur.ram,add.ram), ssd:mergeArr(cur.ssd,add.ssd), hdd:mergeArr(cur.hdd,add.hdd),
+    _src:add._src, _ocr:add._ocr||cur._ocr };
 }
 function ramRowHtml(x){ x=x||{};
   return `<div class="dev-ram-row" style="display:flex;gap:6px;margin-bottom:6px">
@@ -625,8 +646,13 @@ function renderDevScanForm(r){
     <div class="fg"><label>HDD</label><div id="ds_hdd">${(Array.isArray(r.hdd)&&r.hdd.length?r.hdd:[]).map(hddRowHtml).join('')}</div>
       <button type="button" class="btn btn-ghost" style="margin:0;padding:7px" onclick="document.getElementById('ds_hdd').insertAdjacentHTML('beforeend',hddRowHtml())">+ HDD 추가</button></div>
     <div class="fg"><label>시리얼번호</label>${inp('ds_serial',r.serial_number,'')}</div>
-    <label class="btn btn-success" style="margin-top:6px;text-align:center;cursor:pointer;display:block">📸 다시 촬영 (다시 인식)
-      <input type="file" accept="image/*" capture="environment" onchange="scanBiosPhoto(this)" style="display:none"></label>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <label class="btn btn-success" style="flex:1;text-align:center;cursor:pointer;margin:0">📸 다시 촬영
+        <input type="file" accept="image/*" capture="environment" onchange="scanBiosPhoto(this)" style="display:none"></label>
+      <label class="btn" style="flex:1;text-align:center;cursor:pointer;margin:0;background:#e7f5ff;color:#1971c2">➕ 보강 촬영
+        <input type="file" accept="image/*" capture="environment" onchange="scanBiosPhoto(this,true)" style="display:none"></label>
+    </div>
+    <div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ 보강 촬영: 다른 화면(탭)을 찍어 빈 칸·추가 부품을 채웁니다. 기존 값은 유지됩니다.</div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn btn-ghost" style="flex:1" onclick="renderCustDevList()">취소</button>
       <button class="btn btn-primary" style="flex:1" onclick="saveDevScan(this)">저장</button>
