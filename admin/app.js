@@ -763,105 +763,122 @@ async function submitStoreSale(){
   await loadAll();
 }
 
-// ── 견적서 (틀, 컴퓨존식 부품 분류) ── 매입가·마진 내부용, 인쇄엔 판매가만.
+// ── 견적서 (컴퓨존식 부품 분류, 상태보존 estState) ── 매입가·마진 내부용, 인쇄엔 판매가만.
 const EST_CATS=['CPU','메인보드','메모리','그래픽카드','SSD','HDD','케이스','파워','쿨러/튜닝','모니터','소프트웨어','주변기기','조립비/AS'];
-function estRowHtml(x){ x=x||{};
-  return `<tr class="est-row">
+let estState=null;
+function estToday(){ const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
+function estInit(){ if(estState) return; const n=new Date(), t=estToday();
+  estState={ company:((state.settings||{}).company_name)||'', contact:'', customer:'', date:t,
+    no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:10,
+    rows:EST_CATS.map(c=>({cat:c,name:'',spec:'',qty:1,cost:'',margin:10})) }; }
+function estRowHtml(x,i){ x=x||{};
+  const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:10)||0, qty=Number(x.qty)||1, price=Math.round(cost*(1+margin/100)), amt=price*qty;
+  return `<tr class="est-row" data-i="${i}">
     <td><input class="est-cat" value="${esc(x.cat)||''}" placeholder="분류" style="width:92px;font-weight:600;background:var(--gray-50)"></td>
     <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [ASUS] PRIME B650M-K)" style="width:100%;min-width:150px"></td>
     <td><input class="est-spec" value="${esc(x.spec)||''}" placeholder="사양/비고" style="width:100%;min-width:120px"></td>
-    <td><input class="est-qty" type="number" min="1" value="${x.qty||1}" oninput="estCalc()" style="width:56px"></td>
-    <td><input class="est-cost" type="number" min="0" value="${x.cost!=null?x.cost:''}" placeholder="매입가" oninput="estCalc()" style="width:96px"></td>
-    <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:10}" oninput="estCalc()" style="width:52px"> %</td>
-    <td class="est-price" style="text-align:right;font-weight:600">₩0</td>
-    <td class="est-amt" style="text-align:right;font-weight:800">₩0</td>
-    <td><button class="btn btn-sm btn-danger" onclick="this.closest('tr').remove();estCalc()">×</button></td>
+    <td><input class="est-qty" type="number" min="1" value="${x.qty||1}" style="width:56px"></td>
+    <td><input class="est-cost" type="number" min="0" value="${(x.cost!=null&&x.cost!=='')?x.cost:''}" placeholder="매입가" style="width:96px"></td>
+    <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:10}" style="width:52px"> %</td>
+    <td class="est-price" style="text-align:right;font-weight:600">${won(price)}</td>
+    <td class="est-amt" style="text-align:right;font-weight:800">${won(amt)}</td>
+    <td><button class="btn btn-sm btn-danger" onclick="estDelRow(this)">×</button></td>
   </tr>`;
 }
-function renderEstimates(){
-  const now=new Date();
-  const today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const no='Q'+today.replace(/-/g,'')+'-'+String(now.getHours())+String(now.getMinutes()).padStart(2,'0');
-  const company=((state.settings||{}).company_name)||'';
+function renderEstimates(){ estInit(); const s=estState;
+  const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; return t+Math.round(c*(1+m/100))*q; },0);
+  const vat=Math.round(sub*0.1);
   return `
-  <div class="page-header"><h2>📄 견적서 <span style="font-size:13px;color:var(--gray-500)">— 틀(초안). 항목·마진·부가세 자동계산 + 인쇄</span></h2></div>
+  <div oninput="estSyncAll()">
+  <div class="page-header"><h2>📄 견적서 <span style="font-size:13px;color:var(--gray-500)">— 컴퓨존 가져오기 + 마진·부가세 자동계산 + 인쇄</span></h2></div>
   <div class="vd-card" style="margin-bottom:14px">
     <div class="form-row">
-      <div class="form-group" style="flex:2"><label>공급자 (회사명)</label><input id="est_company" value="${esc(company)}" placeholder="예: CSEP 컴퓨터"></div>
-      <div class="form-group"><label>담당 · 연락처</label><input id="est_contact" placeholder="담당자 / 전화"></div>
+      <div class="form-group" style="flex:2"><label>공급자 (회사명)</label><input id="est_company" value="${esc(s.company)}" placeholder="예: CSEP 컴퓨터"></div>
+      <div class="form-group"><label>담당 · 연락처</label><input id="est_contact" value="${esc(s.contact)}" placeholder="담당자 / 전화"></div>
     </div>
     <div class="form-row">
-      <div class="form-group" style="flex:2"><label>고객 / 거래처</label><input id="est_customer" placeholder="고객명 또는 거래처명"></div>
-      <div class="form-group"><label>견적일자</label><input id="est_date" type="date" value="${today}"></div>
-      <div class="form-group"><label>견적번호</label><input id="est_no" value="${no}"></div>
+      <div class="form-group" style="flex:2"><label>고객 / 거래처</label><input id="est_customer" value="${esc(s.customer)}" placeholder="고객명 또는 거래처명"></div>
+      <div class="form-group"><label>견적일자</label><input id="est_date" type="date" value="${esc(s.date)}"></div>
+      <div class="form-group"><label>견적번호</label><input id="est_no" value="${esc(s.no)}"></div>
     </div>
   </div>
   <div class="vd-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;gap:6px;align-items:center;font-weight:800;flex-wrap:wrap">품목
         <label class="btn btn-sm" style="cursor:pointer;background:#f3e8ff;color:#7048e8;margin:0;font-weight:700">📷 캡처하기<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label>
-        <button class="btn btn-sm" style="background:#e7f5ff;color:#1971c2;margin:0;font-weight:700" onclick="var b=document.getElementById('est_paste_box');b.style.display=b.style.display==='none'?'block':'none'">📋 소스·텍스트</button>
-        <button class="btn btn-sm" style="background:#e6fcf5;color:#0ca678;margin:0;font-weight:700" onclick="var b=document.getElementById('est_url_box');b.style.display=b.style.display==='none'?'block':'none'">🔗 URL 공유</button></div>
+        <button class="btn btn-sm" style="background:#e7f5ff;color:#1971c2;margin:0;font-weight:700" onclick="estToggle('est_paste_box')">📋 소스·텍스트</button>
+        <button class="btn btn-sm" style="background:#e6fcf5;color:#0ca678;margin:0;font-weight:700" onclick="estToggle('est_url_box')">🔗 URL 공유</button></div>
       <div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;color:var(--gray-500)">일괄 마진</span>
-        <input id="est_bulk" type="number" value="10" style="width:56px"> %
+        <input id="est_bulk" type="number" value="${s.bulk}" style="width:56px"> %
         <button class="btn btn-sm btn-secondary" onclick="estApplyBulk()">전체 적용</button></div>
     </div>
     <div id="est_paste_box" style="display:none;margin-bottom:10px">
-      <textarea id="est_paste" placeholder="컴퓨존 견적서 소스복사의 [텍스트]/[HTML] 또는 [URL 공유] 링크를 붙여넣으세요 (셋 다 인식)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
+      <textarea id="est_paste" placeholder="컴퓨존 견적서 소스복사의 [텍스트]/[HTML]을 붙여넣으세요 (가장 정확)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
       <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this)">📋 이 내용 가져오기</button></div>
     </div>
     <div id="est_url_box" style="display:none;margin-bottom:10px">
-      <div style="display:flex;gap:6px"><input id="est_url" placeholder="컴퓨존 [URL 공유] 링크를 붙여넣으세요" style="flex:1;padding:9px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
+      <div style="display:flex;gap:6px"><input id="est_url" placeholder="컴퓨존 [URL 공유] 링크" style="flex:1;padding:9px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
         <button class="btn btn-sm" onclick="estUrlImport(this)">가져오기</button></div>
-      <div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ 컴퓨존 페이지 구조에 따라 안 될 수 있어요. 안 되면 소스·텍스트나 캡처를 이용하세요.</div>
+      <div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ URL은 완성품·페이지 구조에 따라 가격이 부정확할 수 있어요. 정확하려면 [소스·텍스트]를 쓰세요.</div>
     </div>
     <div class="table-container"><table class="table">
       <thead><tr><th>분류</th><th>품명</th><th>사양/비고</th><th>수량</th><th>매입가</th><th>마진</th><th>판매단가</th><th>금액</th><th></th></tr></thead>
-      <tbody id="est_body">${EST_CATS.map(c=>estRowHtml({cat:c})).join('')}</tbody>
+      <tbody id="est_body">${s.rows.map((r,i)=>estRowHtml(r,i)).join('')}</tbody>
     </table></div>
     <button class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="estAddRow()">+ 항목 추가</button>
     <div style="margin-top:14px;display:flex;justify-content:flex-end">
       <table style="min-width:260px">
-        <tr><td style="padding:4px 14px;color:var(--gray-600)">공급가액</td><td id="est_sub" style="text-align:right;font-weight:700">₩0</td></tr>
-        <tr><td style="padding:4px 14px;color:var(--gray-600)">부가세 (10%)</td><td id="est_vat" style="text-align:right;font-weight:700">₩0</td></tr>
-        <tr><td style="padding:7px 14px;font-weight:800;border-top:2px solid var(--gray-300)">합계</td><td id="est_total" style="text-align:right;font-weight:900;font-size:18px;border-top:2px solid var(--gray-300)">₩0</td></tr>
+        <tr><td style="padding:4px 14px;color:var(--gray-600)">공급가액</td><td id="est_sub" style="text-align:right;font-weight:700">${won(sub)}</td></tr>
+        <tr><td style="padding:4px 14px;color:var(--gray-600)">부가세 (10%)</td><td id="est_vat" style="text-align:right;font-weight:700">${won(vat)}</td></tr>
+        <tr><td style="padding:7px 14px;font-weight:800;border-top:2px solid var(--gray-300)">합계</td><td id="est_total" style="text-align:right;font-weight:900;font-size:18px;border-top:2px solid var(--gray-300)">${won(sub+vat)}</td></tr>
       </table>
     </div>
-    <div class="form-group" style="margin-top:10px"><label>비고 / 메모</label><input id="est_memo" placeholder="예: 견적 유효기간 7일 / 설치·배송 포함 등"></div>
+    <div class="form-group" style="margin-top:10px"><label>비고 / 메모</label><input id="est_memo" value="${esc(s.memo)}" placeholder="예: 견적 유효기간 7일 / 설치·배송 포함 등"></div>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
       <button class="btn" onclick="estPrint()">🖨️ 견적서 인쇄</button>
       <button class="btn btn-secondary" onclick="estReset()">초기화</button>
     </div>
-    <div style="font-size:12px;color:var(--gray-400);margin-top:8px">※ 매입가·마진은 내부용 — 인쇄 견적서엔 <b>판매단가·금액만</b> 표시됩니다. (저장·불러오기·컴퓨존 스캔가져오기는 추후 추가 예정)</div>
-  </div>`;
+    <div style="font-size:12px;color:var(--gray-400);margin-top:8px">※ 매입가·마진은 내부용 — 인쇄엔 판매단가·금액만. 입력값은 자동 보존됩니다(화면 새로고침돼도 유지).</div>
+  </div></div>`;
 }
-function estRows(){ return [...document.querySelectorAll('#est_body .est-row')].map(tr=>{
-  const g=c=>tr.querySelector(c);
-  const qty=Number(g('.est-qty').value)||0, cost=Number(g('.est-cost').value)||0, margin=Number(g('.est-margin').value)||0;
-  const price=Math.round(cost*(1+margin/100));
-  return { cat:g('.est-cat').value.trim(), name:g('.est-name').value.trim(), spec:g('.est-spec').value.trim(), qty, cost, margin, price, amt:price*qty };
-}); }
-function estCalc(){
-  let sub=0;
+function estToggle(id){ const b=document.getElementById(id); if(b) b.style.display=(b.style.display==='none'?'block':'none'); }
+// DOM → estState (모든 입력에 반영, 화면 재렌더돼도 값 보존)
+function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
+  estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer');
+  estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=Number(g('est_bulk'))||10;
+  estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
+    return { cat:q('.est-cat').value, name:q('.est-name').value, spec:q('.est-spec').value, qty:Number(q('.est-qty').value)||1, cost:q('.est-cost').value, margin:Number(q('.est-margin').value)||0 }; });
+  estCalc();
+}
+function estBody(){ const b=document.getElementById('est_body'); if(b){ b.innerHTML=estState.rows.map((r,i)=>estRowHtml(r,i)).join(''); estCalc(); } }
+function estCalc(){ let sub=0;
   document.querySelectorAll('#est_body .est-row').forEach(tr=>{
     const qty=Number(tr.querySelector('.est-qty').value)||0, cost=Number(tr.querySelector('.est-cost').value)||0, margin=Number(tr.querySelector('.est-margin').value)||0;
     const price=Math.round(cost*(1+margin/100)), amt=price*qty;
-    tr.querySelector('.est-price').textContent=won(price);
-    tr.querySelector('.est-amt').textContent=won(amt);
-    sub+=amt;
-  });
-  const vat=Math.round(sub*0.1);
-  const set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
+    tr.querySelector('.est-price').textContent=won(price); tr.querySelector('.est-amt').textContent=won(amt); sub+=amt; });
+  const vat=Math.round(sub*0.1), set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
   set('est_sub',sub); set('est_vat',vat); set('est_total',sub+vat);
 }
-function estAddRow(){ const b=document.getElementById('est_body'); if(b){ b.insertAdjacentHTML('beforeend',estRowHtml()); } }
-function estApplyBulk(){ const m=Number(v('est_bulk'))||0; document.querySelectorAll('#est_body .est-margin').forEach(i=>i.value=m); estCalc(); }
-function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return; const b=document.getElementById('est_body'); if(b){ b.innerHTML=EST_CATS.map(c=>estRowHtml({cat:c})).join(''); estCalc(); } }
+function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',spec:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
+function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
+function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estState.bulk); estBody(); }
+function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return; estState.rows=EST_CATS.map(c=>({cat:c,name:'',spec:'',qty:1,cost:'',margin:estState.bulk})); estBody(); }
+// 가져온 항목을 같은 분류의 빈 행에 채우고, 없으면 새 행 추가
+function estAddItems(items){ estSyncAll();
+  (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1);
+    const empty=estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
+    if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.margin=estState.bulk; }
+    else estState.rows.push({cat,name,spec:'',qty,cost,margin:estState.bulk}); });
+  estBody();
+}
+function estRows(){ return estState? estState.rows.map(r=>{ const cost=Number(r.cost)||0, margin=Number(r.margin)||0, qty=Number(r.qty)||0, price=Math.round(cost*(1+margin/100));
+  return { cat:(r.cat||'').trim(), name:(r.name||'').trim(), spec:(r.spec||'').trim(), qty, cost, margin, price, amt:price*qty }; }) : []; }
 function estPrint(){
+  estSyncAll();
   const rows=estRows().filter(r=>r.name||r.amt);
   if(!rows.length){ alert('품목을 입력하세요'); return; }
   const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1), total=sub+vat;
-  const company=esc(v('est_company'))||'(회사명)', contact=esc(v('est_contact')), customer=esc(v('est_customer'))||'(고객)', date=esc(v('est_date')), no=esc(v('est_no')), memo=esc(v('est_memo'));
+  const company=esc(estState.company)||'(회사명)', contact=esc(estState.contact), customer=esc(estState.customer)||'(고객)', date=esc(estState.date), no=esc(estState.no), memo=esc(estState.memo);
   const body=rows.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center;color:#666">${esc(r.cat)||''}</td><td>${esc(r.name)}${r.spec?`<div style="font-size:11px;color:#888">${esc(r.spec)}</div>`:''}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${won(r.price)}</td><td style="text-align:right">${won(r.amt)}</td></tr>`).join('');
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>견적서 ${no}</title>
     <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;padding:24px;max-width:760px;margin:auto}
@@ -903,10 +920,7 @@ async function estAiImport(input){
   if(lbl)lbl.innerHTML=prev;
   const items=(r&&r.items)||[];
   if(!items.length){ alert('견적 항목을 인식하지 못했습니다. 견적 목록이 잘 보이게 캡처했는지 확인해주세요.'); return; }
-  const body=document.getElementById('est_body'); if(!body)return;
-  const bulk=Number(v('est_bulk'))||10;
-  items.forEach(it=>{ body.insertAdjacentHTML('beforeend', estRowHtml({ cat:it.cat||'', name:it.name||'', cost:(Number(it.price)||''), qty:(Number(it.qty)||1), margin:bulk })); });
-  estCalc();
+  estAddItems(items);
   alert(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
 }
 async function estPasteImport(btn){
@@ -919,10 +933,7 @@ async function estPasteImport(btn){
   if(btn){ btn.disabled=false; btn.textContent='📋 이 내용 가져오기'; }
   const items=(r&&r.items)||[];
   if(!items.length){ alert('부품을 인식하지 못했습니다. 붙여넣은 내용을 확인해주세요.'); return; }
-  const body=document.getElementById('est_body'); if(!body)return;
-  const bulk=Number(v('est_bulk'))||10;
-  items.forEach(it=>{ body.insertAdjacentHTML('beforeend', estRowHtml({ cat:it.cat||'', name:it.name||'', cost:(Number(it.price)||''), qty:(Number(it.qty)||1), margin:bulk })); });
-  estCalc();
+  estAddItems(items);
   const box=document.getElementById('est_paste_box'); if(box)box.style.display='none';
   const ta=document.getElementById('est_paste'); if(ta)ta.value='';
   alert(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
@@ -937,10 +948,7 @@ async function estUrlImport(btn){
   if(btn){ btn.disabled=false; btn.textContent='가져오기'; }
   const items=(r&&r.items)||[];
   if(!items.length){ alert('부품을 인식하지 못했습니다. 소스·텍스트나 캡처 방식을 이용해보세요.'); return; }
-  const body=document.getElementById('est_body'); if(!body)return;
-  const bulk=Number(v('est_bulk'))||10;
-  items.forEach(it=>{ body.insertAdjacentHTML('beforeend', estRowHtml({ cat:it.cat||'', name:it.name||'', cost:(Number(it.price)||''), qty:(Number(it.qty)||1), margin:bulk })); });
-  estCalc();
+  estAddItems(items);
   const box=document.getElementById('est_url_box'); if(box)box.style.display='none';
   const el=document.getElementById('est_url'); if(el)el.value='';
   alert(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
