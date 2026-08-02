@@ -612,7 +612,9 @@ function renderDevScanForm(r){
     <div class="fg"><label>HDD</label><div id="ds_hdd">${(Array.isArray(r.hdd)&&r.hdd.length?r.hdd:[]).map(hddRowHtml).join('')}</div>
       <button type="button" class="btn btn-ghost" style="margin:0;padding:7px" onclick="document.getElementById('ds_hdd').insertAdjacentHTML('beforeend',hddRowHtml())">+ HDD 추가</button></div>
     <div class="fg"><label>시리얼번호</label>${inp('ds_serial',r.serial_number,'')}</div>
-    <div style="display:flex;gap:8px;margin-top:14px">
+    <label class="btn btn-success" style="margin-top:6px;text-align:center;cursor:pointer;display:block">📸 다시 촬영 (다시 인식)
+      <input type="file" accept="image/*" capture="environment" onchange="scanBiosPhoto(this)" style="display:none"></label>
+    <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn btn-ghost" style="flex:1" onclick="renderCustDevList()">취소</button>
       <button class="btn btn-primary" style="flex:1" onclick="saveDevScan(this)">저장</button>
     </div>`;
