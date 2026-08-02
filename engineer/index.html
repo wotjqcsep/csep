@@ -554,22 +554,14 @@ function preprocessForOcr(dataUrl, cb){
 function scanBiosPhoto(input){
   const f=input.files&&input.files[0]; input.value='';
   if(!f) return;
-  if(typeof Tesseract==='undefined'){ alert('인식엔진 로딩 중입니다. 인터넷 연결 확인 후 잠시 뒤 다시 시도해주세요.'); renderCustDevList(); return; }
-  scanProgress('사진 준비 중…');
-  compressImage(f,d0=>preprocessForOcr(d0,async d=>{
-    let text='';
-    try{
-      const res=await Tesseract.recognize(d,'eng',{ logger:m=>{
-        if(m.status==='recognizing text') scanProgress('글자 인식 중… '+Math.round((m.progress||0)*100)+'%');
-        else if(m.status) scanProgress('준비 중… ('+m.status+')');
-      }});
-      text=(res&&res.data&&res.data.text)||'';
-    }catch(e){ alert('글자 인식 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); renderDevScanForm({}); return; }
+  scanProgress('사진을 분석하고 있습니다…');
+  // Google Vision으로 전송 (사진 원본이 인식 정확도에 유리 — 전처리 없이 압축본만)
+  compressImage(f,async d=>{
     let r={};
-    try{ r=await api('POST','/computers/ai-scan',{text})||{}; }
-    catch(e){ r={ _ocr:text }; }   // 서버 파싱 실패해도 원문은 보여줌
+    try{ r=await api('POST','/computers/ai-scan',{image:d})||{}; }
+    catch(e){ alert('글자 인식 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); renderDevScanForm({}); return; }
     renderDevScanForm(r);
-  }));
+  });
 }
 function ramRowHtml(x){ x=x||{};
   return `<div class="dev-ram-row" style="display:flex;gap:6px;margin-bottom:6px">
