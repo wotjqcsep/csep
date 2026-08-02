@@ -575,9 +575,22 @@ function parseBiosText(text) {
   if (modelM) out.motherboard.model = modelM[0].replace(/\s+/g, ' ').trim();
   const chM = joined.match(/\b([ABHXZ]\d{2,3})[A-Z]?\b/);
   if (chM) out.motherboard.chipset = chM[1];
-  // ── BIOS 버전: "BIOS Ver. 1201", "BIOS Version: 2.10" 등 ──
-  const bvM = joined.match(/BIOS\s*Ver(?:sion)?\.?\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9.\-]{1,15})/i);
-  if (bvM) out.bios_version = bvM[1];
+  // ── BIOS 버전 (+ 보드명이 섞인 경우 분리) ──
+  // 예1) "PRIME Z390-A BIOS Ver. 1201" → 1201
+  // 예2) "BIOS Version : 775XFire-eSATA2 BIOS P1.00" → 버전 P1.00, 보드모델 775XFire-eSATA2
+  const bvLine = lines.find(l => /BIOS\s*Ver/i.test(l)) || '';
+  if (bvLine) {
+    const bvVal = bvLine.replace(/.*?BIOS\s*Ver(?:sion)?\.?\s*[:：]?\s*/i, '');
+    const inner = bvVal.match(/BIOS\s+([A-Za-z]?\d[\w.\/-]*)/i);   // "... BIOS P1.00"
+    if (inner) {
+      out.bios_version = inner[1];
+      const pre = bvVal.slice(0, bvVal.search(/\s*BIOS\s+/i)).replace(/\s+/g, ' ').trim();   // 보드명
+      if (pre && pre.length <= 30 && !out.motherboard.model) out.motherboard.model = pre;
+    } else {
+      const t = bvVal.match(/([A-Za-z0-9][A-Za-z0-9.\-]{1,15})/);
+      if (t) out.bios_version = t[1];
+    }
+  }
   // ── 시리얼 ──
   const snM = joined.match(/(?:Serial\s*(?:Number|No\.?|#)?|S\/N)\s*[:：]?\s*([A-Za-z0-9\-]{5,})/i);
   if (snM) out.serial_number = snM[1];
