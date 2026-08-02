@@ -643,39 +643,68 @@ function parseBiosText(text) {
   }
   return out;
 }
-// OCR 텍스트를 Gemini로 문맥 해석 → 구조화 JSON (규칙이 놓친 형식 보완). 실패 시 throw.
-async function geminiParse(ocrText) {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY 미설정');
-  const prompt = [
+// BIOS OCR 텍스트 → 구조화 추출용 공통 프롬프트
+function biosAiPrompt(ocrText) {
+  return [
     '다음은 PC의 BIOS/UEFI 화면을 OCR로 읽은 텍스트입니다. 하드웨어 정보를 추출해 아래 JSON 스키마로만 답하세요(설명·코드펜스 없이 JSON만).',
     '값이 없으면 빈 문자열("") 또는 빈 배열([]). 지어내지 마세요. OCR 오탈자(예: i7을 17/l7, O를 0)는 문맥으로 보정하세요.',
     'RAM은 슬롯/모듈별로 나눠 담고 용량은 GB 숫자만(512MB는 0.5). 저장장치는 USB/이동식 제외. bios_version은 보드명과 분리.',
     '스키마: {"name":"","device_type":"desktop|laptop|server|printer|other","cpu":"","serial_number":"","bios_version":"","motherboard":{"plat":"Intel|AMD|","maker":"","chipset":"","model":""},"ram":[{"size":"","spec":"","maker":""}],"ssd":[{"type":"SATA|NVMe|","cap":"","maker":""}],"hdd":[{"cap":"","maker":""}]}',
     'OCR 텍스트:', '"""', String(ocrText).slice(0, 4000), '"""',
   ].join('\n');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
-  const resp = await fetch(url, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }),
-  });
-  const data = await resp.json();
-  if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
-  let text = '';
-  try { text = data.candidates[0].content.parts.map(p => p.text || '').join(''); } catch (e) {}
-  const s = text.indexOf('{'), e2 = text.lastIndexOf('}');
-  if (s < 0 || e2 < 0) throw new Error('AI 응답 파싱 실패');
-  const g = JSON.parse(text.slice(s, e2 + 1));
-  // 스키마 정규화(빠진 필드 방어)
+}
+function normalizeAiResult(g) {
   g.motherboard = g.motherboard || { plat: '', maker: '', chipset: '', model: '' };
   g.ram = Array.isArray(g.ram) ? g.ram : []; g.ssd = Array.isArray(g.ssd) ? g.ssd : []; g.hdd = Array.isArray(g.hdd) ? g.hdd : [];
   return g;
+}
+function extractJson(text) {
+  const s = (text || '').indexOf('{'), e = (text || '').lastIndexOf('}');
+  if (s < 0 || e < 0) throw new Error('AI 응답 파싱 실패');
+  return JSON.parse(text.slice(s, e + 1));
+}
+// Groq (무료 티어, 카드 불필요) — OpenAI 호환 엔드포인트
+async function groqParse(ocrText) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) throw new Error('GROQ_API_KEY 미설정');
+  const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      temperature: 0, response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: biosAiPrompt(ocrText) }],
+    }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
+  let text = ''; try { text = data.choices[0].message.content; } catch (e) {}
+  return normalizeAiResult(extractJson(text));
+}
+// Gemini (유료 티어 필요) — Google Generative Language
+async function geminiParse(ocrText) {
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY 미설정');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  const resp = await fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: biosAiPrompt(ocrText) }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
+  let text = ''; try { text = data.candidates[0].content.parts.map(p => p.text || '').join(''); } catch (e) {}
+  return normalizeAiResult(extractJson(text));
+}
+// AI 보완: Groq 우선(무료), 없으면 Gemini. 둘 다 없으면 throw.
+async function aiParse(ocrText) {
+  if (process.env.GROQ_API_KEY) return groqParse(ocrText);
+  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return geminiParse(ocrText);
+  throw new Error('AI 키(GROQ_API_KEY 또는 GEMINI_API_KEY) 미설정');
 }
 app.post('/api/computers/ai-scan', wrap(async (req, res) => {
   const body = req.body || {};
   // 1) 수동 AI 정밀분석: {text, ai:true} → Gemini로 재해석
   if (body.ai && typeof body.text === 'string' && body.text.trim()) {
-    try { const g = await geminiParse(body.text); g._ocr = body.text.slice(0, 2000); g._src = 'ai'; return res.json(g); }
+    try { const g = await aiParse(body.text); g._ocr = body.text.slice(0, 2000); g._src = 'ai'; return res.json(g); }
     catch (e) { console.log('[AI정밀분석] 오류:', e.message); return res.status(502).json({ error: 'AI 정밀분석 실패: ' + e.message }); }
   }
   // 2) 폰 OCR 텍스트만 → 규칙 파싱(무료)
@@ -703,10 +732,11 @@ app.post('/api/computers/ai-scan', wrap(async (req, res) => {
     const r = data.responses && data.responses[0];
     const ocrText = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
     let parsed = parseBiosText(ocrText); parsed._src = 'regex';
-    // 규칙이 CPU 또는 RAM을 못 잡으면 자동으로 Gemini 보완
+    // 규칙이 CPU 또는 RAM을 못 잡으면 자동으로 AI(Groq/Gemini) 보완
     const incomplete = !parsed.cpu || !parsed.ram.length;
-    if (incomplete && ocrText && (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) {
-      try { const g = await geminiParse(ocrText); g._src = 'ai'; parsed = g; }
+    const hasAiKey = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (incomplete && ocrText && hasAiKey) {
+      try { const g = await aiParse(ocrText); g._src = 'ai'; parsed = g; }
       catch (e) { console.log('[AI폴백] 실패:', e.message); parsed._aiError = e.message; }
     }
     parsed._ocr = ocrText.slice(0, 2000);
