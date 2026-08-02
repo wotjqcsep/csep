@@ -586,7 +586,15 @@ function parseBiosText(text) {
       spec: (lGen ? 'DDR' + lGen : '') + (lMhz ? '-' + lMhz : ''),
       maker: /^n\/?a$/i.test(maker) ? '' : maker });
   }
-  if (slots.length) out.ram = slots;
+  // 2열 레이아웃(Samsung/AMI): "4096 MB (DDR4)" 같은 값 토큰을 모듈로 인식
+  const modRe = /(\d{3,6})\s*MB\s*\(\s*(DDR[345])(?:[\s-]*(\d{3,5}))?[^)]*\)/ig;
+  let mm; const mods = [];
+  while ((mm = modRe.exec(joined))) {
+    mods.push({ size: String(Math.round(parseInt(mm[1], 10) / 1024)),
+      spec: mm[2].toUpperCase() + (mm[3] ? '-' + mm[3] : ''), maker: '' });
+  }
+  if (slots.length) out.ram = slots;              // 라벨형(ASUS DIMM) 우선
+  else if (mods.length) out.ram = mods;           // 괄호 DDR 값 토큰(Samsung 값열/요약)
   else {
     const mbM = joined.match(/(?:Total\s*Memory|System\s*Memory|Installed\s*Memory|Memory)\s*[:：]?\s*(\d{4,6})\s*MB/i);
     const ramSize = mbM ? String(Math.round(parseInt(mbM[1], 10) / 1024)) : '';
