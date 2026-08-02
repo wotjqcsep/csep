@@ -569,7 +569,7 @@ function collectDevScanForm(){
   const ram=[...document.querySelectorAll('#ds_ram .dev-ram-row')].map(r=>({size:r.querySelector('.ram-size').value.trim(),spec:r.querySelector('.ram-spec').value.trim(),maker:r.querySelector('.ram-maker').value.trim()})).filter(x=>x.size||x.spec||x.maker);
   const ssd=[...document.querySelectorAll('#ds_ssd .dev-ssd-row')].map(r=>({type:r.querySelector('.ssd-type').value.trim(),cap:r.querySelector('.ssd-cap').value.trim(),maker:r.querySelector('.ssd-maker').value.trim()})).filter(x=>x.type||x.cap||x.maker);
   const hdd=[...document.querySelectorAll('#ds_hdd .dev-hdd-row')].map(r=>({cap:r.querySelector('.hdd-cap').value.trim(),maker:r.querySelector('.hdd-maker').value.trim()})).filter(x=>x.cap||x.maker);
-  return { name:val('ds_name'), device_type:val('ds_type'), cpu:val('ds_cpu'), serial_number:val('ds_serial'), bios_version:val('ds_bios'),
+  return { name:val('ds_name'), device_type:val('ds_type'), cpu:val('ds_cpu'), gpu:val('ds_gpu'), serial_number:val('ds_serial'), bios_version:val('ds_bios'),
     motherboard:{plat:val('ds_mb_plat'),maker:val('ds_mb_maker'),chipset:val('ds_mb_chipset'),model:val('ds_mb_model')}, ram, ssd, hdd, _ocr:(devScanLast&&devScanLast._ocr)||'' };
 }
 // 기존 값 유지 + 새 값으로 빈 칸 채움 + 배열은 중복 제외하고 추가
@@ -579,7 +579,7 @@ function mergeDevData(cur,add){
   const key=x=>JSON.stringify(x).toLowerCase().replace(/[^a-z0-9]/g,'');
   const mergeArr=(a,b)=>{ a=a||[];b=b||[]; const seen=new Set(a.map(key)); const out=[...a]; for(const x of b){ const k=key(x); if(k&&!seen.has(k)){seen.add(k);out.push(x);} } return out; };
   return { name:pick(cur.name,add.name), device_type:cur.device_type||add.device_type||'desktop',
-    cpu:pick(cur.cpu,add.cpu), serial_number:pick(cur.serial_number,add.serial_number), bios_version:pick(cur.bios_version,add.bios_version),
+    cpu:pick(cur.cpu,add.cpu), gpu:pick(cur.gpu,add.gpu), serial_number:pick(cur.serial_number,add.serial_number), bios_version:pick(cur.bios_version,add.bios_version),
     motherboard:{plat:pick(cmb.plat,mb.plat),maker:pick(cmb.maker,mb.maker),chipset:pick(cmb.chipset,mb.chipset),model:pick(cmb.model,mb.model)},
     ram:mergeArr(cur.ram,add.ram), ssd:mergeArr(cur.ssd,add.ssd), hdd:mergeArr(cur.hdd,add.hdd),
     _src:add._src, _ocr:add._ocr||cur._ocr };
@@ -629,6 +629,7 @@ function renderDevScanForm(r){
     <div class="fg"><label>종류</label><select id="ds_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px">
       ${Object.entries(DEVICE_TYPES).map(([k,l])=>`<option value="${k}" ${r.device_type===k?'selected':''}>${l}</option>`).join('')}</select></div>
     <div class="fg"><label>CPU</label>${inp('ds_cpu',r.cpu,'예: Intel Core i5-12400')}</div>
+    <div class="fg"><label>그래픽카드 (GPU)</label>${inp('ds_gpu',r.gpu,'예: NVIDIA GeForce RTX 3060')}</div>
     <div class="fg"><label>메인보드</label>
       <div style="display:flex;gap:6px;margin-bottom:6px">
         <input id="ds_mb_plat" value="${esc(mb.plat)||''}" placeholder="Intel/AMD" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
@@ -679,7 +680,7 @@ async function saveDevScan(btn){
   const hasMb=Object.values(mb).some(Boolean);
   const payload={
     customer_id:custDevState.custId, name:val('ds_name')||'장치', device_type:val('ds_type')||'desktop',
-    cpu:val('ds_cpu'), serial_number:val('ds_serial'), bios_version:val('ds_bios'),
+    cpu:val('ds_cpu'), gpu:val('ds_gpu'), serial_number:val('ds_serial'), bios_version:val('ds_bios'),
     motherboard:hasMb?JSON.stringify(mb):'', ram:rams.length?JSON.stringify(rams):'',
     ssd:ssds.length?JSON.stringify(ssds):'', hdd:hdds.length?JSON.stringify(hdds):'',
   };

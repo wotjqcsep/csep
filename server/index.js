@@ -537,7 +537,7 @@ app.post('/api/computers', wrap(async (req, res) => {
 // env: GOOGLE_VISION_API_KEY (또는 GOOGLE_API_KEY). 키 없으면 503.
 // OCR로 읽은 글자를 서버에서 규칙기반으로 파싱 → CPU/RAM/메인보드/시리얼 추정.
 function parseBiosText(text) {
-  const out = { name: '', device_type: 'desktop', cpu: '', serial_number: '', bios_version: '',
+  const out = { name: '', device_type: 'desktop', cpu: '', gpu: '', serial_number: '', bios_version: '',
     motherboard: { plat: '', maker: '', chipset: '', model: '' }, ram: [], ssd: [], hdd: [] };
   if (!text) return out;
   const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -591,6 +591,9 @@ function parseBiosText(text) {
       if (t) out.bios_version = t[1];
     }
   }
+  // ── GPU (BIOS엔 드묾, CPU-Z/시스템정보용) ──
+  const gpuM = joined.match(/((?:NVIDIA\s*)?GeForce\s*(?:RTX|GTX)?\s*\d{3,4}\s*(?:Ti|SUPER)?|Radeon\s*(?:RX)?\s*\d{3,4}\s*[A-Z]{0,3}|Intel\s*(?:UHD|Iris|HD)\s*Graphics\s*\d{0,4}|Quadro\s*[\w-]+)/i);
+  if (gpuM) out.gpu = gpuM[0].replace(/\s+/g, ' ').trim();
   // ── 시리얼 ──
   const snM = joined.match(/(?:Serial\s*(?:Number|No\.?|#)?|S\/N)\s*[:：]?\s*([A-Za-z0-9\-]{5,})/i);
   if (snM) out.serial_number = snM[1];
@@ -651,7 +654,8 @@ function biosAiPrompt(ocrText) {
     'RAM 규칙: 화면의 슬롯 라벨(DIMM/Slot1·Slot2/Channel/DDRn)이 여러 개면 "채워진 슬롯마다 별도 항목"을 만드세요. 같은 용량이 여러 슬롯에 있어도 각각 넣으세요(예: 2048MB가 Slot1·Slot2 → 항목 2개). 라벨과 값이 표의 다른 열/줄에 떨어져 있어도 순서대로 짝지으세요. 용량은 GB 숫자만(2048MB→2, 512MB→0.5). spec은 화면 그대로(DDR4, LPDDR3 등). "None/N/A" 슬롯은 제외.',
     'RAM maker에는 절대 저장장치/SSD 브랜드(LITEON, Samsung SSD, WD, LITEON 등)나 CPU/보드명을 넣지 마세요. 메모리 제조사가 화면에 명시 안 되면 비워두세요.',
     '저장장치(ssd/hdd)의 maker 필드에는 화면에 보이는 "전체 모델명"을 그대로 넣으세요(브랜드만 축약 금지). 예: "Samsung SSD 850 PRO", "WDC WD20EZRZ-00Z5HB", "WDC WD5000AAKX-22ER". 구분: 이름에 SSD/NVMe/M.2 있으면 ssd, WDC/Seagate/Toshiba 등 회전식 하드는 hdd. 용량(cap)은 "숫자+GB" 또는 "숫자+TB" 형식으로. 화면에 용량이 없어도 모델명으로 표준 용량을 알 수 있으면 추정해 넣으세요(예: WD20EZRZ→2TB, WD10EZEX→1TB, WD5000AAKX→500GB, Samsung 850 PRO(MZ-7KE256)→256GB, 970 EVO Plus 500GB→500GB). USB/이동식/카드리더는 제외. bios_version은 보드명과 분리.',
-    '스키마: {"name":"","device_type":"desktop|laptop|server|printer|other","cpu":"","serial_number":"","bios_version":"","motherboard":{"plat":"Intel|AMD|","maker":"","chipset":"","model":""},"ram":[{"size":"","spec":"","maker":""}],"ssd":[{"type":"SATA|NVMe|","cap":"","maker":""}],"hdd":[{"cap":"","maker":""}]}',
+    'gpu는 그래픽카드 모델명(예: NVIDIA GeForce RTX 3060, AMD Radeon RX 6600, Intel UHD Graphics 630). 내장그래픽도 보이면 넣으세요.',
+    '스키마: {"name":"","device_type":"desktop|laptop|server|printer|other","cpu":"","gpu":"","serial_number":"","bios_version":"","motherboard":{"plat":"Intel|AMD|","maker":"","chipset":"","model":""},"ram":[{"size":"","spec":"","maker":""}],"ssd":[{"type":"SATA|NVMe|","cap":"","maker":""}],"hdd":[{"cap":"","maker":""}]}',
     'OCR 텍스트:', '"""', String(ocrText).slice(0, 4000), '"""',
   ].join('\n');
 }
