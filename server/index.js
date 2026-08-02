@@ -537,55 +537,73 @@ app.post('/api/computers', wrap(async (req, res) => {
 // OCR로 읽은 글자를 서버에서 규칙기반으로 파싱 → CPU/RAM/메인보드/시리얼 추정.
 function parseBiosText(text) {
   const out = { name: '', device_type: 'desktop', cpu: '', serial_number: '',
-    motherboard: { plat: '', maker: '', chipset: '', model: '' }, ram: [] };
+    motherboard: { plat: '', maker: '', chipset: '', model: '' }, ram: [], ssd: [], hdd: [] };
   if (!text) return out;
   const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   const joined = lines.join('\n');
-  // CPU: 우선순위 Ryzen → Core i → Xeon → Pentium/Celeron/Athlon
+  // ── CPU (OCR가 i를 1/l로 오독하는 것 허용, 'Core' 문맥 우선) ──
   const ry = joined.match(/Ryzen\s*(?:Threadripper\s*)?[3579]\s*\d{3,4}[A-Z0-9]{0,3}/i);
-  const ci = joined.match(/(?:Core\s*)?\bi[3579][\s-]?\d{4,5}[A-Z]{0,2}\b/i);
+  const ci = joined.match(/Core[^\n]{0,10}?\b[il1]?([3579])[\s-]?(\d{4,5})([A-Z]{0,2})\b/i)
+    || joined.match(/\bi([3579])[\s-]?(\d{4,5})([A-Z]{0,2})\b/i);
   const xe = joined.match(/Xeon[\w-]*\s*[\w-]*\d{3,4}[A-Z0-9]{0,3}/i);
   const pc = joined.match(/\b(?:Pentium|Celeron|Athlon)[\w\s-]*?\d{2,5}[A-Z0-9]{0,3}\b/i);
   if (ry) { out.cpu = 'AMD ' + ry[0].replace(/\s+/g, ' ').trim(); out.motherboard.plat = 'AMD'; }
-  else if (ci) {
-    let t = ci[0].replace(/\s+/g, ' ').trim();
-    if (!/Core/i.test(t)) t = 'Intel Core ' + t;
-    out.cpu = t; out.motherboard.plat = 'Intel';
-  }
+  else if (ci) { out.cpu = 'Intel Core i' + ci[1] + '-' + ci[2] + (ci[3] || ''); out.motherboard.plat = 'Intel'; }
   else if (xe) { out.cpu = 'Intel ' + xe[0].replace(/\s+/g, ' ').trim(); out.motherboard.plat = 'Intel'; }
   else if (pc) { out.cpu = pc[0].replace(/\s+/g, ' ').trim(); }
   if (!out.motherboard.plat) {
     if (/\bAMD\b|Ryzen|Athlon/i.test(joined)) out.motherboard.plat = 'AMD';
     else if (/\bIntel\b|Xeon|Pentium|Celeron/i.test(joined)) out.motherboard.plat = 'Intel';
   }
-  // 메인보드 제조사: 실제 보드 브랜드 우선, ASUS 제품라인(PRIME/ROG/TUF/STRIX)도 ASUS로
+  // ── 메인보드 ──
   const brand = joined.match(/\b(ASUS|ASRock|GIGABYTE|MSI|BIOSTAR|SuperMicro|ECS|Foxconn|COLORFUL)\b/i);
   if (brand) out.motherboard.maker = brand[1].toUpperCase() === 'ASUS' ? 'ASUS' : brand[1];
   else if (/\b(PRIME|ROG|TUF|STRIX|PROART)\b/i.test(joined)) out.motherboard.maker = 'ASUS';
   else if (/\bIntel\s+Corporation\b/i.test(joined)) out.motherboard.maker = 'Intel';
-  // 보드 모델: PRIME Z390-A, ROG STRIX B550-F, TUF GAMING B660M 등
   const modelM = joined.match(/\b(ROG\s*STRIX|TUF(?:\s*GAMING)?|PRIME|STRIX|PROART|AORUS|MPG|MAG|MORTAR|TOMAHAWK)\s+([A-Z]?\d{2,3}[A-Z0-9-]*)/i);
   if (modelM) out.motherboard.model = modelM[0].replace(/\s+/g, ' ').trim();
-  // 칩셋: B550, Z790, H610, X670, Z390 등 (뒤 폼팩터 문자 제외)
   const chM = joined.match(/\b([ABHXZ]\d{2,3})[A-Z]?\b/);
   if (chM) out.motherboard.chipset = chM[1];
-  // 시리얼
+  // ── 시리얼 ──
   const snM = joined.match(/(?:Serial\s*(?:Number|No\.?|#)?|S\/N)\s*[:：]?\s*([A-Za-z0-9\-]{5,})/i);
   if (snM) out.serial_number = snM[1];
-  // RAM 용량: "Memory: NNNNN MB"(MB→GB) 우선 → 없으면 Memory/DRAM 문맥의 GB (SSD 용량 배제)
-  let ramSize = '';
-  const mbM = joined.match(/(?:Total\s*Memory|System\s*Memory|Installed\s*Memory|Memory)\s*[:：]?\s*(\d{4,6})\s*MB/i);
-  if (mbM) ramSize = String(Math.round(parseInt(mbM[1], 10) / 1024));
-  else {
-    const gbM = joined.match(/(?:Total\s*Memory|System\s*Memory|Installed\s*Memory|DRAM)[^\n]*?(\d{1,3})\s*GB/i);
-    if (gbM) ramSize = gbM[1];
-  }
-  // RAM 규격: DDR 세대 + DDR 바로 옆 속도 (CPU Speed의 MHz는 배제)
+  // ── RAM: 슬롯별 DIMM 우선(N/A 제외), 없으면 Memory 요약 ──
   const ddrGen = joined.match(/DDR([345])/i);
-  const ddrSpd = joined.match(/DDR[345][\s-]*(\d{3,5})/i);
-  let spec = '';
-  if (ddrGen) spec = 'DDR' + ddrGen[1] + (ddrSpd ? ('-' + ddrSpd[1]) : '');
-  if (ramSize || spec) out.ram.push({ size: ramSize, spec, maker: '' });
+  const gen = ddrGen ? ddrGen[1] : '';
+  const dimmRe = /DIMM[_\s]*[A-D]\s*\d?\s*[:：]\s*([A-Za-z][A-Za-z0-9.]*)?\s*(\d{3,6})\s*MB(?:\s*(\d{3,5})\s*MHz)?/ig;
+  let dm; const slots = [];
+  while ((dm = dimmRe.exec(joined))) {
+    const maker = (dm[1] || '').trim();
+    slots.push({ size: String(Math.round(parseInt(dm[2], 10) / 1024)),
+      spec: (gen ? 'DDR' + gen : '') + (dm[3] ? '-' + dm[3] : ''),
+      maker: /^n\/?a$/i.test(maker) ? '' : maker });
+  }
+  if (slots.length) out.ram = slots;
+  else {
+    const mbM = joined.match(/(?:Total\s*Memory|System\s*Memory|Installed\s*Memory|Memory)\s*[:：]?\s*(\d{4,6})\s*MB/i);
+    const ramSize = mbM ? String(Math.round(parseInt(mbM[1], 10) / 1024)) : '';
+    const ddrSpd = joined.match(/DDR[345][\s-]*(\d{3,5})/i);
+    const spec = gen ? ('DDR' + gen + (ddrSpd ? '-' + ddrSpd[1] : '')) : '';
+    if (ramSize || spec) out.ram.push({ size: ramSize, spec, maker: '' });
+  }
+  // ── 저장장치(SSD/HDD): 드라이브처럼 보이는 라인만, USB/중복 제외 ──
+  const seen = new Set();
+  for (const l of lines) {
+    if (/USB\s*Flash|Flash\s*Drive|\bUFD\b/i.test(l)) continue;
+    const capM = l.match(/(\d{2,5}(?:\.\d+)?)\s*GB/i) || l.match(/(\d{1,2}(?:\.\d+)?)\s*TB/i);
+    if (!capM) continue;
+    if (!/SATA|M\.?\s*2|NVME|SSD|HDD|EVO|Crucial|Samsung|WD\b|Western|Seagate|ST\d|CT\d|Kingston|SanDisk|Toshiba|Micron/i.test(l)) continue;
+    let name = l.replace(/^.*?[:：]\s*/, '').replace(/\(?\s*\d{1,5}(?:\.\d+)?\s*[GT]B\s*\)?/ig, '')
+      .replace(/^(AHCI|NVME|SATA\w*|M\.?\s*2\w*)\s*/i, '').replace(/[)(]/g, '').replace(/\s+/g, ' ').trim();
+    if (!name || name.length < 3) continue;
+    const isTB = /TB/i.test(capM[0]);
+    const cap = (isTB ? capM[1] + 'TB' : Math.round(parseFloat(capM[1])) + 'GB');
+    const key = (name + cap).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (seen.has(key)) continue; seen.add(key);
+    const isHDD = /HDD|\bST\d{3,4}|Seagate\s+Barracuda|WD\d|Toshiba\s+DT/i.test(l) && !/SSD/i.test(l);
+    if (isHDD) { out.hdd.push({ cap, maker: name }); }
+    else { const type = /NVME|M\.?\s*2|EVO|9[78]0/i.test(l) ? 'NVMe' : (/SATA/i.test(l) ? 'SATA' : ''); out.ssd.push({ type, cap, maker: name }); }
+  }
   return out;
 }
 app.post('/api/computers/ai-scan', wrap(async (req, res) => {
