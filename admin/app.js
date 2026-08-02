@@ -763,10 +763,12 @@ async function submitStoreSale(){
   await loadAll();
 }
 
-// ── 견적서 (틀) ── 매입가·마진은 내부용, 인쇄엔 판매가만. 저장/컴퓨존 가져오기는 추후.
+// ── 견적서 (틀, 컴퓨존식 부품 분류) ── 매입가·마진 내부용, 인쇄엔 판매가만.
+const EST_CATS=['CPU','메인보드','메모리','그래픽카드','SSD','HDD','케이스','파워','쿨러/튜닝','모니터','소프트웨어','주변기기','조립비/AS'];
 function estRowHtml(x){ x=x||{};
   return `<tr class="est-row">
-    <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [ASUS] PRIME B650M-K)" style="width:100%;min-width:160px"></td>
+    <td><input class="est-cat" value="${esc(x.cat)||''}" placeholder="분류" style="width:92px;font-weight:600;background:var(--gray-50)"></td>
+    <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [ASUS] PRIME B650M-K)" style="width:100%;min-width:150px"></td>
     <td><input class="est-spec" value="${esc(x.spec)||''}" placeholder="사양/비고" style="width:100%;min-width:120px"></td>
     <td><input class="est-qty" type="number" min="1" value="${x.qty||1}" oninput="estCalc()" style="width:56px"></td>
     <td><input class="est-cost" type="number" min="0" value="${x.cost!=null?x.cost:''}" placeholder="매입가" oninput="estCalc()" style="width:96px"></td>
@@ -802,8 +804,8 @@ function renderEstimates(){
         <button class="btn btn-sm btn-secondary" onclick="estApplyBulk()">전체 적용</button></div>
     </div>
     <div class="table-container"><table class="table">
-      <thead><tr><th>품명</th><th>사양/비고</th><th>수량</th><th>매입가</th><th>마진</th><th>판매단가</th><th>금액</th><th></th></tr></thead>
-      <tbody id="est_body">${[{},{},{}].map(estRowHtml).join('')}</tbody>
+      <thead><tr><th>분류</th><th>품명</th><th>사양/비고</th><th>수량</th><th>매입가</th><th>마진</th><th>판매단가</th><th>금액</th><th></th></tr></thead>
+      <tbody id="est_body">${EST_CATS.map(c=>estRowHtml({cat:c})).join('')}</tbody>
     </table></div>
     <button class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="estAddRow()">+ 항목 추가</button>
     <div style="margin-top:14px;display:flex;justify-content:flex-end">
@@ -825,7 +827,7 @@ function estRows(){ return [...document.querySelectorAll('#est_body .est-row')].
   const g=c=>tr.querySelector(c);
   const qty=Number(g('.est-qty').value)||0, cost=Number(g('.est-cost').value)||0, margin=Number(g('.est-margin').value)||0;
   const price=Math.round(cost*(1+margin/100));
-  return { name:g('.est-name').value.trim(), spec:g('.est-spec').value.trim(), qty, cost, margin, price, amt:price*qty };
+  return { cat:g('.est-cat').value.trim(), name:g('.est-name').value.trim(), spec:g('.est-spec').value.trim(), qty, cost, margin, price, amt:price*qty };
 }); }
 function estCalc(){
   let sub=0;
@@ -842,13 +844,13 @@ function estCalc(){
 }
 function estAddRow(){ const b=document.getElementById('est_body'); if(b){ b.insertAdjacentHTML('beforeend',estRowHtml()); } }
 function estApplyBulk(){ const m=Number(v('est_bulk'))||0; document.querySelectorAll('#est_body .est-margin').forEach(i=>i.value=m); estCalc(); }
-function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return; const b=document.getElementById('est_body'); if(b){ b.innerHTML=[{},{},{}].map(estRowHtml).join(''); estCalc(); } }
+function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return; const b=document.getElementById('est_body'); if(b){ b.innerHTML=EST_CATS.map(c=>estRowHtml({cat:c})).join(''); estCalc(); } }
 function estPrint(){
   const rows=estRows().filter(r=>r.name||r.amt);
   if(!rows.length){ alert('품목을 입력하세요'); return; }
   const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1), total=sub+vat;
   const company=esc(v('est_company'))||'(회사명)', contact=esc(v('est_contact')), customer=esc(v('est_customer'))||'(고객)', date=esc(v('est_date')), no=esc(v('est_no')), memo=esc(v('est_memo'));
-  const body=rows.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${esc(r.name)}${r.spec?`<div style="font-size:11px;color:#888">${esc(r.spec)}</div>`:''}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${won(r.price)}</td><td style="text-align:right">${won(r.amt)}</td></tr>`).join('');
+  const body=rows.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center;color:#666">${esc(r.cat)||''}</td><td>${esc(r.name)}${r.spec?`<div style="font-size:11px;color:#888">${esc(r.spec)}</div>`:''}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${won(r.price)}</td><td style="text-align:right">${won(r.amt)}</td></tr>`).join('');
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>견적서 ${no}</title>
     <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;padding:24px;max-width:760px;margin:auto}
     h1{text-align:center;letter-spacing:8px;border-bottom:3px solid #333;padding-bottom:10px}
@@ -862,7 +864,7 @@ function estPrint(){
     <h1>견 적 서</h1>
     <div class="top"><div><b>${customer}</b> 귀하<br>견적일: ${date}<br>견적번호: ${no}</div>
       <div style="text-align:right"><b>${company}</b>${contact?`<br>${contact}`:''}</div></div>
-    <table><thead><tr><th style="width:40px">No</th><th>품명 / 사양</th><th style="width:56px">수량</th><th style="width:110px">단가</th><th style="width:120px">금액</th></tr></thead><tbody>${body}</tbody></table>
+    <table><thead><tr><th style="width:36px">No</th><th style="width:78px">분류</th><th>품명 / 사양</th><th style="width:50px">수량</th><th style="width:100px">단가</th><th style="width:110px">금액</th></tr></thead><tbody>${body}</tbody></table>
     <table class="sum"><tr><td>공급가액</td><td style="text-align:right">${won(sub)}</td></tr>
       <tr><td>부가세(10%)</td><td style="text-align:right">${won(vat)}</td></tr>
       <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr></table>
