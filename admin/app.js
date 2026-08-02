@@ -763,6 +763,116 @@ async function submitStoreSale(){
   await loadAll();
 }
 
+// ── 견적서 (틀) ── 매입가·마진은 내부용, 인쇄엔 판매가만. 저장/컴퓨존 가져오기는 추후.
+function estRowHtml(x){ x=x||{};
+  return `<tr class="est-row">
+    <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [ASUS] PRIME B650M-K)" style="width:100%;min-width:160px"></td>
+    <td><input class="est-spec" value="${esc(x.spec)||''}" placeholder="사양/비고" style="width:100%;min-width:120px"></td>
+    <td><input class="est-qty" type="number" min="1" value="${x.qty||1}" oninput="estCalc()" style="width:56px"></td>
+    <td><input class="est-cost" type="number" min="0" value="${x.cost!=null?x.cost:''}" placeholder="매입가" oninput="estCalc()" style="width:96px"></td>
+    <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:10}" oninput="estCalc()" style="width:52px"> %</td>
+    <td class="est-price" style="text-align:right;font-weight:600">₩0</td>
+    <td class="est-amt" style="text-align:right;font-weight:800">₩0</td>
+    <td><button class="btn btn-sm btn-danger" onclick="this.closest('tr').remove();estCalc()">×</button></td>
+  </tr>`;
+}
+function renderEstimates(){
+  const now=new Date();
+  const today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const no='Q'+today.replace(/-/g,'')+'-'+String(now.getHours())+String(now.getMinutes()).padStart(2,'0');
+  const company=((state.settings||{}).company_name)||'';
+  return `
+  <div class="page-header"><h2>📄 견적서 <span style="font-size:13px;color:var(--gray-500)">— 틀(초안). 항목·마진·부가세 자동계산 + 인쇄</span></h2></div>
+  <div class="vd-card" style="margin-bottom:14px">
+    <div class="form-row">
+      <div class="form-group" style="flex:2"><label>공급자 (회사명)</label><input id="est_company" value="${esc(company)}" placeholder="예: CSEP 컴퓨터"></div>
+      <div class="form-group"><label>담당 · 연락처</label><input id="est_contact" placeholder="담당자 / 전화"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2"><label>고객 / 거래처</label><input id="est_customer" placeholder="고객명 또는 거래처명"></div>
+      <div class="form-group"><label>견적일자</label><input id="est_date" type="date" value="${today}"></div>
+      <div class="form-group"><label>견적번호</label><input id="est_no" value="${no}"></div>
+    </div>
+  </div>
+  <div class="vd-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+      <div style="font-weight:800">품목</div>
+      <div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;color:var(--gray-500)">일괄 마진</span>
+        <input id="est_bulk" type="number" value="10" style="width:56px"> %
+        <button class="btn btn-sm btn-secondary" onclick="estApplyBulk()">전체 적용</button></div>
+    </div>
+    <div class="table-container"><table class="table">
+      <thead><tr><th>품명</th><th>사양/비고</th><th>수량</th><th>매입가</th><th>마진</th><th>판매단가</th><th>금액</th><th></th></tr></thead>
+      <tbody id="est_body">${[{},{},{}].map(estRowHtml).join('')}</tbody>
+    </table></div>
+    <button class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="estAddRow()">+ 항목 추가</button>
+    <div style="margin-top:14px;display:flex;justify-content:flex-end">
+      <table style="min-width:260px">
+        <tr><td style="padding:4px 14px;color:var(--gray-600)">공급가액</td><td id="est_sub" style="text-align:right;font-weight:700">₩0</td></tr>
+        <tr><td style="padding:4px 14px;color:var(--gray-600)">부가세 (10%)</td><td id="est_vat" style="text-align:right;font-weight:700">₩0</td></tr>
+        <tr><td style="padding:7px 14px;font-weight:800;border-top:2px solid var(--gray-300)">합계</td><td id="est_total" style="text-align:right;font-weight:900;font-size:18px;border-top:2px solid var(--gray-300)">₩0</td></tr>
+      </table>
+    </div>
+    <div class="form-group" style="margin-top:10px"><label>비고 / 메모</label><input id="est_memo" placeholder="예: 견적 유효기간 7일 / 설치·배송 포함 등"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn" onclick="estPrint()">🖨️ 견적서 인쇄</button>
+      <button class="btn btn-secondary" onclick="estReset()">초기화</button>
+    </div>
+    <div style="font-size:12px;color:var(--gray-400);margin-top:8px">※ 매입가·마진은 내부용 — 인쇄 견적서엔 <b>판매단가·금액만</b> 표시됩니다. (저장·불러오기·컴퓨존 스캔가져오기는 추후 추가 예정)</div>
+  </div>`;
+}
+function estRows(){ return [...document.querySelectorAll('#est_body .est-row')].map(tr=>{
+  const g=c=>tr.querySelector(c);
+  const qty=Number(g('.est-qty').value)||0, cost=Number(g('.est-cost').value)||0, margin=Number(g('.est-margin').value)||0;
+  const price=Math.round(cost*(1+margin/100));
+  return { name:g('.est-name').value.trim(), spec:g('.est-spec').value.trim(), qty, cost, margin, price, amt:price*qty };
+}); }
+function estCalc(){
+  let sub=0;
+  document.querySelectorAll('#est_body .est-row').forEach(tr=>{
+    const qty=Number(tr.querySelector('.est-qty').value)||0, cost=Number(tr.querySelector('.est-cost').value)||0, margin=Number(tr.querySelector('.est-margin').value)||0;
+    const price=Math.round(cost*(1+margin/100)), amt=price*qty;
+    tr.querySelector('.est-price').textContent=won(price);
+    tr.querySelector('.est-amt').textContent=won(amt);
+    sub+=amt;
+  });
+  const vat=Math.round(sub*0.1);
+  const set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
+  set('est_sub',sub); set('est_vat',vat); set('est_total',sub+vat);
+}
+function estAddRow(){ const b=document.getElementById('est_body'); if(b){ b.insertAdjacentHTML('beforeend',estRowHtml()); } }
+function estApplyBulk(){ const m=Number(v('est_bulk'))||0; document.querySelectorAll('#est_body .est-margin').forEach(i=>i.value=m); estCalc(); }
+function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return; const b=document.getElementById('est_body'); if(b){ b.innerHTML=[{},{},{}].map(estRowHtml).join(''); estCalc(); } }
+function estPrint(){
+  const rows=estRows().filter(r=>r.name||r.amt);
+  if(!rows.length){ alert('품목을 입력하세요'); return; }
+  const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1), total=sub+vat;
+  const company=esc(v('est_company'))||'(회사명)', contact=esc(v('est_contact')), customer=esc(v('est_customer'))||'(고객)', date=esc(v('est_date')), no=esc(v('est_no')), memo=esc(v('est_memo'));
+  const body=rows.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${esc(r.name)}${r.spec?`<div style="font-size:11px;color:#888">${esc(r.spec)}</div>`:''}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${won(r.price)}</td><td style="text-align:right">${won(r.amt)}</td></tr>`).join('');
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>견적서 ${no}</title>
+    <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;padding:24px;max-width:760px;margin:auto}
+    h1{text-align:center;letter-spacing:8px;border-bottom:3px solid #333;padding-bottom:10px}
+    .top{display:flex;justify-content:space-between;font-size:13px;margin:14px 0}
+    table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+    th,td{border:1px solid #ccc;padding:7px 8px}th{background:#f2f4f8}
+    .sum{margin-top:12px;margin-left:auto;width:280px;font-size:14px}
+    .sum td{border:none;padding:4px 8px}.sum .tot{border-top:2px solid #333;font-weight:900;font-size:17px}
+    .memo{margin-top:14px;font-size:12px;color:#555;white-space:pre-wrap}
+    @media print{button{display:none}}</style></head><body>
+    <h1>견 적 서</h1>
+    <div class="top"><div><b>${customer}</b> 귀하<br>견적일: ${date}<br>견적번호: ${no}</div>
+      <div style="text-align:right"><b>${company}</b>${contact?`<br>${contact}`:''}</div></div>
+    <table><thead><tr><th style="width:40px">No</th><th>품명 / 사양</th><th style="width:56px">수량</th><th style="width:110px">단가</th><th style="width:120px">금액</th></tr></thead><tbody>${body}</tbody></table>
+    <table class="sum"><tr><td>공급가액</td><td style="text-align:right">${won(sub)}</td></tr>
+      <tr><td>부가세(10%)</td><td style="text-align:right">${won(vat)}</td></tr>
+      <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr></table>
+    ${memo?`<div class="memo">비고: ${memo}</div>`:''}
+    <div style="text-align:center;margin-top:24px"><button onclick="window.print()">🖨️ 인쇄</button></div>
+    </body></html>`;
+  const w=window.open('','_blank'); if(!w){ alert('팝업이 차단되었습니다. 허용 후 다시 시도하세요.'); return; }
+  w.document.write(html); w.document.close();
+}
+
 // ── 재고 관리 ──
 function renderInventory(){
   const inv = state.inventory;
