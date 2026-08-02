@@ -643,20 +643,51 @@ function parseBiosText(text) {
   }
   return out;
 }
+// OCR 텍스트를 Gemini로 문맥 해석 → 구조화 JSON (규칙이 놓친 형식 보완). 실패 시 throw.
+async function geminiParse(ocrText) {
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY 미설정');
+  const prompt = [
+    '다음은 PC의 BIOS/UEFI 화면을 OCR로 읽은 텍스트입니다. 하드웨어 정보를 추출해 아래 JSON 스키마로만 답하세요(설명·코드펜스 없이 JSON만).',
+    '값이 없으면 빈 문자열("") 또는 빈 배열([]). 지어내지 마세요. OCR 오탈자(예: i7을 17/l7, O를 0)는 문맥으로 보정하세요.',
+    'RAM은 슬롯/모듈별로 나눠 담고 용량은 GB 숫자만(512MB는 0.5). 저장장치는 USB/이동식 제외. bios_version은 보드명과 분리.',
+    '스키마: {"name":"","device_type":"desktop|laptop|server|printer|other","cpu":"","serial_number":"","bios_version":"","motherboard":{"plat":"Intel|AMD|","maker":"","chipset":"","model":""},"ram":[{"size":"","spec":"","maker":""}],"ssd":[{"type":"SATA|NVMe|","cap":"","maker":""}],"hdd":[{"cap":"","maker":""}]}',
+    'OCR 텍스트:', '"""', String(ocrText).slice(0, 4000), '"""',
+  ].join('\n');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  const resp = await fetch(url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
+  let text = '';
+  try { text = data.candidates[0].content.parts.map(p => p.text || '').join(''); } catch (e) {}
+  const s = text.indexOf('{'), e2 = text.lastIndexOf('}');
+  if (s < 0 || e2 < 0) throw new Error('AI 응답 파싱 실패');
+  const g = JSON.parse(text.slice(s, e2 + 1));
+  // 스키마 정규화(빠진 필드 방어)
+  g.motherboard = g.motherboard || { plat: '', maker: '', chipset: '', model: '' };
+  g.ram = Array.isArray(g.ram) ? g.ram : []; g.ssd = Array.isArray(g.ssd) ? g.ssd : []; g.hdd = Array.isArray(g.hdd) ? g.hdd : [];
+  return g;
+}
 app.post('/api/computers/ai-scan', wrap(async (req, res) => {
-  // 폰 내장 OCR(Tesseract)이 읽은 텍스트를 보내면 → 서버는 파싱만 (무료, API 불필요)
-  const ocrTextIn = req.body && req.body.text;
-  if (typeof ocrTextIn === 'string' && ocrTextIn.trim()) {
-    const parsed = parseBiosText(ocrTextIn);
-    parsed._ocr = ocrTextIn.slice(0, 2000);
+  const body = req.body || {};
+  // 1) 수동 AI 정밀분석: {text, ai:true} → Gemini로 재해석
+  if (body.ai && typeof body.text === 'string' && body.text.trim()) {
+    try { const g = await geminiParse(body.text); g._ocr = body.text.slice(0, 2000); g._src = 'ai'; return res.json(g); }
+    catch (e) { console.log('[AI정밀분석] 오류:', e.message); return res.status(502).json({ error: 'AI 정밀분석 실패: ' + e.message }); }
+  }
+  // 2) 폰 OCR 텍스트만 → 규칙 파싱(무료)
+  if (typeof body.text === 'string' && body.text.trim() && !body.image) {
+    const parsed = parseBiosText(body.text); parsed._ocr = body.text.slice(0, 2000); parsed._src = 'regex';
     return res.json(parsed);
   }
-  // (구버전 호환) 이미지가 오면 Cloud Vision 사용 — 단 billing 필요
+  // 3) 이미지 → Vision OCR → 규칙 파싱 → (핵심값 비면) 자동 Gemini 폴백
   const key = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) return res.status(503).json({ error: 'OCR 키가 없습니다. 직접 입력해주세요.' });
-  const image = req.body && req.body.image;
+  const image = body.image;
   if (!image) return res.status(400).json({ error: '이미지가 없습니다' });
-  // data URL 접두사 제거
   const m = String(image).match(/^data:(image\/[^;]+);base64,(.*)$/s);
   const b64 = m ? m[2] : String(image);
   try {
@@ -671,8 +702,14 @@ app.post('/api/computers/ai-scan', wrap(async (req, res) => {
     }
     const r = data.responses && data.responses[0];
     const ocrText = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
-    const parsed = parseBiosText(ocrText);
-    parsed._ocr = ocrText.slice(0, 2000);   // 원문도 함께 반환(앱에서 참고/직접입력 보조)
+    let parsed = parseBiosText(ocrText); parsed._src = 'regex';
+    // 규칙이 CPU 또는 RAM을 못 잡으면 자동으로 Gemini 보완
+    const incomplete = !parsed.cpu || !parsed.ram.length;
+    if (incomplete && ocrText && (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) {
+      try { const g = await geminiParse(ocrText); g._src = 'ai'; parsed = g; }
+      catch (e) { console.log('[AI폴백] 실패:', e.message); parsed._aiError = e.message; }
+    }
+    parsed._ocr = ocrText.slice(0, 2000);
     res.json(parsed);
   } catch (e) {
     console.log('[BIOS스캔] 오류:', e.message);

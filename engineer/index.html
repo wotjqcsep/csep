@@ -583,13 +583,26 @@ function hddRowHtml(x){ x=x||{};
     <input class="hdd-maker" value="${esc(x.maker)||''}" placeholder="모델/제조사" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
     <span onclick="this.parentNode.remove()" style="flex:none;color:var(--danger);font-size:20px;cursor:pointer;align-self:center">×</span></div>`;
 }
+let devScanLast={};
+async function aiRescan(btn){
+  const text=(devScanLast&&devScanLast._ocr)||'';
+  if(!text){ alert('먼저 촬영해주세요.'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='🤖 AI 분석 중…'; }
+  let r={};
+  try{ r=await api('POST','/computers/ai-scan',{text,ai:true})||{}; }
+  catch(e){ alert('AI 정밀분석 실패: '+(e&&e.message?e.message:e)); if(btn){btn.disabled=false;btn.textContent='🤖 AI 정밀분석';} return; }
+  r._ocr=r._ocr||text;
+  renderDevScanForm(r);
+}
 function renderDevScanForm(r){
+  devScanLast=r||{};
   const el=document.getElementById('custDevSheet'); if(!el)return;
   const mb=(r.motherboard&&typeof r.motherboard==='object')?r.motherboard:{};
   const rams=(Array.isArray(r.ram)&&r.ram.length)?r.ram:[{}];
   const inp=(id,v,ph)=>`<input id="${id}" value="${esc(v)||''}" placeholder="${ph||''}" style="width:100%;padding:10px;border:1px solid #dee2e6;border-radius:9px">`;
-  el.innerHTML=`<h3>🖥️ 장치 등록 확인</h3>
-    <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px">OCR로 읽은 값입니다. 확인·수정 후 저장하세요.</div>
+  el.innerHTML=`<h3>🖥️ 장치 등록 확인 ${r._src==='ai'?'<span style="font-size:11px;color:#fff;background:var(--primary);padding:2px 7px;border-radius:10px;vertical-align:middle">AI 분석</span>':''}</h3>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">${r._src==='ai'?'AI가 정밀 분석한 값입니다.':'OCR로 읽은 값입니다.'} 확인·수정 후 저장하세요.</div>
+    ${r._src!=='ai'?`<button type="button" class="btn" style="margin:0 0 10px;padding:8px;background:#f3e8ff;color:#7048e8;font-size:13px" onclick="aiRescan(this)">🤖 AI 정밀분석 (값이 부족할 때)</button>`:''}
     ${r._ocr?`<details style="margin-bottom:10px"><summary style="font-size:12px;color:var(--primary);cursor:pointer">📄 인식된 원문 보기 (참고용)</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:11px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:8px;max-height:160px;overflow:auto;margin:6px 0 0">${esc(r._ocr)}</pre></details>`:''}
     <div class="fg"><label>장비명 (선택)</label>${inp('ds_name',r.name,'예: 사무실 PC')}</div>
     <div class="fg"><label>종류</label><select id="ds_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px">
