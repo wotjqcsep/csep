@@ -650,7 +650,7 @@ function biosAiPrompt(ocrText) {
     '값이 없으면 빈 문자열("") 또는 빈 배열([]). 지어내지 마세요. OCR 오탈자(예: i7을 17/l7, O를 0)는 문맥으로 보정하세요. cpu는 Intel/AMD 접두를 유지(예: Intel Core i3-6006U).',
     'RAM 규칙: 화면의 슬롯 라벨(DIMM/Slot1·Slot2/Channel/DDRn)이 여러 개면 "채워진 슬롯마다 별도 항목"을 만드세요. 같은 용량이 여러 슬롯에 있어도 각각 넣으세요(예: 2048MB가 Slot1·Slot2 → 항목 2개). 라벨과 값이 표의 다른 열/줄에 떨어져 있어도 순서대로 짝지으세요. 용량은 GB 숫자만(2048MB→2, 512MB→0.5). spec은 화면 그대로(DDR4, LPDDR3 등). "None/N/A" 슬롯은 제외.',
     'RAM maker에는 절대 저장장치/SSD 브랜드(LITEON, Samsung SSD, WD, LITEON 등)나 CPU/보드명을 넣지 마세요. 메모리 제조사가 화면에 명시 안 되면 비워두세요.',
-    '저장장치는 USB/이동식 제외. bios_version은 보드명과 분리.',
+    '저장장치(ssd/hdd)의 maker 필드에는 화면에 보이는 "전체 모델명"을 그대로 넣으세요(브랜드만 축약 금지). 예: "Samsung SSD 850 PRO", "WDC WD20EZRZ-00Z5HB", "WDC WD5000AAKX-22ER". 구분: 이름에 SSD/NVMe/M.2 있으면 ssd, WDC/Seagate/Toshiba 등 회전식 하드는 hdd. 용량은 화면에 있으면 넣고 없으면 비움. USB/이동식/카드리더는 제외. bios_version은 보드명과 분리.',
     '스키마: {"name":"","device_type":"desktop|laptop|server|printer|other","cpu":"","serial_number":"","bios_version":"","motherboard":{"plat":"Intel|AMD|","maker":"","chipset":"","model":""},"ram":[{"size":"","spec":"","maker":""}],"ssd":[{"type":"SATA|NVMe|","cap":"","maker":""}],"hdd":[{"cap":"","maker":""}]}',
     'OCR 텍스트:', '"""', String(ocrText).slice(0, 4000), '"""',
   ].join('\n');
