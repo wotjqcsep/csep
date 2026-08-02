@@ -732,12 +732,11 @@ app.post('/api/computers/ai-scan', wrap(async (req, res) => {
     const r = data.responses && data.responses[0];
     const ocrText = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
     let parsed = parseBiosText(ocrText); parsed._src = 'regex';
-    // 규칙이 CPU 또는 RAM을 못 잡으면 자동으로 AI(Groq/Gemini) 보완
-    const incomplete = !parsed.cpu || !parsed.ram.length;
+    // AI 무료(Groq)이므로 항상 AI로 정리 → 실패하면 규칙 결과를 안전망으로 사용
     const hasAiKey = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (incomplete && ocrText && hasAiKey) {
+    if (ocrText && hasAiKey) {
       try { const g = await aiParse(ocrText); g._src = 'ai'; parsed = g; }
-      catch (e) { console.log('[AI폴백] 실패:', e.message); parsed._aiError = e.message; }
+      catch (e) { console.log('[AI] 실패, 규칙 결과 사용:', e.message); parsed._aiError = e.message; }
     }
     parsed._ocr = ocrText.slice(0, 2000);
     res.json(parsed);
