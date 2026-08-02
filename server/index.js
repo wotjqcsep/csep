@@ -558,25 +558,34 @@ function parseBiosText(text) {
     if (/\bAMD\b|Ryzen|Athlon/i.test(joined)) out.motherboard.plat = 'AMD';
     else if (/\bIntel\b|Xeon|Pentium|Celeron/i.test(joined)) out.motherboard.plat = 'Intel';
   }
-  // 메인보드 제조사: 실제 보드 브랜드 우선, 없으면 Intel
+  // 메인보드 제조사: 실제 보드 브랜드 우선, ASUS 제품라인(PRIME/ROG/TUF/STRIX)도 ASUS로
   const brand = joined.match(/\b(ASUS|ASRock|GIGABYTE|MSI|BIOSTAR|SuperMicro|ECS|Foxconn|COLORFUL)\b/i);
   if (brand) out.motherboard.maker = brand[1].toUpperCase() === 'ASUS' ? 'ASUS' : brand[1];
+  else if (/\b(PRIME|ROG|TUF|STRIX|PROART)\b/i.test(joined)) out.motherboard.maker = 'ASUS';
   else if (/\bIntel\s+Corporation\b/i.test(joined)) out.motherboard.maker = 'Intel';
-  // 칩셋: B550, Z790, H610, X670 등 (뒤 폼팩터 M/D 등은 제외)
+  // 보드 모델: PRIME Z390-A, ROG STRIX B550-F, TUF GAMING B660M 등
+  const modelM = joined.match(/\b(ROG\s*STRIX|TUF(?:\s*GAMING)?|PRIME|STRIX|PROART|AORUS|MPG|MAG|MORTAR|TOMAHAWK)\s+([A-Z]?\d{2,3}[A-Z0-9-]*)/i);
+  if (modelM) out.motherboard.model = modelM[0].replace(/\s+/g, ' ').trim();
+  // 칩셋: B550, Z790, H610, X670, Z390 등 (뒤 폼팩터 문자 제외)
   const chM = joined.match(/\b([ABHXZ]\d{2,3})[A-Z]?\b/);
   if (chM) out.motherboard.chipset = chM[1];
   // 시리얼
   const snM = joined.match(/(?:Serial\s*(?:Number|No\.?|#)?|S\/N)\s*[:：]?\s*([A-Za-z0-9\-]{5,})/i);
   if (snM) out.serial_number = snM[1];
-  // RAM: 총 용량(GB) + 규격(DDRx-속도)
-  const sizeM = joined.match(/(?:Total\s*Memory|Memory\s*Size|System\s*Memory|Installed\s*Memory)\s*[:：]?\s*(\d{1,3})\s*GB/i)
-    || joined.match(/\b(\d{1,3})\s*GB\b/i);
-  const ddrM = joined.match(/DDR[345]/i);
-  const mhzM = joined.match(/(\d{3,5})\s*MHz/i) || joined.match(/DDR[345][\s-]*(\d{3,5})/i);
+  // RAM 용량: "Memory: NNNNN MB"(MB→GB) 우선 → 없으면 Memory/DRAM 문맥의 GB (SSD 용량 배제)
+  let ramSize = '';
+  const mbM = joined.match(/(?:Total\s*Memory|System\s*Memory|Installed\s*Memory|Memory)\s*[:：]?\s*(\d{4,6})\s*MB/i);
+  if (mbM) ramSize = String(Math.round(parseInt(mbM[1], 10) / 1024));
+  else {
+    const gbM = joined.match(/(?:Total\s*Memory|System\s*Memory|Installed\s*Memory|DRAM)[^\n]*?(\d{1,3})\s*GB/i);
+    if (gbM) ramSize = gbM[1];
+  }
+  // RAM 규격: DDR 세대 + DDR 바로 옆 속도 (CPU Speed의 MHz는 배제)
+  const ddrGen = joined.match(/DDR([345])/i);
+  const ddrSpd = joined.match(/DDR[345][\s-]*(\d{3,5})/i);
   let spec = '';
-  if (ddrM) spec = ddrM[0].toUpperCase() + (mhzM ? ('-' + mhzM[1]) : '');
-  else if (mhzM) spec = mhzM[1] + 'MHz';
-  if (sizeM || spec) out.ram.push({ size: sizeM ? sizeM[1] : '', spec, maker: '' });
+  if (ddrGen) spec = 'DDR' + ddrGen[1] + (ddrSpd ? ('-' + ddrSpd[1]) : '');
+  if (ramSize || spec) out.ram.push({ size: ramSize, spec, maker: '' });
   return out;
 }
 app.post('/api/computers/ai-scan', wrap(async (req, res) => {

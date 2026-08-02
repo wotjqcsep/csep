@@ -532,12 +532,31 @@ function renderCustDevList(){
 function scanProgress(msg){ const el=document.getElementById('custDevSheet');
   if(el) el.innerHTML=`<h3>🖥️ 글자 인식 중…</h3><div class="empty" style="padding:30px 0">📷 ${msg}<br><span style="font-size:12px;color:var(--gray-400)">처음 1회는 인식엔진을 내려받아 조금 걸립니다</span></div>`;
 }
+// OCR 전처리: 고해상도 유지 + 흑백 + (어두운 화면이면) 반전 + 대비강화 → BIOS 인식률↑
+function preprocessForOcr(dataUrl, cb){
+  const img=new Image();
+  img.onload=()=>{
+    let w=img.width,h=img.height;
+    const max=1800; if(w>max||h>max){ if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const ctx=c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+    let im; try{ im=ctx.getImageData(0,0,w,h); }catch(e){ cb(dataUrl); return; }
+    const d=im.data; let sum=0;
+    for(let i=0;i<d.length;i+=4){ const g=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114; d[i]=d[i+1]=d[i+2]=g; sum+=g; }
+    const mean=sum/(d.length/4); const invert=mean<115;   // 어두운 배경이면 반전
+    for(let i=0;i<d.length;i+=4){ let g=d[i]; if(invert)g=255-g; g=(g-128)*1.6+128; g=g<0?0:g>255?255:g; d[i]=d[i+1]=d[i+2]=g; }
+    ctx.putImageData(im,0,0);
+    cb(c.toDataURL('image/jpeg',0.92));
+  };
+  img.onerror=()=>cb(dataUrl);
+  img.src=dataUrl;
+}
 function scanBiosPhoto(input){
   const f=input.files&&input.files[0]; input.value='';
   if(!f) return;
   if(typeof Tesseract==='undefined'){ alert('인식엔진 로딩 중입니다. 인터넷 연결 확인 후 잠시 뒤 다시 시도해주세요.'); renderCustDevList(); return; }
-  scanProgress('사진에서 글자를 읽고 있습니다…');
-  compressImage(f,async d=>{
+  scanProgress('사진 준비 중…');
+  compressImage(f,d0=>preprocessForOcr(d0,async d=>{
     let text='';
     try{
       const res=await Tesseract.recognize(d,'eng',{ logger:m=>{
@@ -550,7 +569,7 @@ function scanBiosPhoto(input){
     try{ r=await api('POST','/computers/ai-scan',{text})||{}; }
     catch(e){ r={ _ocr:text }; }   // 서버 파싱 실패해도 원문은 보여줌
     renderDevScanForm(r);
-  });
+  }));
 }
 function ramRowHtml(x){ x=x||{};
   return `<div class="dev-ram-row" style="display:flex;gap:6px;margin-bottom:6px">
