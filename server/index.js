@@ -365,6 +365,7 @@ async function initDB() {
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS printer_model TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS printer_ip TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS router_hub_count TEXT;
+    ALTER TABLE computers ADD COLUMN IF NOT EXISTS bios_version TEXT;
   `);
   console.log('DB 초기화 완료');
 }
@@ -509,7 +510,7 @@ app.delete('/api/part-options/:id', wrap(async (req, res) => {
 // ============================================================
 //  컴퓨터/장비 (computers)
 // ============================================================
-const COMPUTER_FIELDS = ['customer_id', 'name', 'device_type', 'cpu', 'ram', 'ssd', 'hdd', 'motherboard', 'gpu', 'os', 'os_version', 'office_version', 'antivirus', 'ip_address', 'mac_address', 'serial_number', 'assembled', 'power', 'purchase_date', 'warranty_expiry', 'printer', 'monitor', 'nas_name', 'nas_model', 'nas_ip', 'nas_hdd_count', 'nas_hdd_detail', 'nas_total_capacity', 'nas_partition_info', 'nas_maintenance_period', 'nas_maintenance_notes', 'nas_admin_id', 'nas_admin_password', 'router_name', 'router_model', 'router_ip', 'router_admin_id', 'router_admin_password', 'notes', 'cad', 'adobe', 'etc_program1', 'etc_program2', 'printer_model', 'printer_ip', 'router_hub_count'];
+const COMPUTER_FIELDS = ['customer_id', 'name', 'device_type', 'cpu', 'ram', 'ssd', 'hdd', 'motherboard', 'gpu', 'os', 'os_version', 'office_version', 'antivirus', 'ip_address', 'mac_address', 'serial_number', 'assembled', 'power', 'purchase_date', 'warranty_expiry', 'printer', 'monitor', 'nas_name', 'nas_model', 'nas_ip', 'nas_hdd_count', 'nas_hdd_detail', 'nas_total_capacity', 'nas_partition_info', 'nas_maintenance_period', 'nas_maintenance_notes', 'nas_admin_id', 'nas_admin_password', 'router_name', 'router_model', 'router_ip', 'router_admin_id', 'router_admin_password', 'notes', 'cad', 'adobe', 'etc_program1', 'etc_program2', 'printer_model', 'printer_ip', 'router_hub_count', 'bios_version'];
 
 app.get('/api/computers', wrap(async (req, res) => {
   const { customer_id } = req.query;
@@ -536,7 +537,7 @@ app.post('/api/computers', wrap(async (req, res) => {
 // env: GOOGLE_VISION_API_KEY (또는 GOOGLE_API_KEY). 키 없으면 503.
 // OCR로 읽은 글자를 서버에서 규칙기반으로 파싱 → CPU/RAM/메인보드/시리얼 추정.
 function parseBiosText(text) {
-  const out = { name: '', device_type: 'desktop', cpu: '', serial_number: '',
+  const out = { name: '', device_type: 'desktop', cpu: '', serial_number: '', bios_version: '',
     motherboard: { plat: '', maker: '', chipset: '', model: '' }, ram: [], ssd: [], hdd: [] };
   if (!text) return out;
   const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -564,6 +565,9 @@ function parseBiosText(text) {
   if (modelM) out.motherboard.model = modelM[0].replace(/\s+/g, ' ').trim();
   const chM = joined.match(/\b([ABHXZ]\d{2,3})[A-Z]?\b/);
   if (chM) out.motherboard.chipset = chM[1];
+  // ── BIOS 버전: "BIOS Ver. 1201", "BIOS Version: 2.10" 등 ──
+  const bvM = joined.match(/BIOS\s*Ver(?:sion)?\.?\s*[:：]?\s*([A-Za-z0-9][A-Za-z0-9.\-]{1,15})/i);
+  if (bvM) out.bios_version = bvM[1];
   // ── 시리얼 ──
   const snM = joined.match(/(?:Serial\s*(?:Number|No\.?|#)?|S\/N)\s*[:：]?\s*([A-Za-z0-9\-]{5,})/i);
   if (snM) out.serial_number = snM[1];

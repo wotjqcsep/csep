@@ -288,7 +288,7 @@ function openComputerModal(id, customerId){
     <div class="form-group"><label>RAM (슬롯당 메모리 · 합계 자동계산)</label>${multiBlock('ram',c.ram)}</div>
     <div class="form-group"><label>SSD (여러 개 가능)</label>${multiBlock('ssd',c.ssd)}</div>
     <div class="form-group"><label>HDD (여러 개 가능)</label>${multiBlock('hdd',c.hdd)}</div>
-    ${field('p_serial','시리얼번호',c.serial_number)}
+    <div class="form-row">${field('p_serial','시리얼번호',c.serial_number)}${field('p_bios','BIOS 버전',c.bios_version)}</div>
     <div class="form-section">소프트웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(설치 확인용 · 선택 또는 직접 입력)</span></div>
     <div class="form-row">${comboField('p_os','OS',c.os,'os_list',[...OS_OPTS,...customOpts('os')])}${comboField('p_office','Office',c.office_version,'office_list',[...OFFICE_OPTS,...customOpts('office')])}</div>
     <div class="form-row">${comboField('p_cad','캐드(CAD)',c.cad,'cad_list',[...CAD_OPTS,...customOpts('cad')])}${comboField('p_adobe','어도비(Adobe)',c.adobe,'adobe_list',[...ADOBE_OPTS,...customOpts('adobe')])}</div>
@@ -314,7 +314,7 @@ function openComputerModal(id, customerId){
 }
 async function saveComputer(id){
   const data = {
-    customer_id:Number(v('p_cust')), name:v('p_name'), device_type:v('p_type'), serial_number:v('p_serial'),
+    customer_id:Number(v('p_cust')), name:v('p_name'), device_type:v('p_type'), serial_number:v('p_serial'), bios_version:v('p_bios'),
     cpu:v('p_cpu'), ram:JSON.stringify(collectMulti('ram')), ssd:JSON.stringify(collectMulti('ssd')), hdd:JSON.stringify(collectMulti('hdd')), motherboard:collectMb(), gpu:v('p_gpu'),
     power:[v('p_pw_type'),v('p_pw_watt')].filter(Boolean).join(' '), monitor:collectMonitor(),
     os:v('p_os'), office_version:v('p_office'), cad:v('p_cad'), adobe:v('p_adobe'), etc_program1:v('p_etc1'), etc_program2:v('p_etc2'),

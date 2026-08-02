@@ -482,7 +482,7 @@ function deviceDetailHtml(c){
   const printerSec = printers.length ? `<div class="sec-label">🖨️ 프린터</div>${printers.map(t=>`<div style="padding:7px 0;border-bottom:1px solid #f1f3f5;font-size:14px">🖨️ ${esc(t)}</div>`).join('')}` : '';
   return [
     sec('🖥️ 기본',[row('장비명',c.name),row('종류',DEVICE_TYPES[c.device_type]||c.device_type)]),
-    sec('🔧 하드웨어',[row('CPU',c.cpu),row('메인보드',devMb(c.motherboard)),row('그래픽',c.gpu),row('파워',c.power),row('모니터',devMonitor(c.monitor)),row('RAM',devSpec('ram',c.ram)),row('SSD',devSpec('ssd',c.ssd)),row('HDD',devSpec('hdd',c.hdd)),row('시리얼',c.serial_number)]),
+    sec('🔧 하드웨어',[row('CPU',c.cpu),row('메인보드',devMb(c.motherboard)),row('BIOS버전',c.bios_version),row('그래픽',c.gpu),row('파워',c.power),row('모니터',devMonitor(c.monitor)),row('RAM',devSpec('ram',c.ram)),row('SSD',devSpec('ssd',c.ssd)),row('HDD',devSpec('hdd',c.hdd)),row('시리얼',c.serial_number)]),
     sec('💿 소프트웨어',[row('OS',c.os),row('OS버전',c.os_version),row('Office',c.office_version),row('CAD',c.cad),row('Adobe',c.adobe),row('백신',c.antivirus),row('기타1',c.etc_program1),row('기타2',c.etc_program2)]),
     sec('🌐 네트워크',[row('IP',c.ip_address),row('MAC',c.mac_address),row('구입일',c.purchase_date),row('보증만료',c.warranty_expiry)]),
     printerSec,
@@ -604,6 +604,7 @@ function renderDevScanForm(r){
         <input id="ds_mb_chipset" value="${esc(mb.chipset)||''}" placeholder="칩셋" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
         <input id="ds_mb_model" value="${esc(mb.model)||''}" placeholder="세부모델" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
       </div></div>
+    <div class="fg"><label>BIOS 버전</label>${inp('ds_bios',r.bios_version,'예: 1201')}</div>
     <div class="fg"><label>RAM</label><div id="ds_ram">${rams.map(ramRowHtml).join('')}</div>
       <button type="button" class="btn btn-ghost" style="margin:0;padding:7px" onclick="document.getElementById('ds_ram').insertAdjacentHTML('beforeend',ramRowHtml())">+ RAM 추가</button></div>
     <div class="fg"><label>SSD</label><div id="ds_ssd">${(Array.isArray(r.ssd)&&r.ssd.length?r.ssd:[]).map(ssdRowHtml).join('')}</div>
@@ -637,7 +638,7 @@ async function saveDevScan(btn){
   const hasMb=Object.values(mb).some(Boolean);
   const payload={
     customer_id:custDevState.custId, name:val('ds_name')||'장치', device_type:val('ds_type')||'desktop',
-    cpu:val('ds_cpu'), serial_number:val('ds_serial'),
+    cpu:val('ds_cpu'), serial_number:val('ds_serial'), bios_version:val('ds_bios'),
     motherboard:hasMb?JSON.stringify(mb):'', ram:rams.length?JSON.stringify(rams):'',
     ssd:ssds.length?JSON.stringify(ssds):'', hdd:hdds.length?JSON.stringify(hdds):'',
   };
