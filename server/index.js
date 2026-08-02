@@ -571,15 +571,19 @@ function parseBiosText(text) {
   // ── 시리얼 ──
   const snM = joined.match(/(?:Serial\s*(?:Number|No\.?|#)?|S\/N)\s*[:：]?\s*([A-Za-z0-9\-]{5,})/i);
   if (snM) out.serial_number = snM[1];
-  // ── RAM: 슬롯별 DIMM 우선(N/A 제외), 없으면 Memory 요약 ──
+  // ── RAM: 슬롯별 우선(DIMM A2 / Slot1 Memory / Channel A 등, N/A 제외), 없으면 Memory 요약 ──
   const ddrGen = joined.match(/DDR([345])/i);
   const gen = ddrGen ? ddrGen[1] : '';
-  const dimmRe = /DIMM[_\s]*[A-D]\s*\d?\s*[:：]\s*([A-Za-z][A-Za-z0-9.]*)?\s*(\d{3,6})\s*MB(?:\s*(\d{3,5})\s*MHz)?/ig;
+  // 슬롯 접두: "DIMM A2", "Slot1 Memory", "Slot 2 Memory", "Channel A1", "ChannelA-DIMM0"
+  const slotRe = /(?:DIMM[_\s]*[A-D]\s*\d?|Slot\s*\d\s*(?:Memory)?|Channel\s*[A-D]\s*\d?(?:[_\s-]*DIMM\s*\d)?)\s*[:：]?\s*([A-Za-z][A-Za-z0-9.]*)?\s*(\d{3,6})\s*MB([^\n]*)/ig;
   let dm; const slots = [];
-  while ((dm = dimmRe.exec(joined))) {
+  while ((dm = slotRe.exec(joined))) {
     const maker = (dm[1] || '').trim();
+    const tail = dm[3] || '';
+    const lGen = (tail.match(/DDR([345])/i) || [])[1] || gen;   // 슬롯 줄에 (DDR4) 있으면 우선
+    const lMhz = (tail.match(/(\d{3,5})\s*MHz/i) || [])[1] || '';
     slots.push({ size: String(Math.round(parseInt(dm[2], 10) / 1024)),
-      spec: (gen ? 'DDR' + gen : '') + (dm[3] ? '-' + dm[3] : ''),
+      spec: (lGen ? 'DDR' + lGen : '') + (lMhz ? '-' + lMhz : ''),
       maker: /^n\/?a$/i.test(maker) ? '' : maker });
   }
   if (slots.length) out.ram = slots;
