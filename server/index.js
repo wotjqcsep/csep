@@ -532,6 +532,81 @@ app.post('/api/computers', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
+// BIOS 화면 사진 → 장치정보 자동추출 (하이브리드: Cloud Vision OCR → Gemini 정리)
+// env: GEMINI_API_KEY(필수), GOOGLE_VISION_API_KEY(권장). 둘 다 GOOGLE_API_KEY로 대체 가능.
+async function visionOcr(b64) {
+  const key = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) return '';   // Vision 키 없으면 OCR 생략 → Gemini 비전 단독
+  try {
+    const resp = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests: [{ image: { content: b64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { console.log('[AI스캔] Vision 오류:', JSON.stringify(data).slice(0, 200)); return ''; }
+    const r = data.responses && data.responses[0];
+    return (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
+  } catch (e) { console.log('[AI스캔] Vision 예외:', e.message); return ''; }
+}
+app.post('/api/computers/ai-scan', wrap(async (req, res) => {
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) return res.status(503).json({ error: 'AI 키(GEMINI_API_KEY)가 설정되지 않았습니다. 직접 입력해주세요.' });
+  const image = req.body && req.body.image;
+  if (!image) return res.status(400).json({ error: '이미지가 없습니다' });
+  // data URL 접두사 제거
+  const m = String(image).match(/^data:(image\/[^;]+);base64,(.*)$/s);
+  const mimeType = m ? m[1] : 'image/jpeg';
+  const b64 = m ? m[2] : String(image);
+  // 1단계: Cloud Vision OCR로 화면 글자를 정확히 추출 (실패해도 진행)
+  const ocrText = await visionOcr(b64);
+  // 2단계: Gemini에 사진 + OCR 텍스트를 함께 주고 항목별 JSON으로 정리
+  const prompt = [
+    '이 이미지는 PC의 BIOS/UEFI 설정 화면입니다. 화면에 실제로 보이는 하드웨어 정보만 추출하세요.',
+    ocrText ? '아래는 같은 화면을 OCR로 읽은 원문 텍스트입니다. 사진과 함께 참고해 정확도를 높이세요(OCR 오탈자는 사진으로 보정):' : '',
+    ocrText ? ('```\n' + ocrText.slice(0, 4000) + '\n```') : '',
+    '보이지 않는 값은 절대 지어내지 말고 빈 문자열("") 또는 빈 배열([])로 두세요.',
+    '아래 JSON 스키마 그대로, 다른 텍스트 없이 JSON만 반환하세요:',
+    '{',
+    '  "name": "",',
+    '  "device_type": "desktop|laptop|server|printer|other 중 하나(모르면 desktop)",',
+    '  "cpu": "CPU 모델명 (예: Intel Core i5-12400)",',
+    '  "serial_number": "",',
+    '  "motherboard": {"plat":"Intel 또는 AMD 또는 빈문자열","maker":"제조사","chipset":"칩셋","model":"세부모델"},',
+    '  "ram": [{"size":"용량GB 숫자만","spec":"규격(예: DDR4-3200)","maker":"제조사"}]',
+    '}',
+    'RAM은 슬롯/모듈별로 배열에 나눠 담되, 총합만 보이면 한 항목으로 담으세요.',
+  ].filter(Boolean).join('\n');
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [ { text: prompt }, { inline_data: { mime_type: mimeType, data: b64 } } ] }],
+        generationConfig: { temperature: 0, response_mime_type: 'application/json' },
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.log('[AI스캔] Gemini 오류:', JSON.stringify(data).slice(0, 300));
+      return res.status(502).json({ error: 'AI 분석 실패: ' + ((data.error && data.error.message) || resp.status) });
+    }
+    let text = '';
+    try { text = data.candidates[0].content.parts.map(p => p.text || '').join(''); } catch (e) {}
+    // 코드펜스/잡텍스트 방어: 첫 { ~ 마지막 } 만 파싱
+    const s = text.indexOf('{'), e2 = text.lastIndexOf('}');
+    if (s < 0 || e2 < 0) return res.status(500).json({ error: 'AI 응답을 해석하지 못했습니다', raw: text.slice(0, 200) });
+    let parsed;
+    try { parsed = JSON.parse(text.slice(s, e2 + 1)); }
+    catch (e) { return res.status(500).json({ error: 'AI 응답 JSON 파싱 실패', raw: text.slice(0, 200) }); }
+    parsed._ocr = !!ocrText;   // 디버그: OCR 사용 여부
+    res.json(parsed);
+  } catch (e) {
+    console.log('[AI스캔] 오류:', e.message);
+    res.status(500).json({ error: 'AI 스캔 중 오류: ' + e.message });
+  }
+}));
+
 app.put('/api/computers/:id', wrap(async (req, res) => {
   const b = req.body;
   const cols = COMPUTER_FIELDS.filter(f => b[f] !== undefined);

@@ -500,27 +500,104 @@ function openDeviceView(id){
     </div></div>`);
 }
 // 작업처리 등: 거래처의 등록 장치 열람 (여러 개면 목록에서 선택 → 상세)
-let custDevState={list:[], view:'list'};
+let custDevState={list:[], view:'list', custId:null};
 async function openCustDevices(custId){
   let comps=[];
   try{ comps=await api('GET','/customers/'+custId+'/computers'); }catch(e){}
-  if(!comps||!comps.length){ alert('등록된 장치가 없습니다'); return; }
-  custDevState={list:comps, view:'list'};
+  custDevState={list:comps||[], view:'list', custId:custId};
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()"><div class="sheet" id="custDevSheet"></div></div>`);
-  if(comps.length===1) renderCustDevDetail(0); else renderCustDevList();
+  if(comps&&comps.length===1) renderCustDevDetail(0); else renderCustDevList();
+}
+// 촬영 등록 버튼 (목록/빈 시트 공용)
+function devScanBtnHtml(){
+  return `<label class="btn btn-success" style="margin-top:8px;text-align:center;cursor:pointer;display:block">📸 BIOS 촬영으로 장치 추가
+    <input type="file" accept="image/*" capture="environment" onchange="scanBiosPhoto(this)" style="display:none"></label>`;
 }
 function renderCustDevList(){
   const el=document.getElementById('custDevSheet'); if(!el)return;
   custDevState.view='list';
   const comps=custDevState.list;
   el.innerHTML=`<h3>🖥️ 등록 장치 (${comps.length})</h3>
-    <div style="font-size:13px;color:var(--gray-500);margin-bottom:10px">확인할 장치를 선택하세요</div>
+    ${comps.length?`<div style="font-size:13px;color:var(--gray-500);margin-bottom:10px">확인할 장치를 선택하세요</div>`:`<div class="empty" style="margin-bottom:10px">등록된 장치가 없습니다.<br>아래 버튼으로 BIOS를 촬영해 추가하세요.</div>`}
     ${comps.map((c,i)=>`<div onclick="renderCustDevDetail(${i})" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#fff;border:1px solid #e3e7ec;border-radius:10px;margin-bottom:8px;cursor:pointer">
       <div style="min-width:0"><strong>${esc(c.name)||'장비'}</strong> <span style="font-size:12px;color:var(--gray-500)">${DEVICE_TYPES[c.device_type]||esc(c.device_type)||''}</span>${[c.cpu,devSpec('ram',c.ram),devSpec('ssd',c.ssd)].filter(Boolean).length?`<div style="font-size:11px;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${[c.cpu,devSpec('ram',c.ram),devSpec('ssd',c.ssd)].filter(Boolean).map(esc).join(' · ')}</div>`:''}</div>
       <span style="color:var(--primary);font-size:22px;flex:none;margin-left:8px">›</span>
     </div>`).join('')}
+    ${custDevState.custId?devScanBtnHtml():''}
     <button class="btn btn-ghost" style="margin-top:6px" onclick="document.getElementById('ov2').remove()">닫기</button>`;
   el.scrollTop=0;
+}
+// ── BIOS 사진 → AI 추출 → 확인폼 → 저장 ──
+function scanBiosPhoto(input){
+  const f=input.files&&input.files[0]; input.value='';
+  if(!f) return;
+  const el=document.getElementById('custDevSheet');
+  if(el) el.innerHTML=`<h3>🖥️ BIOS 분석 중…</h3><div class="empty" style="padding:30px 0">📷 사진을 AI가 분석하고 있습니다.<br>잠시만 기다려주세요…</div>`;
+  compressImage(f,async d=>{
+    let r={};
+    try{ r=await api('POST','/computers/ai-scan',{image:d})||{}; }
+    catch(e){ alert('AI 분석 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); r={}; }
+    renderDevScanForm(r);
+  });
+}
+function ramRowHtml(x){ x=x||{};
+  return `<div class="dev-ram-row" style="display:flex;gap:6px;margin-bottom:6px">
+    <input class="ram-size" value="${esc(x.size)||''}" placeholder="GB" inputmode="numeric" style="flex:none;width:64px;padding:9px;border:1px solid #dee2e6;border-radius:8px">
+    <input class="ram-spec" value="${esc(x.spec)||''}" placeholder="규격(DDR4-3200)" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
+    <input class="ram-maker" value="${esc(x.maker)||''}" placeholder="제조사" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
+    <span onclick="this.parentNode.remove()" style="flex:none;color:var(--danger);font-size:20px;cursor:pointer;align-self:center">×</span></div>`;
+}
+function renderDevScanForm(r){
+  const el=document.getElementById('custDevSheet'); if(!el)return;
+  const mb=(r.motherboard&&typeof r.motherboard==='object')?r.motherboard:{};
+  const rams=(Array.isArray(r.ram)&&r.ram.length)?r.ram:[{}];
+  const inp=(id,v,ph)=>`<input id="${id}" value="${esc(v)||''}" placeholder="${ph||''}" style="width:100%;padding:10px;border:1px solid #dee2e6;border-radius:9px">`;
+  el.innerHTML=`<h3>🖥️ 장치 등록 확인</h3>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px">AI가 추출한 값입니다. 확인·수정 후 저장하세요.</div>
+    <div class="fg"><label>장비명 (선택)</label>${inp('ds_name',r.name,'예: 사무실 PC')}</div>
+    <div class="fg"><label>종류</label><select id="ds_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px">
+      ${Object.entries(DEVICE_TYPES).map(([k,l])=>`<option value="${k}" ${r.device_type===k?'selected':''}>${l}</option>`).join('')}</select></div>
+    <div class="fg"><label>CPU</label>${inp('ds_cpu',r.cpu,'예: Intel Core i5-12400')}</div>
+    <div class="fg"><label>메인보드</label>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input id="ds_mb_plat" value="${esc(mb.plat)||''}" placeholder="Intel/AMD" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
+        <input id="ds_mb_maker" value="${esc(mb.maker)||''}" placeholder="제조사" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
+      </div>
+      <div style="display:flex;gap:6px">
+        <input id="ds_mb_chipset" value="${esc(mb.chipset)||''}" placeholder="칩셋" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
+        <input id="ds_mb_model" value="${esc(mb.model)||''}" placeholder="세부모델" style="flex:1;min-width:0;padding:9px;border:1px solid #dee2e6;border-radius:8px">
+      </div></div>
+    <div class="fg"><label>RAM</label><div id="ds_ram">${rams.map(ramRowHtml).join('')}</div>
+      <button type="button" class="btn btn-ghost" style="margin:0;padding:7px" onclick="document.getElementById('ds_ram').insertAdjacentHTML('beforeend',ramRowHtml())">+ RAM 추가</button></div>
+    <div class="fg"><label>시리얼번호</label>${inp('ds_serial',r.serial_number,'')}</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-ghost" style="flex:1" onclick="renderCustDevList()">취소</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveDevScan(this)">저장</button>
+    </div>`;
+  el.scrollTop=0;
+}
+async function saveDevScan(btn){
+  const val=id=>{ const e=document.getElementById(id); return e?e.value.trim():''; };
+  const rams=[...document.querySelectorAll('#ds_ram .dev-ram-row')].map(row=>({
+    size:row.querySelector('.ram-size').value.trim(),
+    spec:row.querySelector('.ram-spec').value.trim(),
+    maker:row.querySelector('.ram-maker').value.trim(),
+  })).filter(x=>x.size||x.spec||x.maker);
+  const mb={plat:val('ds_mb_plat'),maker:val('ds_mb_maker'),chipset:val('ds_mb_chipset'),model:val('ds_mb_model')};
+  const hasMb=Object.values(mb).some(Boolean);
+  const payload={
+    customer_id:custDevState.custId, name:val('ds_name')||'장치', device_type:val('ds_type')||'desktop',
+    cpu:val('ds_cpu'), serial_number:val('ds_serial'),
+    motherboard:hasMb?JSON.stringify(mb):'', ram:rams.length?JSON.stringify(rams):'',
+  };
+  if(!payload.customer_id){ alert('거래처 정보가 없습니다'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='저장 중…'; }
+  try{ await api('POST','/computers',payload); }
+  catch(e){ alert('저장 실패: '+(e&&e.message?e.message:e)); if(btn){btn.disabled=false;btn.textContent='저장';} return; }
+  // 목록 새로고침
+  try{ custDevState.list=await api('GET','/customers/'+custDevState.custId+'/computers')||[]; }catch(e){}
+  alert('장치가 등록되었습니다.');
+  renderCustDevList();
 }
 function renderCustDevDetail(idx){
   const el=document.getElementById('custDevSheet'); if(!el)return;
