@@ -580,8 +580,16 @@ function parseBiosText(text) {
   return out;
 }
 app.post('/api/computers/ai-scan', wrap(async (req, res) => {
+  // 폰 내장 OCR(Tesseract)이 읽은 텍스트를 보내면 → 서버는 파싱만 (무료, API 불필요)
+  const ocrTextIn = req.body && req.body.text;
+  if (typeof ocrTextIn === 'string' && ocrTextIn.trim()) {
+    const parsed = parseBiosText(ocrTextIn);
+    parsed._ocr = ocrTextIn.slice(0, 2000);
+    return res.json(parsed);
+  }
+  // (구버전 호환) 이미지가 오면 Cloud Vision 사용 — 단 billing 필요
   const key = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) return res.status(503).json({ error: 'OCR 키(GOOGLE_VISION_API_KEY)가 설정되지 않았습니다. 직접 입력해주세요.' });
+  if (!key) return res.status(503).json({ error: 'OCR 키가 없습니다. 직접 입력해주세요.' });
   const image = req.body && req.body.image;
   if (!image) return res.status(400).json({ error: '이미지가 없습니다' });
   // data URL 접두사 제거

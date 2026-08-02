@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=d51112f1641c58ced9ecc03bd942b08f&libraries=services&autoload=false"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 :root{--primary:#3b5bdb;--success:#2f9e44;--warning:#f08c00;--danger:#e03131;--bg:#f1f3f5;--gray-400:#adb5bd;--gray-500:#868e96;--gray-600:#495057}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -527,16 +528,27 @@ function renderCustDevList(){
     <button class="btn btn-ghost" style="margin-top:6px" onclick="document.getElementById('ov2').remove()">닫기</button>`;
   el.scrollTop=0;
 }
-// ── BIOS 사진 → AI 추출 → 확인폼 → 저장 ──
+// ── BIOS 사진 → 폰 내장 OCR(Tesseract) → 서버 파싱 → 확인폼 → 저장 ──
+function scanProgress(msg){ const el=document.getElementById('custDevSheet');
+  if(el) el.innerHTML=`<h3>🖥️ 글자 인식 중…</h3><div class="empty" style="padding:30px 0">📷 ${msg}<br><span style="font-size:12px;color:var(--gray-400)">처음 1회는 인식엔진을 내려받아 조금 걸립니다</span></div>`;
+}
 function scanBiosPhoto(input){
   const f=input.files&&input.files[0]; input.value='';
   if(!f) return;
-  const el=document.getElementById('custDevSheet');
-  if(el) el.innerHTML=`<h3>🖥️ 글자 인식 중…</h3><div class="empty" style="padding:30px 0">📷 사진에서 글자를 읽고 있습니다.<br>잠시만 기다려주세요…</div>`;
+  if(typeof Tesseract==='undefined'){ alert('인식엔진 로딩 중입니다. 인터넷 연결 확인 후 잠시 뒤 다시 시도해주세요.'); renderCustDevList(); return; }
+  scanProgress('사진에서 글자를 읽고 있습니다…');
   compressImage(f,async d=>{
+    let text='';
+    try{
+      const res=await Tesseract.recognize(d,'eng',{ logger:m=>{
+        if(m.status==='recognizing text') scanProgress('글자 인식 중… '+Math.round((m.progress||0)*100)+'%');
+        else if(m.status) scanProgress('준비 중… ('+m.status+')');
+      }});
+      text=(res&&res.data&&res.data.text)||'';
+    }catch(e){ alert('글자 인식 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); renderDevScanForm({}); return; }
     let r={};
-    try{ r=await api('POST','/computers/ai-scan',{image:d})||{}; }
-    catch(e){ alert('글자 인식 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); r={}; }
+    try{ r=await api('POST','/computers/ai-scan',{text})||{}; }
+    catch(e){ r={ _ocr:text }; }   // 서버 파싱 실패해도 원문은 보여줌
     renderDevScanForm(r);
   });
 }
