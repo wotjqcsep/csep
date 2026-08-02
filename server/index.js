@@ -552,6 +552,16 @@ function parseBiosText(text) {
   else if (ci) { out.cpu = 'Intel Core i' + ci[1] + '-' + ci[2] + (ci[3] || ''); out.motherboard.plat = 'Intel'; }
   else if (xe) { out.cpu = 'Intel ' + xe[0].replace(/\s+/g, ' ').trim(); out.motherboard.plat = 'Intel'; }
   else if (pc) { out.cpu = pc[0].replace(/\s+/g, ' ').trim(); }
+  // CPU 폴백: 모델번호 없는 구형(Pentium 4/D, Core 2 등)은 'Processor Type/CPU Type' 줄에서 추출
+  if (!out.cpu) {
+    const pl = lines.find(l => /(Processor\s*Type|CPU\s*Type|Processor\s*Name)/i.test(l));
+    if (pl) {
+      let c = pl.replace(/.*?(Processor\s*Type|CPU\s*Type|Processor\s*Name)\s*[:：]?\s*/i, '')
+        .replace(/\(R\)|\(TM\)/gi, '').replace(/\bCPU\b/gi, '').replace(/@[^\n]*$/, '')
+        .replace(/\s+/g, ' ').trim();
+      if (c) out.cpu = c;
+    }
+  }
   if (!out.motherboard.plat) {
     if (/\bAMD\b|Ryzen|Athlon/i.test(joined)) out.motherboard.plat = 'AMD';
     else if (/\bIntel\b|Xeon|Pentium|Celeron/i.test(joined)) out.motherboard.plat = 'Intel';
@@ -571,35 +581,33 @@ function parseBiosText(text) {
   // ── 시리얼 ──
   const snM = joined.match(/(?:Serial\s*(?:Number|No\.?|#)?|S\/N)\s*[:：]?\s*([A-Za-z0-9\-]{5,})/i);
   if (snM) out.serial_number = snM[1];
-  // ── RAM: 슬롯별 우선(DIMM A2 / Slot1 Memory / Channel A 등, N/A 제외), 없으면 Memory 요약 ──
-  const ddrGen = joined.match(/DDR([345])/i);
-  const gen = ddrGen ? ddrGen[1] : '';
-  // 슬롯 접두: "DIMM A2", "Slot1 Memory", "Slot 2 Memory", "Channel A1", "ChannelA-DIMM0"
-  const slotRe = /(?:DIMM[_\s]*[A-D]\s*\d?|Slot\s*\d\s*(?:Memory)?|Channel\s*[A-D]\s*\d?(?:[_\s-]*DIMM\s*\d)?)\s*[:：]?\s*([A-Za-z][A-Za-z0-9.]*)?\s*(\d{3,6})\s*MB([^\n]*)/ig;
-  let dm; const slots = [];
-  while ((dm = slotRe.exec(joined))) {
-    const maker = (dm[1] || '').trim();
-    const tail = dm[3] || '';
-    const lGen = (tail.match(/DDR([345])/i) || [])[1] || gen;   // 슬롯 줄에 (DDR4) 있으면 우선
-    const lMhz = (tail.match(/(\d{3,5})\s*MHz/i) || [])[1] || '';
-    slots.push({ size: String(Math.round(parseInt(dm[2], 10) / 1024)),
-      spec: (lGen ? 'DDR' + lGen : '') + (lMhz ? '-' + lMhz : ''),
-      maker: /^n\/?a$/i.test(maker) ? '' : maker });
+  // ── RAM: 라인 단위 통합 파싱 (DDR2~5, DDRII 로마표기, 슬롯라벨/값토큰/2열 레이아웃) ──
+  // DDR 세대 정규화(DDRII→2, DDRIII→3, DDR2~5). fmtGB: 512MB→0.5, 4096MB→4
+  const ddrGenOf = s => { const r = (s || '').match(/DDR\s*(III|II|IV|V|[2-5])/i); if (!r) return ''; const t = r[1].toUpperCase(); return ({ II: '2', III: '3', IV: '4', V: '5' })[t] || t; };
+  const fmtGB = mb => { const g = mb / 1024; return Number.isInteger(g) ? String(g) : String(Math.round(g * 10) / 10); };
+  const globalGen = ddrGenOf(joined);
+  const ramList = [];
+  for (const l of lines) {
+    if (/(total|system|installed)\s+memory/i.test(l) || /^memory\s*[:：]/i.test(l)) continue;   // 총합/요약 제외
+    const mbm = l.match(/(\d{3,6})\s*MB/i);
+    if (!mbm) continue;
+    // 모듈 라인 조건: 슬롯 라벨(DIMM/DDRn/Slot/Channel)로 시작 OR 값에 (DDR..) 포함
+    const isModule = /^(?:DIMM|DDR(?:II|III|IV|V|[2-5])?\s*\d|Slot|Channel)/i.test(l) || /\(\s*DDR/i.test(l);
+    if (!isModule) continue;
+    const g = ddrGenOf(l) || globalGen;
+    // 속도: (DDRnnnn)의 숫자 우선, 없으면 MHz
+    const spd = (l.match(/DDR\S*?(\d{3,5})/i) || [])[1] || (l.match(/(\d{3,5})\s*MHz/i) || [])[1] || '';
+    // 제조사: 용량(NNNMB) 바로 앞 단어 — 단, 슬롯/규격 키워드는 제외
+    let maker = (l.match(/([A-Za-z][A-Za-z0-9.]{2,})\s*\d{3,6}\s*MB/i) || [])[1] || '';
+    if (/^(DIMM|DDR|Slot|Channel|Memory|Dual|Single|Type)/i.test(maker)) maker = '';
+    ramList.push({ size: fmtGB(parseInt(mbm[1], 10)), spec: (g ? 'DDR' + g : '') + (spd ? '-' + spd : ''), maker });
   }
-  // 2열 레이아웃(Samsung/AMI): "4096 MB (DDR4)" 같은 값 토큰을 모듈로 인식
-  const modRe = /(\d{3,6})\s*MB\s*\(\s*(DDR[345])(?:[\s-]*(\d{3,5}))?[^)]*\)/ig;
-  let mm; const mods = [];
-  while ((mm = modRe.exec(joined))) {
-    mods.push({ size: String(Math.round(parseInt(mm[1], 10) / 1024)),
-      spec: mm[2].toUpperCase() + (mm[3] ? '-' + mm[3] : ''), maker: '' });
-  }
-  if (slots.length) out.ram = slots;              // 라벨형(ASUS DIMM) 우선
-  else if (mods.length) out.ram = mods;           // 괄호 DDR 값 토큰(Samsung 값열/요약)
-  else {
-    const mbM = joined.match(/(?:Total\s*Memory|System\s*Memory|Installed\s*Memory|Memory)\s*[:：]?\s*(\d{4,6})\s*MB/i);
-    const ramSize = mbM ? String(Math.round(parseInt(mbM[1], 10) / 1024)) : '';
-    const ddrSpd = joined.match(/DDR[345][\s-]*(\d{3,5})/i);
-    const spec = gen ? ('DDR' + gen + (ddrSpd ? '-' + ddrSpd[1] : '')) : '';
+  if (ramList.length) out.ram = ramList;
+  else {   // 슬롯이 안 보이면 총합 요약 1개
+    const mbM = joined.match(/(?:Total\s*Memory|System\s*Memory|Installed\s*Memory|Memory)\s*[:：]?\s*(\d{3,6})\s*MB/i);
+    const ramSize = mbM ? fmtGB(parseInt(mbM[1], 10)) : '';
+    const ddrSpd = joined.match(/DDR[2-5][\s-]*(\d{3,5})/i);
+    const spec = globalGen ? ('DDR' + globalGen + (ddrSpd ? '-' + ddrSpd[1] : '')) : '';
     if (ramSize || spec) out.ram.push({ size: ramSize, spec, maker: '' });
   }
   // ── 저장장치(SSD/HDD): 드라이브처럼 보이는 라인만, USB/중복 제외 ──
