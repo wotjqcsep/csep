@@ -646,7 +646,7 @@ function parseBiosText(text) {
 // BIOS OCR 텍스트 → 구조화 추출용 공통 프롬프트
 function biosAiPrompt(ocrText) {
   return [
-    '다음은 PC의 BIOS/UEFI 화면을 OCR로 읽은 텍스트입니다. 하드웨어 정보를 추출해 아래 JSON 스키마로만 답하세요(설명·코드펜스 없이 JSON만).',
+    '다음은 PC의 BIOS/UEFI 또는 CPU-Z·시스템정보 등 하드웨어 정보 화면을 OCR로 읽은 텍스트입니다. 하드웨어 정보를 추출해 아래 JSON 스키마로만 답하세요(설명·코드펜스 없이 JSON만).',
     '값이 없으면 빈 문자열("") 또는 빈 배열([]). OCR 오탈자를 문맥으로 보정하세요. cpu는 Intel/AMD 접두 유지(예: Intel Core i3-6006U). 특히 "Core 17-"→"Core i7-", "Core 15-"→"Core i5-", "Core 13-"→"Core i3-", "Core 19-"→"Core i9-" 로 반드시 보정.',
     'RAM 규칙: 화면의 슬롯 라벨(DIMM/Slot1·Slot2/Channel/DDRn)이 여러 개면 "채워진 슬롯마다 별도 항목"을 만드세요. 같은 용량이 여러 슬롯에 있어도 각각 넣으세요(예: 2048MB가 Slot1·Slot2 → 항목 2개). 라벨과 값이 표의 다른 열/줄에 떨어져 있어도 순서대로 짝지으세요. 용량은 GB 숫자만(2048MB→2, 512MB→0.5). spec은 화면 그대로(DDR4, LPDDR3 등). "None/N/A" 슬롯은 제외.',
     'RAM maker에는 절대 저장장치/SSD 브랜드(LITEON, Samsung SSD, WD, LITEON 등)나 CPU/보드명을 넣지 마세요. 메모리 제조사가 화면에 명시 안 되면 비워두세요.',
