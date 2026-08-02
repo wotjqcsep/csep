@@ -798,7 +798,8 @@ function renderEstimates(){
   </div>
   <div class="vd-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-      <div style="font-weight:800">품목</div>
+      <div style="display:flex;gap:8px;align-items:center;font-weight:800">품목
+        <label class="btn btn-sm" style="cursor:pointer;background:#f3e8ff;color:#7048e8;margin:0;font-weight:700">📷 컴퓨존 견적 가져오기(AI)<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label></div>
       <div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;color:var(--gray-500)">일괄 마진</span>
         <input id="est_bulk" type="number" value="10" style="width:56px"> %
         <button class="btn btn-sm btn-secondary" onclick="estApplyBulk()">전체 적용</button></div>
@@ -873,6 +874,29 @@ function estPrint(){
     </body></html>`;
   const w=window.open('','_blank'); if(!w){ alert('팝업이 차단되었습니다. 허용 후 다시 시도하세요.'); return; }
   w.document.write(html); w.document.close();
+}
+// 컴퓨존 견적 스크린샷 → 서버(Vision+AI) → 견적 항목 자동 채움
+function estCompress(file){ return new Promise(resolve=>{ const rd=new FileReader();
+  rd.onload=e=>{ const img=new Image(); img.onload=()=>{ let w=img.width,h=img.height; const max=1700;
+    if(w>max||h>max){ if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
+    const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+    resolve(c.toDataURL('image/jpeg',0.85)); }; img.onerror=()=>resolve(e.target.result); img.src=e.target.result; };
+  rd.readAsDataURL(file); }); }
+async function estAiImport(input){
+  const f=input.files&&input.files[0]; input.value='';
+  if(!f) return;
+  const lbl=input.parentNode; const prev=lbl?lbl.innerHTML:''; if(lbl) lbl.textContent='⏳ 분석 중…';
+  let r;
+  try{ const d=await estCompress(f); r=await api('POST','/estimate/scan',{image:d}); }
+  catch(e){ alert('AI 가져오기 실패: '+(e&&e.message?e.message:e)); if(lbl)lbl.innerHTML=prev; return; }
+  if(lbl)lbl.innerHTML=prev;
+  const items=(r&&r.items)||[];
+  if(!items.length){ alert('견적 항목을 인식하지 못했습니다. 견적 목록이 잘 보이게 캡처했는지 확인해주세요.'); return; }
+  const body=document.getElementById('est_body'); if(!body)return;
+  const bulk=Number(v('est_bulk'))||10;
+  items.forEach(it=>{ body.insertAdjacentHTML('beforeend', estRowHtml({ cat:it.cat||'', name:it.name||'', cost:(Number(it.price)||''), qty:(Number(it.qty)||1), margin:bulk })); });
+  estCalc();
+  alert(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
 }
 
 // ── 재고 관리 ──

@@ -752,6 +752,67 @@ app.post('/api/computers/ai-scan', wrap(async (req, res) => {
   }
 }));
 
+// 텍스트 프롬프트 → AI JSON (Groq 우선, 없으면 Gemini). 견적 등 범용.
+async function aiJsonFromText(prompt) {
+  const gKey = process.env.GROQ_API_KEY;
+  if (gKey) {
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gKey },
+      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
+    let t = ''; try { t = data.choices[0].message.content; } catch (e) {}
+    return extractJson(t);
+  }
+  const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (gemKey) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gemKey}`;
+    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }) });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
+    let t = ''; try { t = data.candidates[0].content.parts.map(p => p.text || '').join(''); } catch (e) {}
+    return extractJson(t);
+  }
+  throw new Error('AI 키(GROQ_API_KEY 또는 GEMINI_API_KEY) 미설정');
+}
+// 컴퓨존 견적 스크린샷 → Vision OCR → AI로 부품·가격 파싱
+app.post('/api/estimate/scan', wrap(async (req, res) => {
+  const image = req.body && req.body.image;
+  if (!image) return res.status(400).json({ error: '이미지가 없습니다' });
+  const key = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) return res.status(503).json({ error: 'OCR 키(GOOGLE_VISION_API_KEY)가 없습니다.' });
+  const m = String(image).match(/^data:(image\/[^;]+);base64,(.*)$/s);
+  const b64 = m ? m[2] : String(image);
+  try {
+    const resp = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests: [{ image: { content: b64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) return res.status(502).json({ error: 'OCR 실패: ' + ((data.error && data.error.message) || resp.status) });
+    const r = data.responses && data.responses[0];
+    const ocrText = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
+    const prompt = [
+      '다음은 컴퓨존 PC견적(조립) 화면을 OCR로 읽은 텍스트입니다. 견적에 담긴 부품들을 추출해 JSON으로만 답하세요(설명·코드펜스 없이).',
+      '각 부품 필드: cat(분류), name(전체 품명/모델명 그대로), price(판매가격 원, 숫자만-콤마·"원" 제거), qty(수량, 없으면 1).',
+      'cat은 다음 중 하나로 정규화: CPU, 메인보드, 메모리, 그래픽카드, SSD, HDD, 케이스, 파워, 쿨러/튜닝, 모니터, 소프트웨어, 주변기기, 조립비/AS.',
+      '매핑 예: "AMD CPU"/"인텔 CPU"→CPU, "AMD 소켓"/"인텔 소켓"→메인보드, "RAM"→메모리, "VGA"/"그래픽카드"→그래픽카드, "M.2"/"NVMe"→SSD.',
+      '총 견적금액/합계/총액/배송비 줄은 제외하고 실제 부품만. 가격 없는 항목은 제외.',
+      'JSON 형식: {"items":[{"cat":"","name":"","price":0,"qty":1}]}',
+      'OCR 텍스트:', '"""', ocrText.slice(0, 6000), '"""',
+    ].join('\n');
+    let out = { items: [] };
+    try { out = await aiJsonFromText(prompt); }
+    catch (e) { console.log('[견적스캔] AI 오류:', e.message); return res.status(502).json({ error: 'AI 분석 실패: ' + e.message }); }
+    const items = Array.isArray(out.items) ? out.items : [];
+    res.json({ items, _ocr: ocrText.slice(0, 2000) });
+  } catch (e) {
+    console.log('[견적스캔] 오류:', e.message);
+    res.status(500).json({ error: '스캔 중 오류: ' + e.message });
+  }
+}));
+
 app.put('/api/computers/:id', wrap(async (req, res) => {
   const b = req.body;
   const cols = COMPUTER_FIELDS.filter(f => b[f] !== undefined);
