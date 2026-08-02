@@ -607,7 +607,8 @@ function renderCustDevDetail(idx){
   el.innerHTML=`${multi?`<div onclick="renderCustDevList()" style="color:var(--primary);cursor:pointer;margin-bottom:10px;font-size:14px">← 장치 목록</div>`:''}
     <h3>🖥️ ${esc(c.name)||'장비'} <span style="font-size:13px;color:var(--gray-500);font-weight:400">${DEVICE_TYPES[c.device_type]||esc(c.device_type)||''}</span></h3>
     ${deviceDetailHtml(c)}
-    <button class="btn btn-ghost" style="margin-top:14px" onclick="document.getElementById('ov2').remove()">닫기</button>`;
+    ${custDevState.custId?devScanBtnHtml():''}
+    <button class="btn btn-ghost" style="margin-top:8px" onclick="document.getElementById('ov2').remove()">닫기</button>`;
   el.scrollTop=0;
 }
 // 전화 수신 등록 등에서 고객 객체로 바로 진입
