@@ -862,13 +862,13 @@ function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cos
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
 function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estState.bulk); estBody(); }
 function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return; estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk})); estBody(); }
-// 가져온 항목을 채움: ①같은 분류+품명이 이미 있으면 갱신(중복 방지) ②없으면 같은 분류의 빈 행에 채움 ③그래도 없으면 새 행 추가
+// 가져오기: 누를 때마다 기존 부품표를 버리고 새로 받음(중복 누적 방지, 초기화 불필요).
+// 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
 function estAddItems(items){ estSyncAll();
-  const norm=s=>String(s||'').trim().replace(/\s+/g,' ').toLowerCase();
+  estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));   // 빈 분류 템플릿으로 리셋
   (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1);
-    const dup=estState.rows.find(r=>r.cat===cat && norm(r.name)===norm(name) && norm(name));
-    const target=dup || estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
-    if(target){ target.name=name; target.qty=qty; target.cost=cost; target.margin=estState.bulk; }
+    const empty=estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
+    if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.margin=estState.bulk; }
     else estState.rows.push({cat,name,qty,cost,margin:estState.bulk}); });
   estBody();
 }
