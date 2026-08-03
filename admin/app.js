@@ -770,7 +770,7 @@ function estToday(){ const n=new Date(); return `${n.getFullYear()}-${String(n.g
 function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:((state.settings||{}).company_name)||'', contact:'', customer:'', date:t,
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:10,
-    pname:'full', pprice:'each', ptarget:'customer',   // 인쇄 옵션: 품명(full/short/cat), 금액(each/total), 대상(customer/internal)
+    pname:'short', pprice:'total', ptarget:'customer',   // 기본값: 고객용 + 간략화 + 총액만 (필요시 변경). 품명(full/short/cat), 금액(each/total)
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})) }; }
 function estRowHtml(x,i){ x=x||{};
   const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:10)||0, qty=Number(x.qty)||1, price=Math.round(cost*(1+margin/100)), amt=price*qty;
