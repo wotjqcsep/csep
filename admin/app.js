@@ -778,7 +778,7 @@ function estRowHtml(x,i){ x=x||{};
     <td><input class="est-cat" value="${esc(x.cat)||''}" placeholder="분류" style="width:92px;font-weight:600;background:var(--gray-50)"></td>
     <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [AMD] 라이젠5 라파엘 7500F (6코어/12스레드/3.7GHz) 쿨러포함)" style="width:100%;min-width:340px"></td>
     <td><input class="est-qty" type="number" min="1" value="${x.qty||1}" style="width:56px"></td>
-    <td><input class="est-cost" type="number" min="0" value="${(x.cost!=null&&x.cost!=='')?x.cost:''}" placeholder="매입가" style="width:96px"></td>
+    <td><input class="est-cost" type="text" inputmode="numeric" value="${(x.cost!=null&&x.cost!=='')?Number(String(x.cost).replace(/[^\d]/g,'')||0).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this)" placeholder="매입가" style="width:96px;text-align:right"></td>
     <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:10}" style="width:52px"> %</td>
     <td class="est-price" style="text-align:right;font-weight:600">${won(price)}</td>
     <td class="est-amt" style="text-align:right;font-weight:800">${won(amt)}</td>
@@ -872,6 +872,8 @@ function renderEstimates(){ estInit(); const s=estState;
   </div></div>`;
 }
 function estToggle(id){ const b=document.getElementById(id); if(b) b.style.display=(b.style.display==='none'?'block':'none'); }
+// 매입가 입력 실시간 천단위 콤마
+function estFmtCost(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
 // DOM → estState (모든 입력에 반영, 화면 재렌더돼도 값 보존)
 function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
   estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer');
@@ -880,13 +882,13 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer';
   { const e=document.getElementById('est_manualtotal'); if(e) estState.manualTotal=e.value; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
-    return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:q('.est-cost').value, margin:Number(q('.est-margin').value)||0 }; });
+    return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(q('.est-cost').value||'').replace(/[^\d]/g,''), margin:Number(q('.est-margin').value)||0 }; });
   estCalc();
 }
 function estBody(){ const b=document.getElementById('est_body'); if(b){ b.innerHTML=estState.rows.map((r,i)=>estRowHtml(r,i)).join(''); estCalc(); } }
 function estCalc(){ let sub=0;
   document.querySelectorAll('#est_body .est-row').forEach(tr=>{
-    const qty=Number(tr.querySelector('.est-qty').value)||0, cost=Number(tr.querySelector('.est-cost').value)||0, margin=Number(tr.querySelector('.est-margin').value)||0;
+    const qty=Number(tr.querySelector('.est-qty').value)||0, cost=Number(String(tr.querySelector('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(tr.querySelector('.est-margin').value)||0;
     const price=Math.round(cost*(1+margin/100)), amt=price*qty;
     tr.querySelector('.est-price').textContent=won(price); tr.querySelector('.est-amt').textContent=won(amt); sub+=amt; });
   const vat=Math.round(sub*0.1), set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
