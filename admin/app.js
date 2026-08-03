@@ -914,6 +914,15 @@ function czShortName(name){
   s=s.replace(/\s{2,}/g,' ').replace(/^[\s\-·/]+|[\s\-·/]+$/g,'').trim();
   return s || String(name||'').trim();
 }
+// 고객용 금지어 제거 — 매입처가 드러나는 '컴퓨존'·'아이웍스'는 고객에게 절대 노출 금지(실수 방지)
+function custClean(s){
+  let t=String(s||'');
+  t=t.replace(/\[[^\]]*(컴퓨존|아이웍스)[^\]]*\]/g,' ');   // [컴퓨존] 등 태그 통째 제거
+  t=t.replace(/아이웍스\s*[0-9]*(?:-[0-9A-Za-z]+)?/g,' ');  // 아이웍스 / 아이웍스3 / 아이웍스5-5207
+  t=t.replace(/컴퓨존/g,' ');
+  t=t.replace(/\s{2,}/g,' ').replace(/^[\s\-·/,]+|[\s\-·/,]+$/g,'').trim();
+  return t;
+}
 // 견적서 본문(제목~비고) 생성 — 인쇄·미리보기 공용. target: 'customer' | 'internal'
 function estDocInner(target){
   const internal = target==='internal';
@@ -925,7 +934,8 @@ function estDocInner(target){
   const nameMode = internal ? 'full' : (estState.pname||'full');
   const priceMode = internal ? 'each' : (estState.pprice||'each');
   const showName = nameMode!=='cat', showEach = priceMode==='each';
-  const dispName = r => nameMode==='short' ? czShortName(r.name) : r.name;
+  const clean = internal ? (x=>x) : custClean;   // 고객용만 금지어(컴퓨존·아이웍스) 제거
+  const dispName = r => clean(nameMode==='short' ? czShortName(r.name) : r.name);
   const cols = ['No','분류'];
   if(showName) cols.push('품명 / 사양');
   cols.push('수량');
@@ -952,7 +962,7 @@ function estDocInner(target){
       <div style="text-align:right"><b>${company}</b>${contact?`<br>${contact}`:''}</div></div>
     <table><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
     <table class="sum">${sumRows}</table>
-    ${memo?`<div class="memo">비고: ${memo}</div>`:''}`;
+    ${(clean(memo))?`<div class="memo">비고: ${clean(memo)}</div>`:''}`;
 }
 const EST_DOC_CSS = `h1{text-align:center;letter-spacing:8px;border-bottom:3px solid #333;padding-bottom:10px}
     .top{display:flex;justify-content:space-between;font-size:13px;margin:14px 0}
