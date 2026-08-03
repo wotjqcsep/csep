@@ -770,7 +770,7 @@ function estToday(){ const n=new Date(); return `${n.getFullYear()}-${String(n.g
 function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:((state.settings||{}).company_name)||'', contact:'', customer:'', date:t,
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:10,
-    pname:'full', pprice:'each',   // 인쇄 옵션: 품명 표시(full/short/cat), 금액 표시(each/total)
+    pname:'full', pprice:'each', ptarget:'customer',   // 인쇄 옵션: 품명(full/short/cat), 금액(each/total), 대상(customer/internal)
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})) }; }
 function estRowHtml(x,i){ x=x||{};
   const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:10)||0, qty=Number(x.qty)||1, price=Math.round(cost*(1+margin/100)), amt=price*qty;
@@ -835,8 +835,14 @@ function renderEstimates(){ estInit(); const s=estState;
     </div>
     <div class="form-group" style="margin-top:10px"><label>비고 / 메모</label><input id="est_memo" value="${esc(s.memo)}" placeholder="예: 견적 유효기간 7일 / 설치·배송 포함 등"></div>
     <div style="border:1px solid var(--gray-200);border-radius:8px;padding:10px 12px;margin-top:12px;background:var(--gray-50)">
-      <div style="font-weight:700;font-size:13px;margin-bottom:8px">🖨️ 인쇄 옵션 <span style="font-weight:400;color:var(--gray-500)">— 고객마다 다르게 골라 인쇄</span></div>
-      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:13px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:8px">🖨️ 견적서 출력 옵션 <span style="font-weight:400;color:var(--gray-500)">— 바꾸면 아래 미리보기에 실시간 반영</span></div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:13px">
+        <label>대상
+          <select id="est_ptarget" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px">
+            <option value="customer" ${s.ptarget==='customer'?'selected':''}>고객용 (매입가·마진 숨김)</option>
+            <option value="internal" ${s.ptarget==='internal'?'selected':''}>내부용 (매입가·마진·이익)</option>
+          </select>
+        </label>
         <label>품명 표시
           <select id="est_pname" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px">
             <option value="full" ${s.pname==='full'?'selected':''}>전체 상세</option>
@@ -852,12 +858,13 @@ function renderEstimates(){ estInit(); const s=estState;
         </label>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-        <button class="btn" onclick="estPrint('customer')">🖨️ 고객용 인쇄</button>
-        <button class="btn" style="background:#495057" onclick="estPrint('internal')">🔒 내부용 인쇄 (매입가·마진 포함)</button>
+        <button class="btn" onclick="estPrint(estState.ptarget)">🖨️ 이 상태로 인쇄</button>
         <button class="btn btn-secondary" onclick="estReset()">초기화</button>
       </div>
+      <div style="font-size:12px;color:var(--gray-400);margin-top:8px">※ 내부용은 품명·금액 옵션과 무관하게 항상 전체 표시. 옵션은 출력물에만 적용되고 위 표 데이터는 그대로입니다.</div>
+      <div style="font-weight:600;font-size:12px;color:var(--gray-500);margin:12px 0 6px">👁️ 미리보기 (실시간)</div>
+      <div id="est_preview"></div>
     </div>
-    <div style="font-size:12px;color:var(--gray-400);margin-top:8px">※ <b>고객용</b>: 매입가·마진 숨김(판매단가·금액만). <b>내부용</b>: 매입가·마진·이익까지 표시. 품명 간략화는 인쇄물에만 적용되고 표 데이터는 그대로입니다.</div>
   </div></div>`;
 }
 function estToggle(id){ const b=document.getElementById(id); if(b) b.style.display=(b.style.display==='none'?'block':'none'); }
@@ -866,6 +873,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer');
   estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=Number(g('est_bulk'))||10;
   estState.pname=g('est_pname')||estState.pname||'full'; estState.pprice=g('est_pprice')||estState.pprice||'each';
+  estState.ptarget=g('est_ptarget')||estState.ptarget||'customer';
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
     return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:q('.est-cost').value, margin:Number(q('.est-margin').value)||0 }; });
   estCalc();
@@ -878,6 +886,7 @@ function estCalc(){ let sub=0;
     tr.querySelector('.est-price').textContent=won(price); tr.querySelector('.est-amt').textContent=won(amt); sub+=amt; });
   const vat=Math.round(sub*0.1), set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
   set('est_sub',sub); set('est_vat',vat); set('est_total',sub+vat);
+  estRenderPreview();   // 실시간 미리보기 갱신
 }
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
@@ -905,23 +914,18 @@ function czShortName(name){
   s=s.replace(/\s{2,}/g,' ').replace(/^[\s\-·/]+|[\s\-·/]+$/g,'').trim();
   return s || String(name||'').trim();
 }
-// 견적서 인쇄. target: 'customer'(고객용, 매입가·마진 숨김) | 'internal'(내부용, 매입가·마진·이익 표시)
-function estPrint(target){
-  target = (target==='internal') ? 'internal' : 'customer';
-  estSyncAll();
+// 견적서 본문(제목~비고) 생성 — 인쇄·미리보기 공용. target: 'customer' | 'internal'
+function estDocInner(target){
+  const internal = target==='internal';
   const rows=estRows().filter(r=>r.name||r.amt);
-  if(!rows.length){ alert('품목을 입력하세요'); return; }
   const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1), total=sub+vat;
   const totCost=rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0), profit=sub-totCost;
   const company=esc(estState.company)||'(회사명)', contact=esc(estState.contact), customer=esc(estState.customer)||'(고객)', date=esc(estState.date), no=esc(estState.no), memo=esc(estState.memo);
-  const internal = target==='internal';
   // 옵션(내부용은 항상 전체 상세 + 개별 금액)
   const nameMode = internal ? 'full' : (estState.pname||'full');
   const priceMode = internal ? 'each' : (estState.pprice||'each');
-  const showName = nameMode!=='cat';
-  const showEach = priceMode==='each';           // 개별 단가·금액 표시 여부
+  const showName = nameMode!=='cat', showEach = priceMode==='each';
   const dispName = r => nameMode==='short' ? czShortName(r.name) : r.name;
-  // 열 구성
   const cols = ['No','분류'];
   if(showName) cols.push('품명 / 사양');
   cols.push('수량');
@@ -936,29 +940,46 @@ function estPrint(target){
     if(internal){ cells.push(`<td style="text-align:right;color:#888">${won(r.cost)}</td>`, `<td style="text-align:center;color:#888">${r.margin}%</td>`); }
     if(showEach){ cells.push(`<td style="text-align:right">${won(r.price)}</td>`, `<td style="text-align:right">${won(r.amt)}</td>`); }
     return `<tr>${cells.join('')}</tr>`;
-  }).join('');
+  }).join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:#aaa;padding:20px">품목을 입력하세요</td></tr>`;
   const sumRows = `<tr><td>공급가액</td><td style="text-align:right">${won(sub)}</td></tr>
       <tr><td>부가세(10%)</td><td style="text-align:right">${won(vat)}</td></tr>
       <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr>`
     + (internal ? `<tr style="color:#888"><td>총매입가</td><td style="text-align:right">${won(totCost)}</td></tr>
       <tr style="color:#1971c2;font-weight:700"><td>마진이익</td><td style="text-align:right">${won(profit)}</td></tr>` : '');
   const title = internal ? '견적서 <span style="font-size:14px;color:#c00;letter-spacing:0">(내부용)</span>' : '견 적 서';
-  const html=`<!doctype html><html><head><meta charset="utf-8"><title>견적서 ${no}${internal?' (내부용)':''}</title>
-    <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;padding:24px;max-width:820px;margin:auto}
-    h1{text-align:center;letter-spacing:8px;border-bottom:3px solid #333;padding-bottom:10px}
+  return `<h1>${title}</h1>
+    <div class="top"><div><b>${customer}</b> 귀하<br>견적일: ${date}<br>견적번호: ${no}</div>
+      <div style="text-align:right"><b>${company}</b>${contact?`<br>${contact}`:''}</div></div>
+    <table><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
+    <table class="sum">${sumRows}</table>
+    ${memo?`<div class="memo">비고: ${memo}</div>`:''}`;
+}
+const EST_DOC_CSS = `h1{text-align:center;letter-spacing:8px;border-bottom:3px solid #333;padding-bottom:10px}
     .top{display:flex;justify-content:space-between;font-size:13px;margin:14px 0}
     table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
     th,td{border:1px solid #ccc;padding:7px 8px}th{background:#f2f4f8}
     .sum{margin-top:12px;margin-left:auto;width:300px;font-size:14px}
     .sum td{border:none;padding:4px 8px}.sum .tot{border-top:2px solid #333;font-weight:900;font-size:17px}
-    .memo{margin-top:14px;font-size:12px;color:#555;white-space:pre-wrap}
+    .memo{margin-top:14px;font-size:12px;color:#555;white-space:pre-wrap}`;
+// 실시간 미리보기 — 옵션/입력이 바뀔 때마다 화면에 즉시 반영
+function estRenderPreview(){
+  const box=document.getElementById('est_preview'); if(!box||!estState) return;
+  const target = (estState.ptarget==='internal') ? 'internal' : 'customer';
+  box.innerHTML = `<style>#est_preview .doc{color:#222;background:#fff;padding:20px;border:1px solid var(--gray-200);border-radius:8px}
+    #est_preview .doc ${EST_DOC_CSS.split('\n').join('\n    #est_preview .doc ')}</style>
+    <div class="doc">${estDocInner(target)}</div>`;
+}
+// 견적서 인쇄. target: 'customer'(고객용) | 'internal'(내부용)
+function estPrint(target){
+  target = (target==='internal') ? 'internal' : 'customer';
+  estSyncAll();
+  if(!estRows().filter(r=>r.name||r.amt).length){ alert('품목을 입력하세요'); return; }
+  const no=esc(estState.no), internal=target==='internal';
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>견적서 ${no}${internal?' (내부용)':''}</title>
+    <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;padding:24px;max-width:820px;margin:auto}
+    ${EST_DOC_CSS}
     @media print{button{display:none}}</style></head><body>
-    <h1>${title}</h1>
-    <div class="top"><div><b>${customer}</b> 귀하<br>견적일: ${date}<br>견적번호: ${no}</div>
-      <div style="text-align:right"><b>${company}</b>${contact?`<br>${contact}`:''}</div></div>
-    <table><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
-    <table class="sum">${sumRows}</table>
-    ${memo?`<div class="memo">비고: ${memo}</div>`:''}
+    ${estDocInner(target)}
     <div style="text-align:center;margin-top:24px"><button onclick="window.print()">🖨️ 인쇄</button></div>
     </body></html>`;
   const w=window.open('','_blank'); if(!w){ alert('팝업이 차단되었습니다. 허용 후 다시 시도하세요.'); return; }
