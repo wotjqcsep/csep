@@ -755,23 +755,17 @@ app.post('/api/computers/ai-scan', wrap(async (req, res) => {
 // 텍스트 프롬프트 → AI JSON (Groq 우선, 없으면 Gemini). 견적 등 범용.
 async function aiJsonFromText(prompt) {
   const gKey = process.env.GROQ_API_KEY;
-  const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (gKey) {
-    try {
-      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gKey },
-        body: JSON.stringify({ model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', temperature: 0, max_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
-      let t = ''; try { t = data.choices[0].message.content; } catch (e) {}
-      return extractJson(t);
-    } catch (e) {
-      // Groq 실패(하루 토큰 한도 등) → Gemini 키가 있으면 폴백, 없으면 에러
-      if (!gemKey) throw e;
-      console.log('[AI] Groq 실패, Gemini 폴백:', e.message);
-    }
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gKey },
+      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', temperature: 0, max_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
+    let t = ''; try { t = data.choices[0].message.content; } catch (e) {}
+    return extractJson(t);
   }
+  const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (gemKey) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gemKey}`;
     const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }) });
