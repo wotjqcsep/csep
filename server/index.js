@@ -755,17 +755,23 @@ app.post('/api/computers/ai-scan', wrap(async (req, res) => {
 // 텍스트 프롬프트 → AI JSON (Groq 우선, 없으면 Gemini). 견적 등 범용.
 async function aiJsonFromText(prompt) {
   const gKey = process.env.GROQ_API_KEY;
-  if (gKey) {
-    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gKey },
-      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', temperature: 0, max_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
-    let t = ''; try { t = data.choices[0].message.content; } catch (e) {}
-    return extractJson(t);
-  }
   const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (gKey) {
+    try {
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gKey },
+        body: JSON.stringify({ model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', temperature: 0, max_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
+      let t = ''; try { t = data.choices[0].message.content; } catch (e) {}
+      return extractJson(t);
+    } catch (e) {
+      // Groq 실패(하루 토큰 한도 등) → Gemini 키가 있으면 폴백, 없으면 에러
+      if (!gemKey) throw e;
+      console.log('[AI] Groq 실패, Gemini 폴백:', e.message);
+    }
+  }
   if (gemKey) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gemKey}`;
     const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }) });
@@ -790,8 +796,8 @@ function estimatePrompt(txt) {
     '견적 내용:', '"""', String(txt).slice(0, 8000), '"""',
   ].join('\n');
 }
-// 컴퓨존 공유 URL(사용자 본인 견적 링크) → 페이지 텍스트 추출
-async function fetchQuoteText(url) {
+// URL → HTML 원문 디코드 (인코딩 감지, 태그 유지)
+async function fetchHtmlDecoded(url) {
   const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko' } });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const buf = Buffer.from(await resp.arrayBuffer());
@@ -802,18 +808,72 @@ async function fetchQuoteText(url) {
   if (m1) charset = m1[1];
   else { const head = buf.slice(0, 3000).toString('latin1'); const m2 = head.match(/charset=["']?([\w-]+)/i); if (m2) charset = m2[1]; }
   charset = (charset || 'utf-8').toLowerCase().replace('ks_c_5601-1987', 'euc-kr').replace('cp949', 'euc-kr').replace('utf8', 'utf-8');
-  let html;
-  try { html = new TextDecoder(charset).decode(buf); }
-  catch (e) { try { html = new TextDecoder('euc-kr').decode(buf); } catch (e2) { html = buf.toString('utf-8'); } }
+  try { return new TextDecoder(charset).decode(buf); }
+  catch (e) { try { return new TextDecoder('euc-kr').decode(buf); } catch (e2) { return buf.toString('utf-8'); } }
+}
+// 컴퓨존 공유 URL(사용자 본인 견적 링크) → 페이지 텍스트 추출 (AI 폴백용)
+async function fetchQuoteText(url) {
+  const html = await fetchHtmlDecoded(url);
   return html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim();
+}
+// 컴퓨존 견적/상품 URL에서 완성품 상품번호(pno) 추출
+function compuzonePno(url) {
+  const m = String(url || '').match(/(?:ProductNo|pno)=(\d+)/i);
+  return m ? m[1] : '';
+}
+// 컴퓨존 분류(tit) → CSEP 견적 분류 매핑
+const CZ_CAT = {
+  'CPU': 'CPU', '메인보드': '메인보드', '메모리': '메모리', '그래픽카드': '그래픽카드', 'SSD': 'SSD',
+  'HDD': 'HDD', '케이스': '케이스', '파워': '파워', '쿨러': '쿨러/튜닝', '모니터': '모니터',
+  '유선키보드+마우스': '주변기기', '키보드': '주변기기', '마우스': '주변기기',
+  '운영체제(OS)': '소프트웨어', 'OS': '소프트웨어', '소프트웨어': '소프트웨어',
+  '조립비': '조립비/AS', '서비스': '조립비/AS',
+};
+function czMapCat(t) {
+  t = String(t || '').trim();
+  if (CZ_CAT[t]) return CZ_CAT[t];
+  const inner = t.replace(/^옵션추가\s*\(?/, '').replace(/\)\s*$/, '').trim();  // "옵션추가 (HDD)" → "HDD"
+  if (CZ_CAT[inner]) return CZ_CAT[inner];
+  for (const k in CZ_CAT) if (t.indexOf(k) >= 0) return CZ_CAT[k];
+  return '';
+}
+// 컴퓨존 완성품 상품상세 HTML → 기본사양(구성부품) 직접 파싱 (AI 불필요, 서버 원문 그대로)
+function parseCompuzoneSpec(html) {
+  const items = [];
+  const rows = String(html).split(/<tr[\s>]/i).slice(1);
+  for (const row of rows) {
+    const tit = (row.match(/<td class="tit">([^<]+)<\/td>/) || [])[1];
+    if (!tit) continue;
+    const nameCell = (row.match(/<td class="name">([\s\S]*?)<\/td>/) || [])[1] || '';
+    const a = (nameCell.match(/<a[^>]*>([\s\S]*?)<\/a>/) || [])[1] || '';
+    const name = a.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+    if (!name || /선택하세요|선택 안|미선택/.test(name)) continue;  // 미선택(옵션을 선택하세요 등) 제외 → OS 지어냄 방지
+    const price = Number((row.match(/prm_def_ori="(\d+)"/) || [])[1]) || '';
+    const qty = Number((row.match(/prm_ori_num="(\d+)"/) || [])[1]) || 1;
+    items.push({ cat: czMapCat(tit), name, price, qty });
+  }
+  return items;
+}
+async function fetchCompuzoneSpec(pno) {
+  const html = await fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + pno);
+  return parseCompuzoneSpec(html);
 }
 // 컴퓨존 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
   // 텍스트/URL(소스복사·URL공유) 우선 — OCR 불필요, 더 정확
   let textIn = req.body && (req.body.text || req.body.url);
   if (typeof textIn === 'string' && /^https?:\/\//i.test(textIn.trim())) {
-    try { textIn = await fetchQuoteText(textIn.trim()); }
+    const url = textIn.trim();
+    // 컴퓨존 완성품 URL이면 상품상세의 기본사양표를 직접 파싱(AI 불필요, 100% 정확 — 이름 축약·OS 지어냄 없음)
+    const pno = /compuzone\.co\.kr/i.test(url) ? compuzonePno(url) : '';
+    if (pno) {
+      try {
+        const items = await fetchCompuzoneSpec(pno);
+        if (items.length) return res.json({ items, _src: 'compuzone-spec' });
+      } catch (e) { console.log('[견적URL] 컴퓨존 기본사양 파싱 실패, AI 폴백:', e.message); }
+    }
+    try { textIn = await fetchQuoteText(url); }
     catch (e) { return res.status(502).json({ error: 'URL에서 견적을 불러오지 못했습니다: ' + e.message + ' (텍스트 복사나 캡처를 이용해보세요)' }); }
   }
   if (typeof textIn === 'string' && textIn.trim()) {

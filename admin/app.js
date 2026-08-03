@@ -804,21 +804,21 @@ function renderEstimates(){ estInit(); const s=estState;
   <div class="vd-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;gap:6px;align-items:center;font-weight:800;flex-wrap:wrap">품목
-        <label class="btn btn-sm" style="cursor:pointer;background:#f3e8ff;color:#7048e8;margin:0;font-weight:700">📷 캡처하기<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label>
+        <button class="btn btn-sm" style="background:#e6fcf5;color:#0ca678;margin:0;font-weight:700" onclick="estToggle('est_url_box')">🔗 URL 공유 <span style="font-size:10px;background:#0ca678;color:#fff;border-radius:8px;padding:1px 6px;margin-left:2px">권장</span></button>
         <button class="btn btn-sm" style="background:#e7f5ff;color:#1971c2;margin:0;font-weight:700" onclick="estToggle('est_paste_box')">📋 소스·텍스트</button>
-        <button class="btn btn-sm" style="background:#e6fcf5;color:#0ca678;margin:0;font-weight:700" onclick="estToggle('est_url_box')">🔗 URL 공유</button></div>
+        <label class="btn btn-sm" style="cursor:pointer;background:#f3e8ff;color:#7048e8;margin:0;font-weight:700">📷 캡처하기<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label></div>
       <div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;color:var(--gray-500)">일괄 마진</span>
         <input id="est_bulk" type="number" value="${s.bulk}" style="width:56px"> %
         <button class="btn btn-sm btn-secondary" onclick="estApplyBulk()">전체 적용</button></div>
     </div>
-    <div id="est_paste_box" style="display:none;margin-bottom:10px">
-      <textarea id="est_paste" placeholder="컴퓨존 견적서 소스복사의 [텍스트]/[HTML]을 붙여넣으세요 (가장 정확)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
-      <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this)">📋 이 내용 가져오기</button></div>
-    </div>
     <div id="est_url_box" style="display:none;margin-bottom:10px">
-      <div style="display:flex;gap:6px"><input id="est_url" placeholder="컴퓨존 [URL 공유] 링크" style="flex:1;padding:9px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
+      <div style="display:flex;gap:6px"><input id="est_url" placeholder="컴퓨존 [URL 공유] 링크 붙여넣기" style="flex:1;padding:9px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
         <button class="btn btn-sm" onclick="estUrlImport(this)">가져오기</button></div>
-      <div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ URL은 완성품·페이지 구조에 따라 가격이 부정확할 수 있어요. 정확하려면 [소스·텍스트]를 쓰세요.</div>
+      <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 페이지에 적힌 부품명·가격을 그대로 가져옵니다 (AI 미사용 — 이름 축약·OS 지어냄 없음). 가장 정확한 방식입니다.</div>
+    </div>
+    <div id="est_paste_box" style="display:none;margin-bottom:10px">
+      <textarea id="est_paste" placeholder="컴퓨존 견적서 소스복사의 [텍스트]/[HTML]을 붙여넣으세요 (URL이 안 될 때 대안)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
+      <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this)">📋 이 내용 가져오기</button></div>
     </div>
     <div class="table-container"><table class="table">
       <thead><tr><th>분류</th><th>품명</th><th>수량</th><th>매입가</th><th>마진</th><th>판매단가</th><th>금액</th><th></th></tr></thead>
@@ -862,11 +862,13 @@ function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cos
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
 function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estState.bulk); estBody(); }
 function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return; estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk})); estBody(); }
-// 가져온 항목을 같은 분류의 빈 행에 채우고, 없으면 새 행 추가
+// 가져온 항목을 채움: ①같은 분류+품명이 이미 있으면 갱신(중복 방지) ②없으면 같은 분류의 빈 행에 채움 ③그래도 없으면 새 행 추가
 function estAddItems(items){ estSyncAll();
+  const norm=s=>String(s||'').trim().replace(/\s+/g,' ').toLowerCase();
   (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1);
-    const empty=estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
-    if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.margin=estState.bulk; }
+    const dup=estState.rows.find(r=>r.cat===cat && norm(r.name)===norm(name) && norm(name));
+    const target=dup || estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
+    if(target){ target.name=name; target.qty=qty; target.cost=cost; target.margin=estState.bulk; }
     else estState.rows.push({cat,name,qty,cost,margin:estState.bulk}); });
   estBody();
 }
