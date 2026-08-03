@@ -770,7 +770,7 @@ function estToday(){ const n=new Date(); return `${n.getFullYear()}-${String(n.g
 function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:((state.settings||{}).company_name)||'', contact:'', customer:'', date:t,
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:10,
-    pname:'short', pprice:'total', ptarget:'customer',   // 기본값: 고객용 + 간략화 + 총액만 (필요시 변경). 품명(full/short/cat), 금액(each/total)
+    pname:'short', pprice:'total', ptarget:'customer', manualTotal:'',   // 기본값: 고객용+간략화+총액만. manualTotal: 총액만일 때 합계 직접입력(비우면 자동합계)
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})) }; }
 function estRowHtml(x,i){ x=x||{};
   const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:10)||0, qty=Number(x.qty)||1, price=Math.round(cost*(1+margin/100)), amt=price*qty;
@@ -856,6 +856,10 @@ function renderEstimates(){ estInit(); const s=estState;
             <option value="total" ${s.pprice==='total'?'selected':''}>총액만 (개별가격 숨김)</option>
           </select>
         </label>
+        <label id="est_mt_wrap" style="${s.pprice==='total'?'':'display:none'}">합계금액 직접입력
+          <input id="est_manualtotal" value="${esc(s.manualTotal||'')}" placeholder="예: 1559000 (비우면 자동합계)" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:150px">
+          <span style="font-size:11px;color:var(--gray-400)">부가세포함 총액. 공급가액·부가세 자동 역산</span>
+        </label>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn" onclick="estPrint(estState.ptarget)">🖨️ 이 상태로 인쇄</button>
@@ -874,6 +878,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=Number(g('est_bulk'))||10;
   estState.pname=g('est_pname')||estState.pname||'full'; estState.pprice=g('est_pprice')||estState.pprice||'each';
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer';
+  { const e=document.getElementById('est_manualtotal'); if(e) estState.manualTotal=e.value; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
     return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:q('.est-cost').value, margin:Number(q('.est-margin').value)||0 }; });
   estCalc();
@@ -886,6 +891,7 @@ function estCalc(){ let sub=0;
     tr.querySelector('.est-price').textContent=won(price); tr.querySelector('.est-amt').textContent=won(amt); sub+=amt; });
   const vat=Math.round(sub*0.1), set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
   set('est_sub',sub); set('est_vat',vat); set('est_total',sub+vat);
+  const mtw=document.getElementById('est_mt_wrap'); if(mtw) mtw.style.display=(estState.pprice==='total')?'':'none';   // 총액만일 때만 합계 직접입력 노출
   estRenderPreview();   // 실시간 미리보기 갱신
 }
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
@@ -927,12 +933,17 @@ function custClean(s){
 function estDocInner(target){
   const internal = target==='internal';
   const rows=estRows().filter(r=>r.name||r.amt);
-  const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1), total=sub+vat;
+  let sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1), total=sub+vat;
   const totCost=rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0), profit=sub-totCost;
   const company=esc(estState.company)||'(회사명)', contact=esc(estState.contact), customer=esc(estState.customer)||'(고객)', date=esc(estState.date), no=esc(estState.no), memo=esc(estState.memo);
   // 옵션(내부용은 항상 전체 상세 + 개별 금액)
   const nameMode = internal ? 'full' : (estState.pname||'full');
   const priceMode = internal ? 'each' : (estState.pprice||'each');
+  // 총액만 + 합계 직접입력 시: 그 값을 부가세포함 합계로 쓰고 공급가액·부가세 역산
+  if(priceMode==='total'){
+    const mt=Number(String(estState.manualTotal||'').replace(/[^\d]/g,''))||0;
+    if(mt>0){ total=mt; sub=Math.round(mt/1.1); vat=total-sub; }
+  }
   const showName = nameMode!=='cat', showEach = priceMode==='each';
   const clean = internal ? (x=>x) : custClean;   // 고객용만 금지어(컴퓨존·아이웍스) 제거
   const dispName = r => clean(nameMode==='short' ? czShortName(r.name) : r.name);
