@@ -818,8 +818,9 @@ function compuzonePno(url) {
 }
 // 컴퓨존 분류(tit) → CSEP 견적 분류 매핑
 const CZ_CAT = {
-  'CPU': 'CPU', '메인보드': '메인보드', '메모리': '메모리', '그래픽카드': '그래픽카드', 'SSD': 'SSD',
-  'HDD': 'HDD', '케이스': '케이스', '파워': '파워', '쿨러': '쿨러/튜닝', '모니터': '모니터',
+  'CPU': 'CPU', '메인보드': '메인보드', '메모리': '메모리', 'RAM': '메모리', 'MEMORY': '메모리',
+  '그래픽카드': '그래픽카드', 'VGA': '그래픽카드', 'SSD': 'SSD',
+  'HDD': 'HDD', '케이스': '케이스', '파워': '파워', 'POWER': '파워', '쿨러': '쿨러/튜닝', '모니터': '모니터',
   '유선키보드+마우스': '주변기기', '키보드': '주변기기', '마우스': '주변기기',
   '운영체제(OS)': '소프트웨어', 'OS': '소프트웨어', '소프트웨어': '소프트웨어',
   '조립비': '조립비/AS', '서비스': '조립비/AS',
@@ -831,6 +832,25 @@ function czMapCat(t) {
   if (CZ_CAT[inner]) return CZ_CAT[inner];
   for (const k in CZ_CAT) if (t.indexOf(k) >= 0) return CZ_CAT[k];
   return '';
+}
+// 컴퓨존 "소스코드 공유" 온라인견적서 HTML 표 → 부품 직접 파싱 (붙여넣기, AI 불필요)
+// 각 <tr> 셀 = [번호, 분류, 제품명, 판매가, 수량, 합계]. 번호가 "1-1" 형태(구성부품)인 행만.
+function parseCompuzoneShareText(text) {
+  const items = [];
+  const trs = String(text || '').split(/<tr[\s>]/i).slice(1);
+  for (const tr of trs) {
+    const cells = []; const re = /<td[^>]*>([\s\S]*?)<\/td>/gi; let m;
+    while ((m = re.exec(tr))) cells.push(m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim());
+    if (cells.length < 6) continue;
+    const [no, cat, name, sale, qty] = cells;
+    if (!/^\d+\s*-\s*\d+$/.test(no)) continue;   // 1-1, 1-2 …(완성품 헤더행/합계행 제외)
+    if (!name) continue;
+    const price = Number((sale.match(/[\d,]+/) || [''])[0].replace(/,/g, '')) || '';
+    const q = Number((qty.match(/\d+/) || ['1'])[0]) || 1;
+    const nm = name.replace(/\s*-\s*\d{4,}\s*$/, '').trim();   // 끝의 상품번호 제거
+    items.push({ cat: czMapCat(cat), name: nm, price, qty: q });
+  }
+  return items;
 }
 // 컴퓨존 완성품 상품상세 HTML → 기본사양(구성부품) 직접 파싱 (AI 불필요, 서버 원문 그대로)
 function parseCompuzoneSpec(html) {
@@ -871,6 +891,9 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
     catch (e) { return res.status(502).json({ error: 'URL에서 견적을 불러오지 못했습니다: ' + e.message + ' (텍스트 복사나 캡처를 이용해보세요)' }); }
   }
   if (typeof textIn === 'string' && textIn.trim()) {
+    // 컴퓨존 "소스코드 공유" HTML 표가 있으면 직접 파싱(AI 불필요, Groq 한도 무관)
+    const direct = parseCompuzoneShareText(textIn);
+    if (direct.length) return res.json({ items: direct, _src: 'compuzone-share' });
     try { const out = await aiJsonFromText(estimatePrompt(textIn)); return res.json({ items: Array.isArray(out.items) ? out.items : [], _src: 'text' }); }
     catch (e) { console.log('[견적붙여넣기] AI 오류:', e.message); return res.status(502).json({ error: 'AI 분석 실패: ' + e.message }); }
   }

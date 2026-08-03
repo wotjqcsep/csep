@@ -818,7 +818,7 @@ function renderEstimates(){ estInit(); const s=estState;
       <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 페이지에 적힌 부품명·가격을 그대로 가져옵니다 (AI 미사용 — 이름 축약·OS 지어냄 없음). 가장 정확한 방식입니다.</div>
     </div>
     <div id="est_paste_box" style="display:none;margin-bottom:10px">
-      <textarea id="est_paste" placeholder="컴퓨존 견적서 소스복사의 [텍스트]/[HTML]을 붙여넣으세요 (URL이 안 될 때 대안)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
+      <textarea id="est_paste" placeholder="컴퓨존 '소스코드 공유'의 내용을 붙여넣으세요 — 커스텀 조립 견적도 정확히 가져옵니다 (AI 미사용)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
       <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this)">📋 이 내용 가져오기</button></div>
     </div>
     <div class="table-container"><table class="table">
