@@ -793,7 +793,17 @@ function estimatePrompt(txt) {
 async function fetchQuoteText(url) {
   const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko' } });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  let html = await resp.text();
+  const buf = Buffer.from(await resp.arrayBuffer());
+  // 인코딩 감지 (컴퓨존 등 국내 사이트는 EUC-KR/CP949 가 많음)
+  let charset = '';
+  const ct = resp.headers.get('content-type') || '';
+  const m1 = ct.match(/charset=["']?([\w-]+)/i);
+  if (m1) charset = m1[1];
+  else { const head = buf.slice(0, 3000).toString('latin1'); const m2 = head.match(/charset=["']?([\w-]+)/i); if (m2) charset = m2[1]; }
+  charset = (charset || 'utf-8').toLowerCase().replace('ks_c_5601-1987', 'euc-kr').replace('cp949', 'euc-kr').replace('utf8', 'utf-8');
+  let html;
+  try { html = new TextDecoder(charset).decode(buf); }
+  catch (e) { try { html = new TextDecoder('euc-kr').decode(buf); } catch (e2) { html = buf.toString('utf-8'); } }
   return html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim();
 }
