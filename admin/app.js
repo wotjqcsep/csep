@@ -801,24 +801,6 @@ function renderEstimates(){ estInit(); const s=estState;
       <div class="form-group"><label>견적번호</label><input id="est_no" value="${esc(s.no)}"></div>
     </div>
   </div>
-  <div class="vd-card" style="margin-bottom:14px;background:#f8fbff;border:1px solid #d0e3ff">
-    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="estToggle('est_cz_box')">
-      <div style="font-weight:800;color:#1971c2">🔐 컴퓨존 계정 연동 <span style="font-size:12px;font-weight:600;color:var(--gray-500)">— 무통장 혜택가를 가져오려면 로그인 필요</span></div>
-      <span style="font-size:12px;color:${(state.settings||{}).compuzone_pw_set?'#0ca678':'var(--gray-400)'}">${(state.settings||{}).compuzone_pw_set?'● 저장됨':'○ 미설정'}</span>
-    </div>
-    <div id="est_cz_box" style="display:none;margin-top:10px">
-      <div class="form-row">
-        <div class="form-group"><label>컴퓨존 아이디</label><input id="cz_id" value="${esc((state.settings||{}).compuzone_id||'')}" placeholder="컴퓨존 로그인 아이디" autocomplete="off"></div>
-        <div class="form-group"><label>컴퓨존 비밀번호</label><input id="cz_pw" type="password" value="" placeholder="${(state.settings||{}).compuzone_pw_set?'●●●●●● (저장됨 · 변경할 때만 입력)':'비밀번호'}" autocomplete="new-password"></div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="estSaveCompuzone(this)">💾 저장</button>
-        <button class="btn btn-sm btn-secondary" onclick="estTestCompuzone(this)">🔌 로그인 테스트</button>
-        <span id="cz_status" style="font-size:12px;color:var(--gray-500)"></span>
-      </div>
-      <div style="font-size:11px;color:var(--gray-400);margin-top:6px">※ 비밀번호는 서버에만 저장되고 화면으로 다시 내려보내지 않습니다. 저장 후 [로그인 테스트]로 연결을 확인하세요.<br>※ 연동되면 🔗URL 가져오기 때 로그인 상태로 받아 혜택가가 반영됩니다. 컴퓨존 전용 비밀번호를 쓰시길 권장합니다.</div>
-    </div>
-  </div>
   <div class="vd-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;gap:6px;align-items:center;font-weight:800;flex-wrap:wrap">품목
@@ -859,31 +841,6 @@ function renderEstimates(){ estInit(); const s=estState;
   </div></div>`;
 }
 function estToggle(id){ const b=document.getElementById(id); if(b) b.style.display=(b.style.display==='none'?'block':'none'); }
-// 컴퓨존 계정 저장 (비번은 입력했을 때만 갱신)
-async function estSaveCompuzone(btn){
-  const id=(v('cz_id')||'').trim(), pw=(v('cz_pw')||'');
-  const st=document.getElementById('cz_status');
-  if(!id){ if(st){st.style.color='#e03131';st.textContent='아이디를 입력하세요';} return; }
-  if(btn){btn.disabled=true;} if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
-  try{
-    await api('PUT','/settings/compuzone_id',{value:id});
-    if(pw) await api('PUT','/settings/compuzone_pw',{value:pw});   // 빈칸이면 기존 비번 유지
-  }catch(e){ if(btn)btn.disabled=false; if(st){st.style.color='#e03131';st.textContent='저장 실패: '+(e&&e.message?e.message:e);} return; }
-  if(btn)btn.disabled=false;
-  const pwEl=document.getElementById('cz_pw'); if(pwEl)pwEl.value='';
-  if(st){st.style.color='#0ca678';st.textContent='저장됨. [로그인 테스트]로 확인하세요.';}
-  await loadAll();
-}
-// 컴퓨존 로그인 테스트
-async function estTestCompuzone(btn){
-  const st=document.getElementById('cz_status');
-  if(btn){btn.disabled=true;} if(st){st.style.color='var(--gray-500)';st.textContent='로그인 시도 중…';}
-  let r;
-  try{ r=await api('POST','/compuzone/login-test',{}); }
-  catch(e){ if(btn)btn.disabled=false; if(st){st.style.color='#e03131';st.textContent='실패: '+(e&&e.message?e.message:e);} return; }
-  if(btn)btn.disabled=false;
-  if(st){ st.style.color=r&&r.ok?'#0ca678':'#e03131'; st.textContent=(r&&r.message)||(r&&r.ok?'성공':'실패'); }
-}
 // DOM → estState (모든 입력에 반영, 화면 재렌더돼도 값 보존)
 function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
   estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer');

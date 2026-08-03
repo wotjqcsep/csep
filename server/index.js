@@ -790,11 +790,9 @@ function estimatePrompt(txt) {
     '견적 내용:', '"""', String(txt).slice(0, 8000), '"""',
   ].join('\n');
 }
-// URL → HTML 원문 디코드 (인코딩 감지, 태그 유지). cookie 주면 로그인 세션으로 요청.
-async function fetchHtmlDecoded(url, cookie) {
-  const headers = { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko' };
-  if (cookie) headers['Cookie'] = cookie;
-  const resp = await fetch(url, { headers });
+// URL → HTML 원문 디코드 (인코딩 감지, 태그 유지)
+async function fetchHtmlDecoded(url) {
+  const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko' } });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   const buf = Buffer.from(await resp.arrayBuffer());
   // 인코딩 감지 (컴퓨존 등 국내 사이트는 EUC-KR/CP949 가 많음)
@@ -851,76 +849,10 @@ function parseCompuzoneSpec(html) {
   }
   return items;
 }
-// ── 컴퓨존 로그인 연동 (혜택가는 로그인 회원에게만 보임) ──
-async function getSetting(key) {
-  try { const r = await pool.query('SELECT value FROM settings WHERE key=$1', [key]); return r.rows[0] ? r.rows[0].value : ''; }
-  catch (e) { return ''; }
-}
-let czSession = { cookie: '', at: 0 };   // 로그인 세션 쿠키 캐시(서버 메모리, ~20분)
-// 컴퓨존 로그인 → 세션 쿠키 문자열 반환. 실패 시 throw.
-async function compuzoneLogin() {
-  const id = (await getSetting('compuzone_id') || '').trim();
-  const pw = (await getSetting('compuzone_pw') || '').trim();
-  if (!id || !pw) throw new Error('컴퓨존 아이디/비밀번호가 설정되지 않았습니다.');
-  const body = new URLSearchParams({
-    actype: 'member_login', member_id: id, member_password: pw,
-    check_base: '/main/main.htm', AdultChk: '1',
-  }).toString();
-  const resp = await fetch('https://www.compuzone.co.kr/login/login_function.php', {
-    method: 'POST', redirect: 'manual',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded; charset=EUC-KR',
-      'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko',
-      'Referer': 'https://www.compuzone.co.kr/login/login.htm',
-      'Origin': 'https://www.compuzone.co.kr',
-    },
-    body,
-  });
-  // Set-Cookie 수집 (여러 개 → getSetCookie 우선)
-  let cookies = [];
-  try { cookies = resp.headers.getSetCookie ? resp.headers.getSetCookie() : []; } catch (e) {}
-  if (!cookies.length) { const sc = resp.headers.get('set-cookie'); if (sc) cookies = [sc]; }
-  const cookieStr = cookies.map(c => String(c).split(';')[0]).filter(Boolean).join('; ');
-  if (!cookieStr) throw new Error('로그인 응답에 세션 쿠키가 없습니다. (아이디/비번 확인 또는 차단 여부 점검)');
-  czSession = { cookie: cookieStr, at: Date.now() };
-  return cookieStr;
-}
-// 유효한 세션 쿠키 확보 (캐시 20분, 없으면 로그인)
-async function compuzoneCookie(force) {
-  if (!force && czSession.cookie && (Date.now() - czSession.at) < 20 * 60 * 1000) return czSession.cookie;
-  return compuzoneLogin();
-}
-// 로그인 여부 판정: 마이페이지/헤더에 로그아웃 링크나 회원명이 있으면 로그인 성공으로 봄
-function compuzoneLoggedIn(html) {
-  return /로그아웃|logout|member_logout|마이페이지|MyPage/i.test(String(html));
-}
 async function fetchCompuzoneSpec(pno) {
-  const url = 'https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + pno;
-  // 로그인 자격이 있으면 세션으로 요청(혜택가 노출), 실패하면 비로그인으로 폴백
-  const hasCreds = (await getSetting('compuzone_id') || '').trim() && (await getSetting('compuzone_pw') || '').trim();
-  if (hasCreds) {
-    try {
-      let cookie = await compuzoneCookie(false);
-      let html = await fetchHtmlDecoded(url, cookie);
-      if (!compuzoneLoggedIn(html)) { cookie = await compuzoneCookie(true); html = await fetchHtmlDecoded(url, cookie); }  // 캐시 만료 시 재로그인
-      return parseCompuzoneSpec(html);
-    } catch (e) { console.log('[컴퓨존] 로그인 파싱 실패, 비로그인 폴백:', e.message); }
-  }
-  const html = await fetchHtmlDecoded(url);
+  const html = await fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + pno);
   return parseCompuzoneSpec(html);
 }
-// 컴퓨존 로그인 테스트 — 저장된 아이디/비번으로 실제 로그인해보고 성공 여부 반환
-app.post('/api/compuzone/login-test', wrap(async (req, res) => {
-  try {
-    const cookie = await compuzoneCookie(true);   // 강제 재로그인
-    // 로그인 확인: 마이페이지 성격 페이지를 세션으로 열어 로그인 표식 확인
-    const html = await fetchHtmlDecoded('https://www.compuzone.co.kr/main/main.htm', cookie);
-    const ok = compuzoneLoggedIn(html);
-    res.json({ ok, message: ok ? '컴퓨존 로그인 성공 — 혜택가를 가져올 수 있습니다.' : '세션은 받았으나 로그인 상태가 확인되지 않았습니다. (아이디/비번 또는 차단 여부 확인)' });
-  } catch (e) {
-    res.status(502).json({ ok: false, message: '로그인 실패: ' + e.message });
-  }
-}));
 // 컴퓨존 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
   // 텍스트/URL(소스복사·URL공유) 우선 — OCR 불필요, 더 정확
@@ -1162,10 +1094,7 @@ app.put('/api/receptions/:id/woori-settle', wrap(async (req, res) => {
 // 설정 (출장비 기본금액 등)
 app.get('/api/settings', wrap(async (req, res) => {
   const rows = (await pool.query('SELECT key, value FROM settings')).rows;
-  const o = {}; rows.forEach(r => o[r.key] = r.value);
-  // 비밀번호는 브라우저로 돌려보내지 않음 — 설정 여부만 표시
-  if ('compuzone_pw' in o) { o.compuzone_pw_set = !!(o.compuzone_pw && String(o.compuzone_pw).trim()); delete o.compuzone_pw; }
-  res.json(o);
+  const o = {}; rows.forEach(r => o[r.key] = r.value); res.json(o);
 }));
 app.put('/api/settings/:key', wrap(async (req, res) => {
   await pool.query('INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2', [req.params.key, req.body.value ?? '']);
