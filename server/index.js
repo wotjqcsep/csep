@@ -869,7 +869,7 @@ async function compuzoneLogin() {
   const resp = await fetch('https://www.compuzone.co.kr/login/login_function.php', {
     method: 'POST', redirect: 'manual',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/x-www-form-urlencoded; charset=EUC-KR',
       'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ko',
       'Referer': 'https://www.compuzone.co.kr/login/login.htm',
       'Origin': 'https://www.compuzone.co.kr',
@@ -881,12 +881,7 @@ async function compuzoneLogin() {
   try { cookies = resp.headers.getSetCookie ? resp.headers.getSetCookie() : []; } catch (e) {}
   if (!cookies.length) { const sc = resp.headers.get('set-cookie'); if (sc) cookies = [sc]; }
   const cookieStr = cookies.map(c => String(c).split(';')[0]).filter(Boolean).join('; ');
-  // 응답 본문으로 성공/실패 판정 (실패 시 alert(...) 메시지가 옴)
-  const bufL = Buffer.from(await resp.arrayBuffer());
-  let bodyTxt = ''; try { bodyTxt = new TextDecoder('euc-kr').decode(bufL); } catch (e) { bodyTxt = bufL.toString('utf-8'); }
-  const alertM = bodyTxt.match(/alert\(\s*['"]([\s\S]*?)['"]\s*\)/);
-  if (alertM) throw new Error('컴퓨존: ' + alertM[1].replace(/\\n/g, ' ').trim());  // 예: 아이디/비번 오류
-  if (!cookieStr) throw new Error('로그인 응답에 세션 쿠키가 없습니다. (차단 여부 점검)');
+  if (!cookieStr) throw new Error('로그인 응답에 세션 쿠키가 없습니다. (아이디/비번 확인 또는 차단 여부 점검)');
   czSession = { cookie: cookieStr, at: Date.now() };
   return cookieStr;
 }
@@ -917,10 +912,13 @@ async function fetchCompuzoneSpec(pno) {
 // 컴퓨존 로그인 테스트 — 저장된 아이디/비번으로 실제 로그인해보고 성공 여부 반환
 app.post('/api/compuzone/login-test', wrap(async (req, res) => {
   try {
-    await compuzoneCookie(true);   // 강제 재로그인 — 실패 시 사유와 함께 throw
-    res.json({ ok: true, message: '컴퓨존 로그인 성공 — 혜택가를 가져올 수 있습니다.' });
+    const cookie = await compuzoneCookie(true);   // 강제 재로그인
+    // 로그인 확인: 마이페이지 성격 페이지를 세션으로 열어 로그인 표식 확인
+    const html = await fetchHtmlDecoded('https://www.compuzone.co.kr/main/main.htm', cookie);
+    const ok = compuzoneLoggedIn(html);
+    res.json({ ok, message: ok ? '컴퓨존 로그인 성공 — 혜택가를 가져올 수 있습니다.' : '세션은 받았으나 로그인 상태가 확인되지 않았습니다. (아이디/비번 또는 차단 여부 확인)' });
   } catch (e) {
-    res.json({ ok: false, message: '로그인 실패 — ' + e.message });   // 502 대신 사유 메시지 노출
+    res.status(502).json({ ok: false, message: '로그인 실패: ' + e.message });
   }
 }));
 // 컴퓨존 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
