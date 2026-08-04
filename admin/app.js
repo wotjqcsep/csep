@@ -646,7 +646,7 @@ function renderEngineers(){
   return `
   <div class="page-header"><h2>👷 사업자 관리 (${es.length}명)</h2><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="go('workorders')">← 작업지시</button><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div></div>
   <div class="vd-card" style="margin-bottom:16px">
-    <div style="font-weight:800;margin-bottom:12px">⚙️ 결산 · 대행업체 설정</div>
+    <div style="font-weight:800;margin-bottom:4px">⚙️ 결산 · 대행업체 설정 <span style="font-weight:400;font-size:12px;color:#1971c2">— 결산·기사 정산용 (아래 문서용 수수료율과 별개)</span></div>
     <div class="form-row">
       ${field('set_brand','상호/브랜드명 (결산 화면 표시)', S.brand_name||'')}
       ${field('set_agency','대행업체명 (카드/계산서 경유)', S.agency_name||'')}
@@ -690,7 +690,8 @@ function renderEngineers(){
     </div>
   </div>
   <div class="vd-card" style="margin-bottom:16px">
-    <div style="font-weight:800;margin-bottom:12px">💳 결제수단별 외주업체 수수료율 (%) <span style="font-weight:400;color:var(--gray-400)">— 0 이면 해당 수단 수수료 없음</span></div>
+    <div style="font-weight:800;margin-bottom:4px">💳 결제수단별 외주업체 수수료율 (%) <span style="font-weight:400;font-size:12px;color:#0ca678">— 문서(견적·명세·계산서) 실수령 계산용 (위 결산 수수료율과 별개)</span></div>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px">외주업체를 통해 결제할 때 그 업체에 내는 수수료입니다. 결제수단마다 다르게 설정하세요. 혼자 거래(외주 없음)면 전부 0. 0 이면 해당 수단 수수료 없음.</div>
     <div class="form-row">
       ${field('fee_cash','현금', S.fee_cash||'')}
       ${field('fee_transfer','계좌이체', S.fee_transfer||'')}
