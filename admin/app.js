@@ -1171,7 +1171,12 @@ function estUpdateFee(){
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
 function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estState.bulk); estBody(); }
-function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return; estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk})); estBody(); }
+function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·매입가·합계 입력이 모두 지워집니다)'))return;
+  estSyncAll();
+  estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
+  estState.realCost=''; estState.manualTotal='';
+  render();   // 화면 전체 다시 그려 입력칸까지 초기화
+}
 // 가져오기: 누를 때마다 기존 부품표를 버리고 새로 받음(중복 누적 방지, 초기화 불필요).
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
 function estAddItems(items){ estSyncAll();
