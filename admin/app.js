@@ -836,12 +836,12 @@ function estCompanyDefault(){ const st=state.settings||{}; return (st.brand_name
 function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
     buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',   // 공급받는자 사업자정보(명세서·계산서용)
-    no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:10,
+    no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:5,
     savedId:null, doctype:'estimate',   // 문서 종류: estimate/statement/receipt/tax
     pname:'short', pprice:'total', ptarget:'customer', manualTotal:'',   // 기본값: 고객용+간략화+총액만. manualTotal: 총액만일 때 합계 직접입력(비우면 자동합계)
-    rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})) }; }
+    rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})) }; }
 function estRowHtml(x,i){ x=x||{};
-  const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:10)||0, qty=Number(x.qty)||1;
+  const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:5)||0, qty=Number(x.qty)||1;
   const price=(x.price!=null&&x.price!=='')?(Number(String(x.price).replace(/[^\d]/g,''))||0):(cost?Math.round(cost*(1+margin/100)):0);
   const amt=price*qty, fc=n=>n?Number(n).toLocaleString('ko-KR'):'';
   return `<tr class="est-row" data-i="${i}">
@@ -849,7 +849,7 @@ function estRowHtml(x,i){ x=x||{};
     <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [AMD] 라이젠5 라파엘 7500F (6코어/12스레드/3.7GHz) 쿨러포함)" style="width:100%;min-width:340px"></td>
     <td><input class="est-qty" type="number" min="1" value="${x.qty||1}" style="width:56px"></td>
     <td><input class="est-cost" type="text" inputmode="numeric" value="${(x.cost!=null&&x.cost!=='')?fc(Number(String(x.cost).replace(/[^\d]/g,''))||0):''}" oninput="estFmtCost(this);estRecalcPrice(this)" placeholder="매입가" style="width:96px;text-align:right"></td>
-    <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:10}" oninput="estRecalcPrice(this)" style="width:52px"> %</td>
+    <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:5}" oninput="estRecalcPrice(this)" style="width:52px"> %</td>
     <td><input class="est-price" type="text" inputmode="numeric" value="${fc(price)}" oninput="estFmtCost(this)" placeholder="판매단가" style="width:100px;text-align:right;font-weight:700"></td>
     <td class="est-amt" style="text-align:right;font-weight:800">${won(amt)}</td>
     <td><button class="btn btn-sm btn-danger" onclick="estDelRow(this)">×</button></td>
@@ -1032,7 +1032,7 @@ async function estLoadOne(id){
     buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:Number(o.bulk)||10, savedId:e.id,
     doctype:o.doctype||'estimate', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
-    rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})))
+    rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
   go('estimates');   // 견적서 화면으로 이동 + estState 반영
 }
