@@ -865,7 +865,13 @@ function renderEstimates(){ estInit(); const s=estState;
   const vat=Math.round(sub*0.1);
   return `
   <div oninput="estSyncAll()">
-  <div class="page-header"><h2>📄 견적서 <span style="font-size:13px;color:var(--gray-500)">— 컴퓨존 가져오기 + 마진·부가세 자동계산 + 인쇄</span></h2></div>
+  <div class="page-header"><h2>📄 문서 작성 <span style="font-size:13px;color:var(--gray-500)">— 문서 종류를 골라 작성·인쇄 (같은 내용으로 종류만 전환)</span></h2></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+    ${[['estimate','견적서'],['statement','거래명세서'],['tax','세금계산서'],['receipt','간이영수증']].map(([k,l])=>{
+      const on=(s.doctype||'estimate')===k;
+      return `<button class="btn" onclick="estSetDoc('${k}')" style="${on?'':'background:var(--gray-100);color:var(--gray-600)'};font-weight:${on?'800':'600'}">${on?'● ':''}${l}</button>`;
+    }).join('')}
+  </div>
   <div class="vd-card" style="margin-bottom:14px">
     <div class="form-row">
       <div class="form-group" style="flex:2"><label>공급자 (회사명) <span style="font-size:11px;color:var(--gray-400)">— 기사관리 상호/브랜드명 자동연동, 수정가능</span></label><input id="est_company" value="${esc(s.company)}" placeholder="예: CSEP 컴퓨터"></div>
@@ -937,14 +943,6 @@ function renderEstimates(){ estInit(); const s=estState;
     <div style="border:1px solid var(--gray-200);border-radius:8px;padding:10px 12px;margin-top:12px;background:var(--gray-50)">
       <div style="font-weight:700;font-size:13px;margin-bottom:8px">🖨️ 견적서 출력 옵션 <span style="font-weight:400;color:var(--gray-500)">— 바꾸면 아래 미리보기에 실시간 반영</span></div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:13px">
-        <label>문서 종류
-          <select id="est_doctype" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;font-weight:700">
-            <option value="estimate" ${s.doctype==='estimate'?'selected':''}>견적서</option>
-            <option value="statement" ${s.doctype==='statement'?'selected':''}>거래명세서</option>
-            <option value="receipt" ${s.doctype==='receipt'?'selected':''}>간이영수증</option>
-            <option value="tax" ${s.doctype==='tax'?'selected':''}>세금계산서</option>
-          </select>
-        </label>
         <label>대상
           <select id="est_ptarget" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px">
             <option value="customer" ${s.ptarget==='customer'?'selected':''}>고객용 (매입가·마진 숨김)</option>
@@ -1043,6 +1041,8 @@ function estNew(dtype){
   estState=null; estInit(); estState.doctype=(dtype||'estimate');
   go('estimates');
 }
+// 문서 종류 전환(견적서 내부 버튼) — 내용 유지, 양식만 변경
+function estSetDoc(dtype){ estSyncAll(); estState.doctype=dtype||'estimate'; render(); }
 // 📑 거래명세서·세금계산서 허브 — 저장된 모든 문서 검색·불러오기
 function renderDocs(){
   return `<div class="page-header"><h2>📑 거래명세서·세금계산서 <span style="font-size:13px;color:var(--gray-500)">— 새 문서 작성 또는 저장된 문서 열기</span></h2>
