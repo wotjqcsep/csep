@@ -837,7 +837,7 @@ function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
     buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',   // 공급받는자 사업자정보(명세서·계산서용)
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:5,
-    savedId:null, doctype:'estimate',   // 문서 종류: estimate/statement/receipt/tax
+    savedId:null, doctype:'estimate', payMethod:'cash',   // 문서 종류 + 결제방법(cash/card/transfer)
     pname:'short', pprice:'total', ptarget:'customer', manualTotal:'',   // 기본값: 고객용+간략화+총액만. manualTotal: 총액만일 때 합계 직접입력(비우면 자동합계)
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})) }; }
 function estRowHtml(x,i){ x=x||{};
@@ -966,7 +966,15 @@ function renderEstimates(){ estInit(); const s=estState;
           <input id="est_manualtotal" value="${esc(s.manualTotal||'')}" placeholder="예: 1559000 (비우면 자동합계)" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:150px">
           <span style="font-size:11px;color:var(--gray-400)">부가세포함 총액. 공급가액·부가세 자동 역산</span>
         </label>
+        <label>결제방법
+          <select id="est_paymethod" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px">
+            <option value="cash" ${s.payMethod==='cash'?'selected':''}>현금</option>
+            <option value="card" ${s.payMethod==='card'?'selected':''}>카드</option>
+            <option value="transfer" ${s.payMethod==='transfer'?'selected':''}>계좌이체</option>
+          </select>
+        </label>
       </div>
+      <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:#f8f9fb;border:1px solid var(--gray-200)"></div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn" onclick="estPrint(estState.ptarget)">🖨️ 이 상태로 인쇄</button>
         <button class="btn btn-secondary" onclick="estReset()">초기화</button>
@@ -997,7 +1005,7 @@ async function estSave(btn){
   const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
   const body={ no:estState.no, customer_id:estState.customerId||null, customer_name:estState.customer, phone:estState.phone,
     company:estState.company, contact:estState.contact, est_date:estState.date, memo:estState.memo,
-    items:rows, opts:{doctype:estState.doctype,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk,
+    items:rows, opts:{doctype:estState.doctype,payMethod:estState.payMethod,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk,
       buyerBizno:estState.buyerBizno,buyerCeo:estState.buyerCeo,buyerAddr:estState.buyerAddr,buyerType:estState.buyerType,buyerItem:estState.buyerItem},
     subtotal:sub, vat, total:sub+vat };
   if(btn) btn.disabled=true; if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
@@ -1031,7 +1039,7 @@ async function estLoadOne(id){
   estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
     buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:Number(o.bulk)||10, savedId:e.id,
-    doctype:o.doctype||'estimate', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
+    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
   go('estimates');   // 견적서 화면으로 이동 + estState 반영
@@ -1094,6 +1102,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=Number(g('est_bulk'))||10;
   estState.pname=g('est_pname')||estState.pname||'full'; estState.pprice=g('est_pprice')||estState.pprice||'each';
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
+  estState.payMethod=g('est_paymethod')||estState.payMethod||'cash';
   { const e=document.getElementById('est_manualtotal'); if(e) estState.manualTotal=e.value; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
     const cost=Number(String(q('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(q('.est-margin').value)||0;
@@ -1112,8 +1121,19 @@ function estCalc(){ let sub=0;
   const vat=Math.round(sub*0.1), set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
   set('est_sub',sub); set('est_vat',vat); set('est_total',sub+vat);
   const mtw=document.getElementById('est_mt_wrap'); if(mtw) mtw.style.display=(estState.pprice==='total')?'':'none';   // 총액만일 때만 합계 직접입력 노출
+  // 결제방법에 따른 금액(대행 수수료·실수령) — 카드 또는 세금계산서 발급 시 수수료 발생
+  const feeEl=document.getElementById('est_fee');
+  if(feeEl){ const mt=Number(String(estState.manualTotal||'').replace(/[^\d]/g,''))||0;
+    const total=(estState.pprice==='total'&&mt>0)?mt:(sub+vat);
+    const applies=estFeeApplies(), rate=agencyRate(), cut=applies?Math.round(total*rate):0;
+    feeEl.innerHTML = applies
+      ? `💳 <b>${payMethodLabel(estState.payMethod)}</b> · ${esc(agencyName())} 수수료(${agencyPct()}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(total-cut)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
+      : `💳 <b>${payMethodLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(total)}</b>`;
+  }
   estRenderPreview();   // 실시간 미리보기 갱신
 }
+// 대행 수수료 발생 조건: 카드 결제 또는 세금계산서 발급, 그리고 수수료율>0
+function estFeeApplies(){ return agencyOn() && ((estState&&estState.payMethod==='card') || (estState&&estState.doctype==='tax')); }
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
 function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estState.bulk); estBody(); }
@@ -1186,11 +1206,14 @@ function estDocInner(target, copyLabel){
     if(showEach){ cells.push(`<td style="text-align:right">${won(r.price)}</td>`, `<td style="text-align:right">${won(r.amt)}</td>`); }
     return `<tr>${cells.join('')}</tr>`;
   }).join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:#aaa;padding:20px">품목을 입력하세요</td></tr>`;
+  const feeApplies=estFeeApplies(), feeCut=feeApplies?Math.round(total*agencyRate()):0;
   const sumRows = `<tr><td>공급가액</td><td style="text-align:right">${won(sub)}</td></tr>
       <tr><td>부가세(10%)</td><td style="text-align:right">${won(vat)}</td></tr>
-      <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr>`
+      <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr>
+      <tr><td>결제방법</td><td style="text-align:right">${payMethodLabel(estState.payMethod)}</td></tr>`
     + (internal ? `<tr style="color:#888"><td>총매입가</td><td style="text-align:right">${won(totCost)}</td></tr>
-      <tr style="color:#1971c2;font-weight:700"><td>마진이익</td><td style="text-align:right">${won(profit)}</td></tr>` : '');
+      ${feeApplies?`<tr style="color:#e03131"><td>${esc(agencyName())} 수수료(${agencyPct()}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
+      <tr style="color:#1971c2;font-weight:700"><td>${feeApplies?'실수령(마진이익)':'마진이익'}</td><td style="text-align:right">${won(profit-feeCut)}</td></tr>` : '');
   // 문서 종류별 제목·라벨·문구
   const dt = estState.doctype||'estimate';
   const DT = {
