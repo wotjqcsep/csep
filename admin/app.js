@@ -1227,26 +1227,30 @@ function stdStatement(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
     <div style="font-size:12px;margin-top:12px">${yy} 년 ${mm} 월 ${dd} 일</div>
     <div style="text-align:center;font-size:18px;font-weight:800;margin:10px 0">${buy.nm} 귀하</div>
     <div style="font-size:12px">아래와 같이 계산합니다.</div>`;
-  const header=`<table style="table-layout:fixed;margin-top:6px"><tbody>
-    <tr><td rowspan="4" style="width:50%;vertical-align:top">${left}</td>
-        <td style="width:64px;background:#f7f7f7;font-size:11px">등록번호</td><td colspan="3" style="font-size:11px">${sup.bizno}</td></tr>
-    <tr><td style="background:#f7f7f7;font-size:11px">상호</td><td style="font-size:11px">${sup.nm}</td><td style="width:40px;background:#f7f7f7;font-size:11px">성명</td><td style="font-size:11px">${sup.ceo} (인)${stampImg(38)}</td></tr>
-    <tr><td style="background:#f7f7f7;font-size:11px">사업장<br>소재지</td><td colspan="3" style="font-size:11px">${sup.addr}</td></tr>
-    <tr><td style="background:#f7f7f7;font-size:11px">업태</td><td style="font-size:11px">${sup.bt}</td><td style="background:#f7f7f7;font-size:11px">종목</td><td style="font-size:11px">${sup.bi}</td></tr>
+  const B='border:1px solid #333;padding:4px 6px;font-size:11px';
+  const L='border:1px solid #333;padding:4px 6px;font-size:11px;background:#f2f2f2;text-align:center';
+  const header=`<table style="border-collapse:collapse;width:100%;table-layout:fixed;margin-top:4px"><tbody>
+    <tr><td rowspan="4" style="width:48%;vertical-align:top;${B}">${left}</td>
+        <td style="width:66px;${L}">등록번호</td><td colspan="3" style="${B}">${sup.bizno}</td></tr>
+    <tr><td style="${L}">상　호</td><td style="${B}">${sup.nm}</td><td style="width:42px;${L}">성명</td><td style="${B}">${sup.ceo} (인)${stampImg(36)}</td></tr>
+    <tr><td style="${L}">사업장<br>소재지</td><td colspan="3" style="${B}">${sup.addr}</td></tr>
+    <tr><td style="${L}">업　태</td><td style="${B}">${sup.bt}</td><td style="${L}">종목</td><td style="${B}">${sup.bi}</td></tr>
   </tbody></table>`;
+  const TB='border:1px solid #333;padding:4px 5px;font-size:11px';
+  const TH='border:1px solid #333;padding:4px 5px;font-size:11px;background:#f2f2f2;text-align:center';
   const body=items.map(r=>{ const amt=r.amt, tax=Math.round(amt*0.1);
-    return `<tr><td style="text-align:center">${mm}</td><td style="text-align:center">${dd}</td>
-      <td>${esc(ctx.dispName(r))}</td><td></td><td style="text-align:center">${r.qty}</td>
-      <td style="text-align:right">${nfmt(r.price)}</td><td style="text-align:right">${nfmt(amt)}</td>
-      <td style="text-align:right">${nfmt(tax)}</td><td></td></tr>`; }).join('');
+    return `<tr><td style="text-align:center;${TB}">${mm}</td><td style="text-align:center;${TB}">${dd}</td>
+      <td style="${TB}">${esc(ctx.dispName(r))}</td><td style="${TB}"></td><td style="text-align:center;${TB}">${r.qty}</td>
+      <td style="text-align:right;${TB}">${nfmt(r.price)}</td><td style="text-align:right;${TB}">${nfmt(amt)}</td>
+      <td style="text-align:right;${TB}">${nfmt(tax)}</td><td style="${TB}"></td></tr>`; }).join('');
   return `${header}
-    <table style="margin-top:6px;font-size:12px"><thead><tr>
-      <th style="width:26px">월</th><th style="width:26px">일</th><th>품목</th><th style="width:56px">규격</th><th style="width:42px">수량</th><th style="width:78px">단가</th><th style="width:90px">공급가액</th><th style="width:78px">세액</th><th style="width:46px">비고</th></tr></thead>
-      <tbody>${body||`<tr><td colspan="9" style="text-align:center;color:#aaa;padding:16px">품목 없음</td></tr>`}</tbody></table>
-    <table style="margin-top:6px;font-size:13px"><tr>
-      <td style="background:#f7f7f7;width:80px;font-weight:700">합계금액</td>
-      <td style="text-align:right;font-weight:800">${nfmt(total)} 원</td>
-      <td style="text-align:center;color:#555;width:140px">공급가액 ${nfmt(sub)} · 세액 ${nfmt(vat)}</td></tr></table>
+    <table style="border-collapse:collapse;width:100%;margin-top:6px"><thead><tr>
+      <th style="width:26px;${TH}">월</th><th style="width:26px;${TH}">일</th><th style="${TH}">품목</th><th style="width:56px;${TH}">규격</th><th style="width:42px;${TH}">수량</th><th style="width:78px;${TH}">단가</th><th style="width:90px;${TH}">공급가액</th><th style="width:78px;${TH}">세액</th><th style="width:46px;${TH}">비고</th></tr></thead>
+      <tbody>${body||`<tr><td colspan="9" style="text-align:center;color:#aaa;padding:16px;${TB}">품목 없음</td></tr>`}</tbody></table>
+    <table style="border-collapse:collapse;width:100%;margin-top:6px"><tr>
+      <td style="width:80px;font-weight:700;${TH}">합계금액</td>
+      <td style="text-align:right;font-weight:800;${TB}">${nfmt(total)} 원</td>
+      <td style="text-align:center;color:#555;width:180px;${TB}">공급가액 ${nfmt(sub)} · 세액 ${nfmt(vat)}</td></tr></table>
     ${memo?`<div class="memo">비고: ${memo}</div>`:''}`;
 }
 function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
