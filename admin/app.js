@@ -260,10 +260,10 @@ async function openReceptionDetail(recId){
 function calcPay(){
   const labor=Number(v('rd_labor'))||0, parts=Number(v('rd_parts'))||0, pm=v('rd_pm');
   const tax=document.getElementById('rd_tax') && document.getElementById('rd_tax').checked;
-  const ag=agencyOn(), rev=labor+parts, woori=(ag&&(pm==='card'||tax))?Math.round(rev*agencyRate()):0, mine=rev-woori;
+  const rev=labor+parts, wr=feeRateRec({payment_method:pm,tax_invoice:tax}), woori=Math.round(rev*wr), mine=rev-woori;
   const el=document.getElementById('rd_calc'); if(!el) return;
   el.innerHTML = `매출 <strong>${won(rev)}</strong>`
-    + (woori?` · <span style="color:var(--warning)">${esc(agencyName())} ${agencyPct()}% ${won(woori)}</span>`:'')
+    + (woori?` · <span style="color:var(--warning)">${esc(agencyName())} 수수료(${Math.round(wr*10000)/100}%) ${won(woori)}</span>`:'')
     + ` · <span style="color:var(--success)">정산액 <strong>${won(mine)}</strong></span>`
     + (woori?`<div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ 카드/계산서 → 매출은 ${esc(agencyName())} 경유, 나중에 ${won(mine)} 현금 정산 받음</div>`:'');
 }
@@ -642,20 +642,18 @@ function renderSchedule(){
 // ── 기사 관리 ──
 function renderEngineers(){
   const es = state.engineers; const S = state.settings||{};
-  const rate = S.agency_rate!==undefined && S.agency_rate!=='' ? S.agency_rate : '15';
   return `
   <div class="page-header"><h2>👷 사업자 관리 (${es.length}명)</h2><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="go('workorders')">← 작업지시</button><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div></div>
   <div class="vd-card" style="margin-bottom:16px">
-    <div style="font-weight:800;margin-bottom:4px">⚙️ 결산 · 대행업체 설정 <span style="font-weight:400;font-size:12px;color:#1971c2">— 결산·기사 정산용 (아래 문서용 수수료율과 별개)</span></div>
+    <div style="font-weight:800;margin-bottom:4px">⚙️ 결산 · 대행업체 설정</div>
     <div class="form-row">
       ${field('set_brand','상호/브랜드명 (결산 화면 표시)', S.brand_name||'')}
       ${field('set_agency','대행업체명 (카드/계산서 경유)', S.agency_name||'')}
     </div>
-    <div class="form-row">
-      <div class="form-group"><label>수수료율 (%) <span style="font-weight:400;color:var(--gray-400)">— 0 이면 대행 미사용</span></label><input id="set_rate" type="number" min="0" max="100" step="0.1" value="${esc(rate)}" style="padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px;width:100%"></div>
-      <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn" onclick="saveAgencySettings()">설정 저장</button></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn" onclick="saveAgencySettings()">설정 저장</button>
+      <span style="font-size:12px;color:var(--gray-400)">외주 수수료율은 아래 "결제수단별 외주업체 수수료율"에서 설정합니다.</span>
     </div>
-    <div style="font-size:12px;color:var(--gray-400)">카드·세금계산서 결제는 대행업체 경유로 수수료가 차감됩니다. 직접 거래(대행 미사용)면 수수료율을 0으로 두세요. (기본 대행업체명: 우리사무기 / 15%)</div>
   </div>
   <div class="vd-card" style="margin-bottom:16px">
     <div style="font-weight:800;margin-bottom:12px">🧾 사업자정보 (거래명세서·세금계산서·영수증 공급자란)</div>
@@ -690,8 +688,8 @@ function renderEngineers(){
     </div>
   </div>
   <div class="vd-card" style="margin-bottom:16px">
-    <div style="font-weight:800;margin-bottom:4px">💳 결제수단별 외주업체 수수료율 (%) <span style="font-weight:400;font-size:12px;color:#0ca678">— 문서(견적·명세·계산서) 실수령 계산용 (위 결산 수수료율과 별개)</span></div>
-    <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px">외주업체를 통해 결제할 때 그 업체에 내는 수수료입니다. 결제수단마다 다르게 설정하세요. 혼자 거래(외주 없음)면 전부 0. 0 이면 해당 수단 수수료 없음.</div>
+    <div style="font-weight:800;margin-bottom:4px">💳 결제수단별 외주업체 수수료율 (%) <span style="font-weight:400;font-size:12px;color:#0ca678">— 결산·견적·매장판매 등 돈 관련 전부에 적용</span></div>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px">외주업체를 통해 결제할 때 그 업체에 내는 수수료입니다. 보통 현금·계좌이체는 0, 현금영수증·세금계산서·카드는 요율 설정. 혼자 거래(외주 없음)면 전부 0.</div>
     <div class="form-row">
       ${field('fee_cash','현금', S.fee_cash||'')}
       ${field('fee_transfer','계좌이체', S.fee_transfer||'')}
@@ -717,7 +715,6 @@ function renderEngineers(){
 async function saveAgencySettings(){
   await api('PUT','/settings/brand_name',{value:v('set_brand')||''});
   await api('PUT','/settings/agency_name',{value:v('set_agency')||''});
-  await api('PUT','/settings/agency_rate',{value:(v('set_rate')||'0')});
   await loadAll(); alert('설정이 저장되었습니다.');
 }
 // 도장 이미지 업로드 — 흰/밝은 배경을 투명 처리 후 PNG로 settings에 저장
@@ -826,7 +823,7 @@ function renderStore(){
       <div class="form-group"><label>메모 (선택)</label><input id="st_memo" placeholder="예: 신품 / 중고 / 고객 특이사항"></div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin:4px 0 12px;font-weight:600;cursor:pointer"><input type="checkbox" id="st_tax" style="width:18px;height:18px"> 🧾 세금계산서 발행</label>
-    ${agencyOn()?`<div style="font-size:12px;color:var(--gray-400);margin-bottom:10px">※ 카드 결제 또는 세금계산서 발행 시 ${esc(agencyName())} 대행(매출의 ${agencyPct()}% 차감)이 적용됩니다.</div>`:''}
+    ${agencyOn()?`<div style="font-size:12px;color:var(--gray-400);margin-bottom:10px">※ 결제수단별 외주 수수료율(사업자관리)이 설정된 결제수단·세금계산서에 ${esc(agencyName())} 대행 수수료가 적용됩니다.</div>`:''}
     <button class="btn" onclick="submitStoreSale()">+ 판매 등록</button>
   </div>
   <div style="font-weight:700;margin:6px 2px 8px">오늘 판매 내역 <span style="font-size:12px;color:var(--gray-400)">(전체 내역·집계는 결산 메뉴)</span></div>
@@ -1504,12 +1501,14 @@ const PM_LABEL = { card:'카드', cash:'현금', transfer:'계좌이체', unpaid
 // 대행업체(카드/계산서 경유) 설정 — 기사관리에서 변경. 이름/수수료율/사용여부 동적
 function agencyName(){ const n=(state.settings||{}).agency_name; return (n&&n.trim())? n.trim() : '우리사무기'; }
 function brandName(){ const n=(state.settings||{}).brand_name; return (n&&n.trim())? n.trim() : ''; }
-function agencyRate(){ const r=(state.settings||{}).agency_rate; if(r===undefined||r==='') return 0.15; return (Number(r)||0)/100; }
-function agencyOn(){ return agencyRate()>0; }
-function agencyPct(){ return Math.round(agencyRate()*10000)/100; }   // 예: 15
-function isWoori(r){ return agencyOn() && (r.payment_method==='card' || r.tax_invoice); }   // 대행 경유
+// 외주 수수료는 결제수단별 요율(사업자관리)로 통일 — 결산·견적·매장판매 모두 적용
+// 레코드의 적용 요율: 세금계산서 발행 시 fee_tax, 아니면 결제수단(fee_cash/transfer/card…). 둘 중 큰 값.
+function feeRateRec(r){ const a=feeRate(r.payment_method||''), b=r.tax_invoice?feeRate('tax'):0; return Math.max(a||0,b||0); }
+function agencyOn(){ return ['cash','transfer','cashreceipt','card','tax'].some(m=>feeRate(m)>0); }   // 하나라도 요율>0
+function feePctRec(r){ return Math.round(feeRateRec(r)*10000)/100; }
+function isWoori(r){ return feeRateRec(r)>0; }   // 외주 수수료 대상
 function recRevenue(r){ return (Number(r.labor_fee)||0)+(Number(r.parts_fee)||0)+(Number(r.visit_fee)||0); }
-function wooriCut(r){ return isWoori(r)? Math.round(recRevenue(r)*agencyRate()):0; }
+function wooriCut(r){ return Math.round(recRevenue(r)*feeRateRec(r)); }
 function mySettle(r){ return recRevenue(r)-wooriCut(r); }
 let settleState = { y:null, m:null };
 function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }
@@ -1526,7 +1525,7 @@ function renderPayments(){
   const AG=agencyOn();
   const monthTag=`${y}-${String(m+1).padStart(2,'0')}`;
   const salesMonth=(state.sales||[]).filter(s=>(s.sale_date||'').slice(0,7)===monthTag);
-  const saleWoori=s=>(AG && (s.payment_method==='card'||s.tax_invoice))?Math.round((Number(s.total_price)||0)*agencyRate()):0;
+  const saleWoori=s=>Math.round((Number(s.total_price)||0)*feeRateRec(s));
   const saleMine=s=>(Number(s.total_price)||0)-saleWoori(s);
   const salesRev=salesMonth.reduce((t,s)=>t+(Number(s.total_price)||0),0);
   const salesWoori=salesMonth.reduce((t,s)=>t+saleWoori(s),0);
@@ -1563,7 +1562,7 @@ function renderPayments(){
     <div class="detail-panel" style="position:static">
       <h3>이달 결제수단별</h3>
       ${['card','cash','transfer','unpaid'].map(k=>`<div class="detail-row"><span class="detail-value">${PM_LABEL[k]}</span><span class="detail-value" style="text-align:right"><strong>${won(byPM[k])}</strong></span></div>`).join('')}
-      ${AG?`<div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">${esc(agencyName())} ${agencyPct()}%(이달, 판매 포함)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth+salesWoori)}</strong></span></div>`:''}
+      ${AG?`<div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">${esc(agencyName())} 대행수수료(이달, 판매 포함)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth+salesWoori)}</strong></span></div>`:''}
     </div>
     ${AG?`<div class="detail-panel" style="position:static">
       <h3>${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3>
@@ -1573,7 +1572,7 @@ function renderPayments(){
     </div>`:''}
   </div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())}${agencyPct()}%</th>`:''}<th style="text-align:right">정산액</th></tr></thead>
+    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th>`:''}<th style="text-align:right">정산액</th></tr></thead>
     <tbody>${custRows.length? custRows.map(([cid,o])=>`<tr>
       <td><strong>${esc(custName(cid))}</strong></td>
       <td style="text-align:right">${won(o.labor)}</td>
@@ -1584,7 +1583,7 @@ function renderPayments(){
     </tbody></table></div>
   <div style="font-weight:700;margin:18px 2px 8px">🛒 이달 판매 내역 (매장 등) — ${salesMonth.length}건 · 매출 ${won(salesRev)}${AG?` · 정산 ${won(salesMine)}`:''}</div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>일자</th><th>제품명</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>결제수단</th>${AG?`<th style="text-align:right">${esc(agencyName())}${agencyPct()}%</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
+    <thead><tr><th>일자</th><th>제품명</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>결제수단</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
     <tbody>${salesMonth.length? [...salesMonth].sort((a,b)=>(b.sale_date||'').localeCompare(a.sale_date||'')||b.id-a.id).map(s=>`<tr>
       <td style="font-size:12px">${(s.sale_date||'').slice(0,10)}</td>
       <td><strong>${esc(s.item_name)}</strong>${s.customer_id?` <span style="font-size:11px;color:var(--gray-400)">(${esc(custName(s.customer_id))})</span>`:''}</td>
