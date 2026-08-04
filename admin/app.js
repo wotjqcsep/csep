@@ -441,9 +441,10 @@ async function openWorkorderModal(customerId, siteId){
   const site=siteId? state.sites.find(s=>s.id==siteId):null;
   const title=site? `${vdName(cust)} · ${site.name}` : vdName(cust);
   modal(`📋 ${esc(title)}`, '<div class="loading">불러오는 중...</div>', true);
-  let comps=[], hist=[];
+  let comps=[], hist=[], ests=[];
   try{ comps=await api('GET','/customers/'+customerId+'/computers'); }catch(e){}
   try{ hist=await api('GET','/customers/'+customerId+'/receptions'); }catch(e){}
+  try{ ests=await api('GET','/customers/'+customerId+'/estimates'); }catch(e){}
   const body=`
     <div style="color:var(--warning);font-weight:700;margin-bottom:8px">📁 수리/점검 이력 (${hist.length}건)</div>
     ${hist.length
@@ -451,21 +452,33 @@ async function openWorkorderModal(customerId, siteId){
       : '<div style="text-align:center;color:var(--gray-400);padding:14px 0;margin-bottom:8px">이전 이력이 없습니다</div>'}
     <div style="color:#7048e8;font-weight:700;margin:6px 0 10px">➕ 작업지시 작성</div>
     <div class="form-group"><label>장비 선택 (선택사항)</label><select id="wo_comp"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>
-    <div class="form-group"><label>작업 구분 (선택사항)</label><select id="wo_type"><option value="일반">일반</option><option value="점검">점검</option><option value="수리">수리</option><option value="설치">설치</option><option value="기타">기타</option></select></div>
+    <div class="form-group"><label>작업 구분 (선택사항)</label><select id="wo_type" onchange="document.getElementById('wo_est_box').style.display=this.value==='견적서 납품'?'block':'none'"><option value="일반">일반</option><option value="점검">점검</option><option value="수리">수리</option><option value="설치">설치</option><option value="견적서 납품">📄 견적서 납품</option><option value="기타">기타</option></select></div>
+    <div class="form-group" id="wo_est_box" style="display:none"><label>납품할 견적서 선택 *</label>
+      <select id="wo_est">${ests.length?('<option value="">선택하세요</option>'+ests.map(e=>`<option value="${e.id}">${esc(e.no)||('#'+e.id)} · ${won(e.total)} · ${esc(e.est_date)||''}</option>`).join('')):'<option value="">저장된 견적이 없습니다</option>'}</select></div>
     <div class="form-group"><label>담당 기사 *</label><select id="wo_eng"><option value="">선택하세요</option>${state.engineers.map(e=>`<option value="${e.id}" style="color:${engColor(e.id)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}</select></div>
     ${area('wo_symptom','증상 또는 작업 내용 *','')}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-success" onclick="submitWorkorder(${customerId},${siteId||'null'})">📤 작업지시 전송</button></div>`;
   modal(`📋 ${esc(title)}`, body, true);
 }
 async function submitWorkorder(customerId, siteId){
-  const symptom=v('wo_symptom'); if(!symptom){ alert('증상 또는 작업 내용을 입력하세요'); return; }
   const eng=v('wo_eng'); if(!eng){ alert('담당 기사를 선택하세요'); return; }
   const comp=v('wo_comp'); const type=v('wo_type');
   const site=siteId? state.sites.find(s=>s.id==siteId):null;
-  const memo=[type&&type!=='일반'?`[${type}]`:'', site?`현장:${site.name}`:''].filter(Boolean).join(' ');
-  const rec=await api('POST','/receptions',{ customer_id:customerId, computer_id:comp?Number(comp):null, reception_channel:'direct', symptom, initial_memo:memo });
+  const isDeliver=(type==='견적서 납품');
+  // 견적서 납품: 저장된 견적을 불러와 금액·결제수단까지 지정
+  let est=null;
+  if(isDeliver){ const estId=v('wo_est'); if(!estId){ alert('납품할 견적서를 선택하세요'); return; }
+    try{ est=await api('GET','/estimates/'+estId); }catch(e){ alert('견적 불러오기 실패'); return; } }
+  const symptom = isDeliver
+    ? '[납품] '+(est.no||'견적')+' — '+((Array.isArray(est.items)?est.items:[]).slice(0,3).map(i=>i.name).join(', ')||'PC 납품')
+    : v('wo_symptom');
+  if(!symptom){ alert('증상 또는 작업 내용을 입력하세요'); return; }
+  const memo=[type&&type!=='일반'?`[${type}]`:'', site?`현장:${site.name}`:'', isDeliver?`합계 ${won(est.total)}`:''].filter(Boolean).join(' ');
+  const rec=await api('POST','/receptions',{ customer_id:customerId, computer_id:comp?Number(comp):null, reception_channel:isDeliver?'estimate':'direct', symptom, initial_memo:memo });
   await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
-  closeModal(); alert('작업지시를 전송했습니다.'); await loadAll();
+  if(isDeliver){ const pm=(est.opts&&est.opts.payMethod)||'cash';
+    await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(est.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(est.total)||0 }); }
+  closeModal(); alert(isDeliver?'견적서 납품 작업지시를 전송했습니다. 완료 시 결산에 반영됩니다.':'작업지시를 전송했습니다.'); await loadAll();
 }
 
 // ============================================================
