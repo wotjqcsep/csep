@@ -1057,6 +1057,7 @@ async function estLoadList(){
         <td>${esc(e.no)||('#'+e.id)}</td><td>${esc(e.customer_name)||'-'}</td><td>${esc(e.phone)||'-'}</td>
         <td style="text-align:right;font-weight:600">${won(e.total)}</td><td>${esc(e.est_date)||''}</td>
         <td style="white-space:nowrap"><button class="btn btn-sm" onclick="estLoadOne(${e.id})">불러오기</button>
+          <button class="btn btn-sm" style="background:#7048e8" onclick="estToWorkorder(${e.id})">📤 작업지시</button>
           <button class="btn btn-sm btn-danger" onclick="estDeleteSaved(${e.id})">×</button></td></tr>`).join('')
     + '</tbody></table>';
 }
@@ -1070,6 +1071,35 @@ async function estLoadOne(id){
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
   go('estimates');   // 견적서 화면으로 이동 + estState 반영
+}
+// 저장된 견적 → 작업지시로 납품 (기사 배정 → 완료 시 결산 등록)
+async function estToWorkorder(id){
+  let e; try{ e=await api('GET','/estimates/'+id); }catch(err){ alert('견적 불러오기 실패'); return; }
+  window._estWO=e;
+  const items=Array.isArray(e.items)?e.items:[];
+  const summary=items.slice(0,3).map(i=>i.name).join(', ')+(items.length>3?` 외 ${items.length-3}건`:'');
+  const body=`
+    <div style="font-size:13px;margin-bottom:6px">거래처: <b>${esc(e.customer_name)||'-'}</b> · 합계 <b>${won(e.total)}</b> · 결제 ${estPayLabel((e.opts&&e.opts.payMethod)||'cash')}</div>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:12px">${esc(summary)||'품목'}</div>
+    <div class="form-group"><label>담당 기사 *</label><select id="wo2_eng"><option value="">선택하세요</option>${state.engineers.map(g=>`<option value="${g.id}" style="color:${engColor(g.id)};font-weight:600">${esc(g.name)}${g.is_admin?' (대표)':''}</option>`).join('')}</select></div>
+    ${area('wo2_memo','작업/납품 메모', '[납품] '+(e.no||'')+' '+summary)}
+    <div style="font-size:12px;color:var(--gray-400);margin-bottom:8px">전송하면 작업지시(접수)로 등록되고 금액(${won(e.total)})·결제수단이 함께 지정됩니다. 기사가 완료 처리하면 결산에 반영됩니다.</div>
+    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-success" onclick="estToWorkorderSubmit(${id})">📤 작업지시 전송</button></div>`;
+  modal('📤 작업지시로 납품', body, true);
+}
+async function estToWorkorderSubmit(id){
+  const e=window._estWO||{}; const eng=v('wo2_eng'); if(!eng){ alert('담당 기사를 선택하세요'); return; }
+  if(!e.customer_id){ alert('이 견적에 연결된 거래처가 없습니다. 견적을 열어 고객/연락처를 넣고 다시 저장하세요.'); return; }
+  const items=Array.isArray(e.items)?e.items:[];
+  const symptom='[납품] '+(e.no||'견적')+' — '+(items.slice(0,3).map(i=>i.name).join(', ')||'PC 납품');
+  const memo=v('wo2_memo')||'';
+  const pm=(e.opts&&e.opts.payMethod)||'cash';
+  try{
+    const rec=await api('POST','/receptions',{ customer_id:e.customer_id, reception_channel:'estimate', symptom, initial_memo:memo });
+    await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
+    await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(e.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(e.total)||0 });
+  }catch(err){ alert('작업지시 전송 실패: '+(err&&err.message?err.message:err)); return; }
+  closeModal(); alert('작업지시를 전송했습니다. 기사가 완료 처리하면 결산에 등록됩니다.'); await loadAll();
 }
 // 새 문서 작성 — 빈 양식 + 문서 종류 지정
 function estNew(dtype){
@@ -1112,7 +1142,7 @@ async function openVendorDocs(customerId){
   let rows=[]; try{ rows=await api('GET','/customers/'+customerId+'/estimates'); }catch(e){}
   const body=`${rows.length? `<div class="table-container"><table class="table"><thead><tr><th>문서번호</th><th style="text-align:right">합계</th><th>일자</th><th></th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td>${esc(r.no)||('#'+r.id)}</td><td style="text-align:right;font-weight:600">${won(r.total)}</td><td>${esc(r.est_date)||''}</td>
-      <td><button class="btn btn-sm" onclick="closeModal();estLoadOne(${r.id})">열기</button></td></tr>`).join('')}
+      <td style="white-space:nowrap"><button class="btn btn-sm" onclick="closeModal();estLoadOne(${r.id})">열기</button> <button class="btn btn-sm" style="background:#7048e8" onclick="closeModal();estToWorkorder(${r.id})">📤 작업지시</button></td></tr>`).join('')}
     </tbody></table></div>` : '<div class="empty-state">저장된 문서가 없습니다</div>'}
     <div class="form-actions"><button class="btn" onclick="closeModal();go('estimates')">+ 새 문서 작성</button><button class="btn btn-secondary" onclick="closeModal()">닫기</button></div>`;
   modal(`📄 문서 - ${esc(vdName(cust))}`, body, true);
