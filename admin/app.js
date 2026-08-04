@@ -689,6 +689,20 @@ function renderEngineers(){
       </div>
     </div>
   </div>
+  <div class="vd-card" style="margin-bottom:16px">
+    <div style="font-weight:800;margin-bottom:12px">💳 결제수단별 외주업체 수수료율 (%) <span style="font-weight:400;color:var(--gray-400)">— 0 이면 해당 수단 수수료 없음</span></div>
+    <div class="form-row">
+      ${field('fee_cash','현금', S.fee_cash||'')}
+      ${field('fee_transfer','계좌이체', S.fee_transfer||'')}
+      ${field('fee_cashreceipt','현금영수증', S.fee_cashreceipt||'')}
+    </div>
+    <div class="form-row">
+      ${field('fee_card','카드', S.fee_card||'')}
+      ${field('fee_tax','세금계산서', S.fee_tax||'')}
+      <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn" onclick="saveFeeSettings()">수수료율 저장</button></div>
+    </div>
+    <div style="font-size:12px;color:var(--gray-400)">문서 작성 시 선택한 결제수단의 수수료율이 합계에 적용되어 실수령액이 계산됩니다. 예) 카드 15, 세금계산서 15, 나머지 0.</div>
+  </div>
   <div class="table-container"><table class="table">
     <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>앱 로그인</th><th>액션</th></tr></thead>
     <tbody>${es.length? es.map(e=>`<tr>
@@ -737,6 +751,15 @@ async function saveBizSettings(){
   await api('PUT','/settings/biz_tel',{value:v('set_biztel')||''});
   await loadAll(); alert('사업자정보가 저장되었습니다.');
 }
+async function saveFeeSettings(){
+  for(const k of ['fee_cash','fee_transfer','fee_cashreceipt','fee_card','fee_tax']) await api('PUT','/settings/'+k,{value:(v(k)||'')});
+  await loadAll(); alert('결제수단별 수수료율이 저장되었습니다.');
+}
+// 결제수단 라벨 + 결제수단별 외주 수수료율(사업자관리 설정, 0=없음)
+const EST_PAY={cash:'현금',transfer:'계좌이체',cashreceipt:'현금영수증',card:'카드',tax:'세금계산서'};
+function estPayLabel(m){ return EST_PAY[m]||m||'현금'; }
+function feeRate(method){ const map={cash:'fee_cash',transfer:'fee_transfer',cashreceipt:'fee_cashreceipt',card:'fee_card',tax:'fee_tax'};
+  const val=(state.settings||{})[map[method]]; return (val===''||val==null)?0:(Number(val)||0)/100; }
 async function unlockEngineer(id){ if(!confirm('이 기사의 잠금을 해제하고 로그인 실패 횟수를 초기화할까요?'))return; await api('PUT','/engineers/'+id,{unlock:true}); await loadAll(); }
 async function deleteEngineer(id){ if(!confirm('이 기사를 삭제하시겠습니까?'))return; await api('DELETE','/engineers/'+id); await loadAll(); }
 
@@ -969,8 +992,10 @@ function renderEstimates(){ estInit(); const s=estState;
         <label>결제방법
           <select id="est_paymethod" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px">
             <option value="cash" ${s.payMethod==='cash'?'selected':''}>현금</option>
-            <option value="card" ${s.payMethod==='card'?'selected':''}>카드</option>
             <option value="transfer" ${s.payMethod==='transfer'?'selected':''}>계좌이체</option>
+            <option value="cashreceipt" ${s.payMethod==='cashreceipt'?'selected':''}>현금영수증</option>
+            <option value="card" ${s.payMethod==='card'?'selected':''}>카드</option>
+            <option value="tax" ${s.payMethod==='tax'?'selected':''}>세금계산서</option>
           </select>
         </label>
       </div>
@@ -1124,18 +1149,18 @@ function estCalc(){ let sub=0;
   estUpdateFee();       // 결제방법에 따른 수수료·실수령 표시
   estRenderPreview();   // 실시간 미리보기 갱신
 }
-// 계산서 발행수수료 발생 조건: 카드 결제 또는 세금계산서 발급, 그리고 수수료율>0
-function estFeeApplies(){ return agencyOn() && ((estState&&estState.payMethod==='card') || (estState&&estState.doctype==='tax')); }
-// 결제방법에 따른 금액(계산서 발행수수료·실수령) 표시 — 렌더 직후에도 항상 채움
+// 결제수단별 수수료율(사업자관리) — 요율>0 이면 수수료 발생
+function estFeeRate(){ return estState?feeRate(estState.payMethod):0; }
+// 결제방법에 따른 금액(외주 수수료·실수령) 표시 — 렌더 직후에도 항상 채움
 function estUpdateFee(){
   const el=document.getElementById('est_fee'); if(!el||!estState) return;
   const rows=estRows(); const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
   const mt=Number(String(estState.manualTotal||'').replace(/[^\d]/g,''))||0;
   const total=(estState.pprice==='total'&&mt>0)?mt:(sub+vat);
-  const applies=estFeeApplies(), cut=applies?Math.round(total*agencyRate()):0;
-  el.innerHTML = applies
-    ? `💳 <b>${payMethodLabel(estState.payMethod)}</b> · 계산서 발행수수료(${agencyPct()}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(total-cut)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
-    : `💳 <b>${payMethodLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(total)}</b>`;
+  const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.round(total*rate);
+  el.innerHTML = rate>0
+    ? `💳 <b>${estPayLabel(estState.payMethod)}</b> · 외주 수수료(${pct}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(total-cut)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
+    : `💳 <b>${estPayLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(total)}</b>`;
 }
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
@@ -1209,14 +1234,14 @@ function estDocInner(target, copyLabel){
     if(showEach){ cells.push(`<td style="text-align:right">${won(r.price)}</td>`, `<td style="text-align:right">${won(r.amt)}</td>`); }
     return `<tr>${cells.join('')}</tr>`;
   }).join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:#aaa;padding:20px">품목을 입력하세요</td></tr>`;
-  const feeApplies=estFeeApplies(), feeCut=feeApplies?Math.round(total*agencyRate()):0;
+  const feeRt=estFeeRate(), feePct=Math.round(feeRt*10000)/100, feeCut=Math.round(total*feeRt);
   const sumRows = `<tr><td>공급가액</td><td style="text-align:right">${won(sub)}</td></tr>
       <tr><td>부가세(10%)</td><td style="text-align:right">${won(vat)}</td></tr>
       <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr>
-      <tr><td>결제방법</td><td style="text-align:right">${payMethodLabel(estState.payMethod)}</td></tr>`
+      <tr><td>결제방법</td><td style="text-align:right">${estPayLabel(estState.payMethod)}</td></tr>`
     + (internal ? `<tr style="color:#888"><td>총매입가</td><td style="text-align:right">${won(totCost)}</td></tr>
-      ${feeApplies?`<tr style="color:#e03131"><td>계산서 발행수수료(${agencyPct()}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
-      <tr style="color:#1971c2;font-weight:700"><td>${feeApplies?'실수령(마진이익)':'마진이익'}</td><td style="text-align:right">${won(profit-feeCut)}</td></tr>` : '');
+      ${feeRt>0?`<tr style="color:#e03131"><td>외주 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
+      <tr style="color:#1971c2;font-weight:700"><td>${feeRt>0?'실수령(마진이익)':'마진이익'}</td><td style="text-align:right">${won(profit-feeCut)}</td></tr>` : '');
   // 문서 종류별 제목·라벨·문구
   const dt = estState.doctype||'estimate';
   const DT = {
