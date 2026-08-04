@@ -841,20 +841,27 @@ function estInit(){ if(estState) return; const n=new Date(), t=estToday();
     pname:'short', pprice:'total', ptarget:'customer', manualTotal:'',   // 기본값: 고객용+간략화+총액만. manualTotal: 총액만일 때 합계 직접입력(비우면 자동합계)
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})) }; }
 function estRowHtml(x,i){ x=x||{};
-  const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:10)||0, qty=Number(x.qty)||1, price=Math.round(cost*(1+margin/100)), amt=price*qty;
+  const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:10)||0, qty=Number(x.qty)||1;
+  const price=(x.price!=null&&x.price!=='')?(Number(String(x.price).replace(/[^\d]/g,''))||0):(cost?Math.round(cost*(1+margin/100)):0);
+  const amt=price*qty, fc=n=>n?Number(n).toLocaleString('ko-KR'):'';
   return `<tr class="est-row" data-i="${i}">
     <td><input class="est-cat" value="${esc(x.cat)||''}" placeholder="분류" style="width:92px;font-weight:600;background:var(--gray-50)"></td>
     <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [AMD] 라이젠5 라파엘 7500F (6코어/12스레드/3.7GHz) 쿨러포함)" style="width:100%;min-width:340px"></td>
     <td><input class="est-qty" type="number" min="1" value="${x.qty||1}" style="width:56px"></td>
-    <td><input class="est-cost" type="text" inputmode="numeric" value="${(x.cost!=null&&x.cost!=='')?Number(String(x.cost).replace(/[^\d]/g,'')||0).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this)" placeholder="매입가" style="width:96px;text-align:right"></td>
-    <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:10}" style="width:52px"> %</td>
-    <td class="est-price" style="text-align:right;font-weight:600">${won(price)}</td>
+    <td><input class="est-cost" type="text" inputmode="numeric" value="${(x.cost!=null&&x.cost!=='')?fc(Number(String(x.cost).replace(/[^\d]/g,''))||0):''}" oninput="estFmtCost(this);estRecalcPrice(this)" placeholder="매입가" style="width:96px;text-align:right"></td>
+    <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:10}" oninput="estRecalcPrice(this)" style="width:52px"> %</td>
+    <td><input class="est-price" type="text" inputmode="numeric" value="${fc(price)}" oninput="estFmtCost(this)" placeholder="판매단가" style="width:100px;text-align:right;font-weight:700"></td>
     <td class="est-amt" style="text-align:right;font-weight:800">${won(amt)}</td>
     <td><button class="btn btn-sm btn-danger" onclick="estDelRow(this)">×</button></td>
   </tr>`;
 }
+// 매입가·마진 입력 시 판매단가 자동계산(직접 입력하면 그 값 유지)
+function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
+  const cost=Number(String(tr.querySelector('.est-cost').value||'').replace(/[^\d]/g,''))||0;
+  const margin=Number(tr.querySelector('.est-margin').value)||0;
+  const pe=tr.querySelector('.est-price'); if(pe) pe.value = cost? Number(Math.round(cost*(1+margin/100))).toLocaleString('ko-KR') : ''; }
 function renderEstimates(){ estInit(); const s=estState;
-  const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; return t+Math.round(c*(1+m/100))*q; },0);
+  const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; const p=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(c*(1+m/100)); return t+p*q; },0);
   const vat=Math.round(sub*0.1);
   return `
   <div oninput="estSyncAll()">
@@ -1028,13 +1035,24 @@ async function estLoadOne(id){
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:Number(o.bulk)||10, savedId:e.id,
     doctype:o.doctype||'estimate', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})))
-      .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0})) };
+      .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
   go('estimates');   // 견적서 화면으로 이동 + estState 반영
+}
+// 새 문서 작성 — 빈 양식 + 문서 종류 지정
+function estNew(dtype){
+  estState=null; estInit(); estState.doctype=(dtype||'estimate');
+  go('estimates');
 }
 // 📑 거래명세서·세금계산서 허브 — 저장된 모든 문서 검색·불러오기
 function renderDocs(){
-  return `<div class="page-header"><h2>📑 거래명세서·세금계산서 <span style="font-size:13px;color:var(--gray-500)">— 저장된 문서를 열어 종류(견적서·명세서·영수증·계산서) 선택 인쇄</span></h2>
-    <button class="btn btn-secondary" onclick="go('estimates')">+ 새 문서 작성</button></div>
+  return `<div class="page-header"><h2>📑 거래명세서·세금계산서 <span style="font-size:13px;color:var(--gray-500)">— 새 문서 작성 또는 저장된 문서 열기</span></h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn" onclick="estNew('estimate')">📄 견적서</button>
+      <button class="btn" onclick="estNew('statement')">📑 거래명세서</button>
+      <button class="btn" onclick="estNew('tax')">🧾 세금계산서</button>
+      <button class="btn" onclick="estNew('receipt')">🧾 간이영수증</button>
+    </div></div>
+    <div style="font-size:12px;color:var(--gray-500);margin:-6px 0 10px">※ 버튼을 누르면 빈 양식으로 바로 작성 화면이 열립니다. 품목·판매단가를 직접 입력하거나 컴퓨존에서 가져올 수 있습니다.</div>
   <div class="vd-card">
     <input id="docs_search" oninput="docsLoadList()" placeholder="고객명·연락처·문서번호로 검색" style="width:100%;padding:9px;border:1px solid var(--gray-300);border-radius:8px;margin-bottom:10px">
     <div id="docs_list"><div class="loading">불러오는 중...</div></div>
@@ -1078,15 +1096,15 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
   { const e=document.getElementById('est_manualtotal'); if(e) estState.manualTotal=e.value; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
-    return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(q('.est-cost').value||'').replace(/[^\d]/g,''), margin:Number(q('.est-margin').value)||0 }; });
+    return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(q('.est-cost').value||'').replace(/[^\d]/g,''), margin:Number(q('.est-margin').value)||0, price:String(q('.est-price').value||'').replace(/[^\d]/g,'') }; });
   estCalc();
 }
 function estBody(){ const b=document.getElementById('est_body'); if(b){ b.innerHTML=estState.rows.map((r,i)=>estRowHtml(r,i)).join(''); estCalc(); } }
 function estCalc(){ let sub=0;
   document.querySelectorAll('#est_body .est-row').forEach(tr=>{
-    const qty=Number(tr.querySelector('.est-qty').value)||0, cost=Number(String(tr.querySelector('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(tr.querySelector('.est-margin').value)||0;
-    const price=Math.round(cost*(1+margin/100)), amt=price*qty;
-    tr.querySelector('.est-price').textContent=won(price); tr.querySelector('.est-amt').textContent=won(amt); sub+=amt; });
+    const qty=Number(tr.querySelector('.est-qty').value)||0;
+    const price=Number(String(tr.querySelector('.est-price').value||'').replace(/[^\d]/g,''))||0, amt=price*qty;
+    tr.querySelector('.est-amt').textContent=won(amt); sub+=amt; });
   const vat=Math.round(sub*0.1), set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
   set('est_sub',sub); set('est_vat',vat); set('est_total',sub+vat);
   const mtw=document.getElementById('est_mt_wrap'); if(mtw) mtw.style.display=(estState.pprice==='total')?'':'none';   // 총액만일 때만 합계 직접입력 노출
@@ -1100,13 +1118,14 @@ function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return;
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
 function estAddItems(items){ estSyncAll();
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));   // 빈 분류 템플릿으로 리셋
-  (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1);
+  (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), price=(Number(it.price)||''), qty=(Number(it.qty)||1);
     const empty=estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
-    if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.margin=estState.bulk; }
-    else estState.rows.push({cat,name,qty,cost,margin:estState.bulk}); });
+    if(empty){ empty.name=name; empty.qty=qty; empty.price=price; empty.cost=''; empty.margin=estState.bulk; }
+    else estState.rows.push({cat,name,qty,price,cost:'',margin:estState.bulk}); });
   estBody();
 }
-function estRows(){ return estState? estState.rows.map(r=>{ const cost=Number(r.cost)||0, margin=Number(r.margin)||0, qty=Number(r.qty)||0, price=Math.round(cost*(1+margin/100));
+function estRows(){ return estState? estState.rows.map(r=>{ const cost=Number(r.cost)||0, margin=Number(r.margin)||0, qty=Number(r.qty)||0;
+  const price=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(cost*(1+margin/100));
   return { cat:(r.cat||'').trim(), name:(r.name||'').trim(), qty, cost, margin, price, amt:price*qty }; }) : []; }
 // 품명 간략화: [브랜드]·(스펙)·끝의 상품번호·벌크/포함미포함 등을 떼고 핵심 모델명만
 function czShortName(name){
