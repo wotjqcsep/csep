@@ -1220,12 +1220,14 @@ function stdDoc(dtype, ctx, copyLabel){
 // 거래명세표 — 좌: 권/호·제목·년월일·귀하·"아래와 같이 계산합니다", 우: 공급자 그리드 (표준 통합 헤더)
 function stdStatement(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   const dp=String(ctx.date||'').split('-'), yy=dp[0]||'', mm=dp[1]||'', dd=dp[2]||'';
+  const cust=esc(estState.customer||'');   // 비어있으면 손으로 쓸 수 있게 공란
   const left=`
-    <div style="font-size:11px">권 <span style="display:inline-block;min-width:34px;border-bottom:1px solid #999">&nbsp;</span>　호 <span style="display:inline-block;min-width:34px;border-bottom:1px solid #999">&nbsp;</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:11px">
+      <span>권 <span style="display:inline-block;min-width:34px;border-bottom:1px solid #333">&nbsp;</span>　호 <span style="display:inline-block;min-width:34px;border-bottom:1px solid #333">&nbsp;</span></span>
+      <span>${yy} 년 ${mm} 월 ${dd} 일</span></div>
     <div style="text-align:center;font-size:20px;font-weight:800;letter-spacing:8px;margin:8px 0 2px">거 래 명 세 표</div>
     <div style="text-align:center;font-size:11px;color:#555">(공급받는자용)${copyLabel&&copyLabel!=='공급받는자용'?' · '+esc(copyLabel):''}</div>
-    <div style="font-size:12px;margin-top:12px">${yy} 년 ${mm} 월 ${dd} 일</div>
-    <div style="text-align:center;font-size:18px;font-weight:800;margin:10px 0">${buy.nm} 귀하</div>
+    <div style="text-align:right;font-size:18px;font-weight:800;margin:16px 0 8px">${cust} 귀하</div>
     <div style="font-size:12px">아래와 같이 계산합니다.</div>`;
   const B='border:1px solid #333;padding:4px 6px;font-size:11px';
   const L='border:1px solid #333;padding:4px 6px;font-size:11px;background:#f2f2f2;text-align:center';
