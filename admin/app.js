@@ -644,7 +644,7 @@ function renderEngineers(){
   const es = state.engineers; const S = state.settings||{};
   const rate = S.agency_rate!==undefined && S.agency_rate!=='' ? S.agency_rate : '15';
   return `
-  <div class="page-header"><h2>👷 기사 관리 (${es.length}명)</h2><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="go('workorders')">← 작업지시</button><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div></div>
+  <div class="page-header"><h2>👷 사업자 관리 (${es.length}명)</h2><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="go('workorders')">← 작업지시</button><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div></div>
   <div class="vd-card" style="margin-bottom:16px">
     <div style="font-weight:800;margin-bottom:12px">⚙️ 결산 · 대행업체 설정</div>
     <div class="form-row">
@@ -675,6 +675,19 @@ function renderEngineers(){
       <button class="btn" onclick="saveBizSettings()">사업자정보 저장</button>
       <span style="font-size:12px;color:var(--gray-400)">상호는 위 "상호/브랜드명"을 사용합니다.</span>
     </div>
+    <div style="margin-top:14px;border-top:1px dashed var(--gray-300);padding-top:12px">
+      <div style="font-weight:700;margin-bottom:6px">🔴 도장 (문서 날인)</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <div style="width:96px;height:96px;border:1px solid var(--gray-300);border-radius:8px;display:flex;align-items:center;justify-content:center;background:#fff;background-image:linear-gradient(45deg,#eee 25%,transparent 25%,transparent 75%,#eee 75%),linear-gradient(45deg,#eee 25%,transparent 25%,transparent 75%,#eee 75%);background-size:14px 14px;background-position:0 0,7px 7px">
+          ${S.stamp_img?`<img src="${S.stamp_img}" style="max-width:88px;max-height:88px">`:'<span style="font-size:12px;color:var(--gray-400)">없음</span>'}
+        </div>
+        <div>
+          <label class="btn btn-sm" style="cursor:pointer">📤 도장 이미지 업로드<input type="file" accept="image/*" onchange="estStampUpload(this)" style="display:none"></label>
+          ${S.stamp_img?`<button class="btn btn-sm btn-danger" onclick="estStampRemove()" style="margin-left:6px">삭제</button>`:''}
+          <div style="font-size:11px;color:var(--gray-400);margin-top:6px;max-width:340px">흰 배경은 자동으로 투명 처리됩니다. 도장은 견적서·거래명세서·세금계산서·간이영수증의 공급자 성명 옆에 날인됩니다.</div>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="table-container"><table class="table">
     <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>앱 로그인</th><th>액션</th></tr></thead>
@@ -692,6 +705,29 @@ async function saveAgencySettings(){
   await api('PUT','/settings/agency_rate',{value:(v('set_rate')||'0')});
   await loadAll(); alert('설정이 저장되었습니다.');
 }
+// 도장 이미지 업로드 — 흰/밝은 배경을 투명 처리 후 PNG로 settings에 저장
+function estStampUpload(input){
+  const f=input.files&&input.files[0]; input.value='';
+  if(!f) return;
+  const rd=new FileReader();
+  rd.onload=e=>{ const img=new Image(); img.onload=async ()=>{
+    let w=img.width,h=img.height; const max=300; if(w>max||h>max){ if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
+    const c=document.createElement('canvas'); c.width=w; c.height=h; const cx=c.getContext('2d'); cx.drawImage(img,0,0,w,h);
+    try{ const d=cx.getImageData(0,0,w,h), a=d.data;
+      for(let i=0;i<a.length;i+=4){ const r=a[i],g=a[i+1],b=a[i+2];
+        if(r>225&&g>225&&b>225){ a[i+3]=0; }                                   // 밝은 배경 → 완전 투명
+        else if(r>190&&g>190&&b>190){ a[i+3]=Math.round(a[i+3]*0.35); } }      // 옅은 배경 → 반투명
+      cx.putImageData(d,0,0);
+    }catch(err){ /* CORS 등 실패 시 원본 유지 */ }
+    const url=c.toDataURL('image/png');
+    try{ await api('PUT','/settings/stamp_img',{value:url}); await loadAll(); }
+    catch(err){ alert('도장 저장 실패: '+(err&&err.message?err.message:err)); }
+  }; img.onerror=()=>alert('이미지를 읽을 수 없습니다'); img.src=e.target.result; };
+  rd.readAsDataURL(f);
+}
+async function estStampRemove(){ if(!confirm('도장을 삭제할까요?'))return; await api('PUT','/settings/stamp_img',{value:''}); await loadAll(); }
+// 문서 날인용 도장 <img> (없으면 빈 문자열). 공급자 성명 옆 겹치기용.
+function stampImg(size){ const u=(state.settings||{}).stamp_img; return u?`<img src="${u}" style="width:${size||46}px;height:${size||46}px;object-fit:contain;vertical-align:middle;margin-left:2px">`:''; }
 async function saveBizSettings(){
   await api('PUT','/settings/biz_no',{value:v('set_bizno')||''});
   await api('PUT','/settings/biz_ceo',{value:v('set_bizceo')||''});
@@ -1092,7 +1128,7 @@ function custClean(s){
   return t;
 }
 // 견적서 본문(제목~비고) 생성 — 인쇄·미리보기 공용. target: 'customer' | 'internal'
-function estDocInner(target){
+function estDocInner(target, copyLabel){
   const internal = target==='internal';
   const rows=estRows().filter(r=>r.name||r.amt);
   let sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1), total=sub+vat;
@@ -1111,7 +1147,7 @@ function estDocInner(target){
   const dispName = r => clean(nameMode==='short' ? czShortName(r.name) : r.name);
   // 표준 문서(거래명세서·세금계산서·간이영수증)는 전용 표준 양식으로 렌더
   const dtype = estState.doctype||'estimate';
-  if(dtype!=='estimate') return stdDoc(dtype, { rows, date, no, memo, dispName });
+  if(dtype!=='estimate') return stdDoc(dtype, { rows, date, no, memo, dispName }, copyLabel);
   const cols = ['No','분류'];
   if(showName) cols.push('품명 / 사양');
   cols.push('수량');
@@ -1145,7 +1181,7 @@ function estDocInner(target){
   const receiptNote = DT.receipt ? `<div style="margin-top:14px;text-align:center;font-size:15px;font-weight:700">위 금액을 정히 영수함</div>` : '';
   return `<h1>${title}</h1>
     <div class="top"><div><b>${customer}</b> 귀하<br>${esc(DT.dl)}: ${date}<br>문서번호: ${no}</div>
-      <div style="text-align:right"><b>${company}</b>${contact?`<br>${contact}`:''}</div></div>
+      <div style="text-align:right"><b>${company}</b>${stampImg(44)}${contact?`<br>${contact}`:''}</div></div>
     <table><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
     <table class="sum">${sumRows}</table>
     ${receiptNote}${taxNote}
@@ -1161,25 +1197,26 @@ const EST_DOC_CSS = `h1{text-align:center;letter-spacing:8px;border-bottom:3px s
 // ── 대한민국 표준 문서 양식 (거래명세서·세금계산서·간이영수증) ──
 function nfmt(n){ return Number(n||0).toLocaleString('ko-KR'); }
 function bizInfoTable(label,x,color){
+  const stamp = (label==='공급자') ? stampImg(42) : '';   // 공급자 성명 옆 날인
   return `<table style="width:100%;font-size:11px;table-layout:fixed">
     <tr><td rowspan="4" style="width:20px;text-align:center;background:${color};font-weight:700;padding:2px">${label.split('').join('<br>')}</td>
         <td style="width:62px;background:#f7f7f7">등록번호</td><td colspan="3">${x.bizno}</td></tr>
-    <tr><td style="background:#f7f7f7">상호</td><td>${x.nm}</td><td style="width:44px;background:#f7f7f7">성명</td><td>${x.ceo}</td></tr>
+    <tr><td style="background:#f7f7f7">상호</td><td>${x.nm}</td><td style="width:44px;background:#f7f7f7">성명</td><td>${x.ceo} (인)${stamp}</td></tr>
     <tr><td style="background:#f7f7f7">주소</td><td colspan="3">${x.addr}</td></tr>
     <tr><td style="background:#f7f7f7">업태</td><td>${x.bt}</td><td style="background:#f7f7f7">종목</td><td>${x.bi}</td></tr>
   </table>`;
 }
-function stdDoc(dtype, ctx){
+function stdDoc(dtype, ctx, copyLabel){
   const S=state.settings||{};
   const sup={ bizno:esc(S.biz_no||''), nm:esc((S.brand_name||estState.company||'(상호)')), ceo:esc(S.biz_ceo||''), addr:esc(S.biz_addr||''), bt:esc(S.biz_type||''), bi:esc(S.biz_item||''), tel:esc(S.biz_tel||estState.contact||'') };
   const buy={ bizno:esc(estState.buyerBizno||''), nm:esc(estState.customer||'(공급받는자)'), ceo:esc(estState.buyerCeo||''), addr:esc(estState.buyerAddr||''), bt:esc(estState.buyerType||''), bi:esc(estState.buyerItem||''), tel:esc(estState.phone||'') };
   const items=ctx.rows.filter(r=>r.name||r.amt);
   const sub=items.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1), total=sub+vat;   // 표준문서는 라인 합계 기준(수동총액 미적용)
   const memo=custClean(ctx.memo||'');
-  if(dtype==='receipt') return stdReceipt(sup,buy,items,sub,vat,total,ctx,memo);
-  return stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo);
+  if(dtype==='receipt') return stdReceipt(sup,buy,items,sub,vat,total,ctx,memo,copyLabel);
+  return stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo,copyLabel);
 }
-function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo){
+function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   const isTax=dtype==='tax';
   const title=isTax?'세 금 계 산 서':'거 래 명 세 표';
   const dp=String(ctx.date||'').split('-'), mm=dp[1]||'', dd=dp[2]||'';
@@ -1188,11 +1225,18 @@ function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo){
       <td>${esc(ctx.dispName(r))}</td><td></td><td style="text-align:center">${r.qty}</td>
       <td style="text-align:right">${nfmt(r.price)}</td><td style="text-align:right">${nfmt(amt)}</td>
       <td style="text-align:right">${nfmt(tax)}</td><td></td></tr>`; }).join('');
+  // 공급받는자란: 세금계산서는 사업자정보 박스, 거래명세서는 "___ 귀하 / 아래와 같이 계산합니다"만
+  const buyerSide = isTax
+    ? `<td style="width:50%;padding:0;vertical-align:top">${bizInfoTable('공급받는자',buy,'#fff3e6')}</td>`
+    : `<td style="width:50%;vertical-align:middle;text-align:center">
+         <div style="font-size:12px;color:#555">${esc(ctx.date)}</div>
+         <div style="font-size:18px;font-weight:800;margin:8px 0">${buy.nm} 귀하</div>
+         <div style="font-size:13px">아래와 같이 계산합니다.</div></td>`;
   return `<h1 style="letter-spacing:12px">${title}</h1>
-    <div style="text-align:center;font-size:12px;color:#555;margin-top:2px">(공급받는자 보관용)</div>
+    <div style="text-align:center;font-size:12px;color:#555;margin-top:2px">(${esc(copyLabel||'공급받는자용')})</div>
     <table style="margin-top:10px"><tr>
-      <td style="width:50%;padding:0;vertical-align:top">${bizInfoTable('공급자',sup,'#eaf3ff')}</td>
-      <td style="width:50%;padding:0;vertical-align:top">${bizInfoTable('공급받는자',buy,'#fff3e6')}</td></tr></table>
+      ${buyerSide}
+      <td style="width:50%;padding:0;vertical-align:top">${bizInfoTable('공급자',sup,'#eaf3ff')}</td></tr></table>
     <table style="margin-top:6px;font-size:12px"><tr>
       <td style="background:#f7f7f7;width:70px">작성일자</td><td>${esc(ctx.date)}</td>
       <td style="background:#f7f7f7;width:70px">공급가액</td><td style="text-align:right">${nfmt(sub)}</td>
@@ -1207,14 +1251,14 @@ function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo){
     ${memo?`<div class="memo">비고: ${memo}</div>`:''}
     ${isTax?'<div style="font-size:11px;color:#c00;margin-top:6px">※ 정식 발행은 국세청 전자세금계산서를 권장합니다. 본 양식은 출력용입니다.</div>':''}`;
 }
-function stdReceipt(sup,buy,items,sub,vat,total,ctx,memo){
+function stdReceipt(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   const body=items.map(r=>`<tr><td>${esc(ctx.dispName(r))}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${nfmt(r.price)}</td><td style="text-align:right">${nfmt(r.amt)}</td></tr>`).join('');
   return `<h1 style="letter-spacing:16px">영 수 증</h1>
-    <div style="text-align:center;font-size:12px;color:#555;margin-top:2px">(공급받는자용)</div>
+    <div style="text-align:center;font-size:12px;color:#555;margin-top:2px">(${esc(copyLabel||'공급받는자용')})</div>
     <table style="margin-top:10px;font-size:12px">
       <tr><td style="background:#f7f7f7;width:100px">No.</td><td>${esc(ctx.no)}</td><td style="background:#f7f7f7;width:80px">작성일</td><td>${esc(ctx.date)}</td></tr>
       <tr><td style="background:#f7f7f7">사업자등록번호</td><td colspan="3">${sup.bizno}</td></tr>
-      <tr><td style="background:#f7f7f7">상호</td><td>${sup.nm}</td><td style="background:#f7f7f7">성명</td><td>${sup.ceo} (인)</td></tr>
+      <tr><td style="background:#f7f7f7">상호</td><td>${sup.nm}</td><td style="background:#f7f7f7">성명</td><td>${sup.ceo} (인)${stampImg(42)}</td></tr>
       <tr><td style="background:#f7f7f7">사업장소재지</td><td colspan="3">${sup.addr}</td></tr>
       <tr><td style="background:#f7f7f7">받는분</td><td>${buy.nm} 귀하</td><td style="background:#f7f7f7">연락처</td><td>${buy.tel}</td></tr>
     </table>
@@ -1238,11 +1282,35 @@ function estPrint(target){
   estSyncAll();
   if(!estRows().filter(r=>r.name||r.amt).length){ alert('품목을 입력하세요'); return; }
   const no=esc(estState.no), internal=target==='internal';
-  const html=`<!doctype html><html><head><meta charset="utf-8"><title>견적서 ${no}${internal?' (내부용)':''}</title>
-    <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;padding:24px;max-width:820px;margin:auto}
+  const dt=estState.doctype||'estimate';
+  // 문서별 용지·2부 출력
+  let pageCss, bodyHtml;
+  if(dt==='statement'||dt==='tax'){
+    // A5 2부(공급받는자 보관용/공급자 보관용)를 A4 한 장에 상하로. 넘치면 다음 장.
+    pageCss='@page{size:A4 portrait;margin:8mm}';
+    bodyHtml=`<div class="copy">${estDocInner(target,'공급받는자 보관용')}</div>
+      <div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>
+      <div class="copy">${estDocInner(target,'공급자 보관용')}</div>`;
+  } else if(dt==='receipt'){
+    // 간이영수증 86mm×188mm, 2부(공급받는자용/공급자용) 각 1장
+    pageCss='@page{size:86mm 188mm;margin:4mm}';
+    bodyHtml=`<div class="copy rcpt">${estDocInner(target,'공급받는자용')}</div>
+      <div class="pb"></div>
+      <div class="copy rcpt">${estDocInner(target,'공급자용')}</div>`;
+  } else {
+    pageCss='@page{size:A4 portrait;margin:12mm}';
+    bodyHtml=estDocInner(target);
+  }
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc((estState.doctype||'견적서'))} ${no}</title>
+    <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;padding:16px;max-width:820px;margin:auto}
     ${EST_DOC_CSS}
-    @media print{button{display:none}}</style></head><body>
-    ${estDocInner(target)}
+    ${pageCss}
+    .copy{}
+    .rcpt{max-width:78mm;margin:0 auto;font-size:11px}
+    .cut{color:#999;text-align:center;font-size:11px;margin:6mm 0;letter-spacing:1px}
+    .pb{page-break-after:always}
+    @media print{ button{display:none} .copy{page-break-inside:avoid} }</style></head><body>
+    ${bodyHtml}
     <div style="text-align:center;margin-top:24px"><button onclick="window.print()">🖨️ 인쇄</button></div>
     </body></html>`;
   const w=window.open('','_blank'); if(!w){ alert('팝업이 차단되었습니다. 허용 후 다시 시도하세요.'); return; }
