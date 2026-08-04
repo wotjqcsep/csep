@@ -479,6 +479,9 @@ app.get('/api/estimates', wrap(async (req, res) => {
   sql += ' ORDER BY id DESC LIMIT 300';
   res.json((await pool.query(sql, params)).rows);
 }));
+app.get('/api/customers/:id/estimates', wrap(async (req, res) => {
+  res.json((await pool.query('SELECT id,no,customer_name,phone,est_date,total,created_at FROM estimates WHERE customer_id=$1 ORDER BY id DESC', [req.params.id])).rows);
+}));
 app.get('/api/estimates/:id', wrap(async (req, res) => {
   const r = await pool.query('SELECT * FROM estimates WHERE id=$1', [req.params.id]);
   if (!r.rows[0]) return res.status(404).json({ error: '견적서를 찾을 수 없습니다' });

@@ -314,6 +314,7 @@ function vendorCard(c){
       <div class="vd-title">${esc(vdName(c))}${sites.length?`<span class="vd-sub">· 현장 ${sites.length}곳</span>`:''}</div>
       <div class="vd-btns">
         <button class="btn btn-sm" style="background:var(--warning)" onclick="openVendorHistory(${c.id})">📋 이력</button>
+        <button class="btn btn-sm" style="background:#1971c2" onclick="openVendorDocs(${c.id})">📄 문서</button>
         <button class="btn btn-sm" style="background:#0ca678" onclick="openVendorDevices(${c.id})">🖥 장치정보</button>
         <button class="btn btn-sm" style="background:#7048e8" onclick="openSiteModal(${c.id})">🏢 현장추가</button>
         <button class="btn btn-sm" onclick="openCustomerModal(${c.id})">✏ 수정</button>
@@ -771,7 +772,7 @@ function estCompanyDefault(){ const st=state.settings||{}; return (st.brand_name
 function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:10,
-    savedId:null,
+    savedId:null, doctype:'estimate',   // 문서 종류: estimate/statement/receipt/tax
     pname:'short', pprice:'total', ptarget:'customer', manualTotal:'',   // 기본값: 고객용+간략화+총액만. manualTotal: 총액만일 때 합계 직접입력(비우면 자동합계)
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})) }; }
 function estRowHtml(x,i){ x=x||{};
@@ -856,6 +857,14 @@ function renderEstimates(){ estInit(); const s=estState;
     <div style="border:1px solid var(--gray-200);border-radius:8px;padding:10px 12px;margin-top:12px;background:var(--gray-50)">
       <div style="font-weight:700;font-size:13px;margin-bottom:8px">🖨️ 견적서 출력 옵션 <span style="font-weight:400;color:var(--gray-500)">— 바꾸면 아래 미리보기에 실시간 반영</span></div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:13px">
+        <label>문서 종류
+          <select id="est_doctype" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;font-weight:700">
+            <option value="estimate" ${s.doctype==='estimate'?'selected':''}>견적서</option>
+            <option value="statement" ${s.doctype==='statement'?'selected':''}>거래명세서</option>
+            <option value="receipt" ${s.doctype==='receipt'?'selected':''}>간이영수증</option>
+            <option value="tax" ${s.doctype==='tax'?'selected':''}>세금계산서</option>
+          </select>
+        </label>
         <label>대상
           <select id="est_ptarget" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px">
             <option value="customer" ${s.ptarget==='customer'?'selected':''}>고객용 (매입가·마진 숨김)</option>
@@ -910,7 +919,7 @@ async function estSave(btn){
   const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
   const body={ no:estState.no, customer_id:estState.customerId||null, customer_name:estState.customer, phone:estState.phone,
     company:estState.company, contact:estState.contact, est_date:estState.date, memo:estState.memo,
-    items:rows, opts:{pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk},
+    items:rows, opts:{doctype:estState.doctype,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk},
     subtotal:sub, vat, total:sub+vat };
   if(btn) btn.disabled=true; if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
   let r;
@@ -942,10 +951,43 @@ async function estLoadOne(id){
   const o=e.opts||{};
   estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:Number(o.bulk)||10, savedId:e.id,
-    pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
+    doctype:o.doctype||'estimate', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0})) };
-  render();   // 견적서 화면 재렌더 → estState 반영
+  go('estimates');   // 견적서 화면으로 이동 + estState 반영
+}
+// 📑 거래명세서·세금계산서 허브 — 저장된 모든 문서 검색·불러오기
+function renderDocs(){
+  return `<div class="page-header"><h2>📑 거래명세서·세금계산서 <span style="font-size:13px;color:var(--gray-500)">— 저장된 문서를 열어 종류(견적서·명세서·영수증·계산서) 선택 인쇄</span></h2>
+    <button class="btn btn-secondary" onclick="go('estimates')">+ 새 문서 작성</button></div>
+  <div class="vd-card">
+    <input id="docs_search" oninput="docsLoadList()" placeholder="고객명·연락처·문서번호로 검색" style="width:100%;padding:9px;border:1px solid var(--gray-300);border-radius:8px;margin-bottom:10px">
+    <div id="docs_list"><div class="loading">불러오는 중...</div></div>
+  </div>`;
+}
+async function docsLoadList(){
+  const box=document.getElementById('docs_list'); if(!box) return;
+  const q=(v('docs_search')||'').trim();
+  let list; try{ list=await api('GET','/estimates'+(q?('?q='+encodeURIComponent(q)):'')); }
+  catch(e){ box.innerHTML='<div style="color:#e03131">불러오기 실패: '+esc(e&&e.message?e.message:e)+'</div>'; return; }
+  if(!list.length){ box.innerHTML='<div class="empty-state">저장된 문서가 없습니다</div>'; return; }
+  box.innerHTML=`<div class="table-container"><table class="table"><thead><tr><th>문서번호</th><th>고객/거래처</th><th>연락처</th><th style="text-align:right">합계</th><th>일자</th><th></th></tr></thead><tbody>`
+    + list.map(e=>`<tr><td>${esc(e.no)||('#'+e.id)}</td><td><strong>${esc(e.customer_name)||'-'}</strong></td><td>${esc(e.phone)||'-'}</td><td style="text-align:right;font-weight:600">${won(e.total)}</td><td>${esc(e.est_date)||''}</td>
+      <td style="white-space:nowrap"><button class="btn btn-sm" onclick="estLoadOne(${e.id})">열기</button> <button class="btn btn-sm btn-danger" onclick="docsDelete(${e.id})">×</button></td></tr>`).join('')
+    + '</tbody></table></div>';
+}
+async function docsDelete(id){ if(!confirm('이 문서를 삭제할까요?'))return; try{ await api('DELETE','/estimates/'+id); }catch(e){ alert('삭제 실패'); return; } docsLoadList(); }
+// 거래처 카드 → 그 거래처의 저장된 문서
+async function openVendorDocs(customerId){
+  const cust=state.customers.find(c=>c.id==customerId)||{};
+  modal(`📄 문서 - ${esc(vdName(cust))}`, '<div class="loading">불러오는 중...</div>', true);
+  let rows=[]; try{ rows=await api('GET','/customers/'+customerId+'/estimates'); }catch(e){}
+  const body=`${rows.length? `<div class="table-container"><table class="table"><thead><tr><th>문서번호</th><th style="text-align:right">합계</th><th>일자</th><th></th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.no)||('#'+r.id)}</td><td style="text-align:right;font-weight:600">${won(r.total)}</td><td>${esc(r.est_date)||''}</td>
+      <td><button class="btn btn-sm" onclick="closeModal();estLoadOne(${r.id})">열기</button></td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="empty-state">저장된 문서가 없습니다</div>'}
+    <div class="form-actions"><button class="btn" onclick="closeModal();go('estimates')">+ 새 문서 작성</button><button class="btn btn-secondary" onclick="closeModal()">닫기</button></div>`;
+  modal(`📄 문서 - ${esc(vdName(cust))}`, body, true);
 }
 async function estDeleteSaved(id){
   if(!confirm('이 저장된 견적을 삭제할까요?')) return;
@@ -957,7 +999,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer'); estState.phone=g('est_phone');
   estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=Number(g('est_bulk'))||10;
   estState.pname=g('est_pname')||estState.pname||'full'; estState.pprice=g('est_pprice')||estState.pprice||'each';
-  estState.ptarget=g('est_ptarget')||estState.ptarget||'customer';
+  estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
   { const e=document.getElementById('est_manualtotal'); if(e) estState.manualTotal=e.value; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
     return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(q('.est-cost').value||'').replace(/[^\d]/g,''), margin:Number(q('.est-margin').value)||0 }; });
@@ -1047,12 +1089,23 @@ function estDocInner(target){
       <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr>`
     + (internal ? `<tr style="color:#888"><td>총매입가</td><td style="text-align:right">${won(totCost)}</td></tr>
       <tr style="color:#1971c2;font-weight:700"><td>마진이익</td><td style="text-align:right">${won(profit)}</td></tr>` : '');
-  const title = internal ? '견적서 <span style="font-size:14px;color:#c00;letter-spacing:0">(내부용)</span>' : '견 적 서';
+  // 문서 종류별 제목·라벨·문구
+  const dt = estState.doctype||'estimate';
+  const DT = {
+    estimate:  { t:'견 적 서',    dl:'견적일', receipt:false },
+    statement: { t:'거 래 명 세 서', dl:'거래일', receipt:false },
+    receipt:   { t:'영 수 증',    dl:'거래일', receipt:true },
+    tax:       { t:'세 금 계 산 서', dl:'작성일', receipt:false, tax:true },
+  }[dt] || { t:'견 적 서', dl:'견적일' };
+  const title = internal ? esc(DT.t)+' <span style="font-size:14px;color:#c00;letter-spacing:0">(내부용)</span>' : esc(DT.t);
+  const taxNote = DT.tax ? `<div style="font-size:11px;color:#c00;margin-top:6px">※ 세금계산서는 사업자정보·서명 등 정식 항목 추가 예정(현재 임시 양식)</div>` : '';
+  const receiptNote = DT.receipt ? `<div style="margin-top:14px;text-align:center;font-size:15px;font-weight:700">위 금액을 정히 영수함</div>` : '';
   return `<h1>${title}</h1>
-    <div class="top"><div><b>${customer}</b> 귀하<br>견적일: ${date}<br>견적번호: ${no}</div>
+    <div class="top"><div><b>${customer}</b> 귀하<br>${esc(DT.dl)}: ${date}<br>문서번호: ${no}</div>
       <div style="text-align:right"><b>${company}</b>${contact?`<br>${contact}`:''}</div></div>
     <table><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
     <table class="sum">${sumRows}</table>
+    ${receiptNote}${taxNote}
     ${(clean(memo))?`<div class="memo">비고: ${clean(memo)}</div>`:''}`;
 }
 const EST_DOC_CSS = `h1{text-align:center;letter-spacing:8px;border-bottom:3px solid #333;padding-bottom:10px}

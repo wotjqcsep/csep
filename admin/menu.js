@@ -22,7 +22,8 @@ const MENU_CONFIG = [
     { id: 'schedule',  icon: '📅', label: '일정표' },      // 메뉴만(준비 중)
   ]},
   { section: '매출 · 정산', items: [
-    { id: 'estimates', icon: '📄', label: '견적서' },       // 메뉴만(준비 중) — 완성 후 위치 재조정 예정
+    { id: 'estimates', icon: '📄', label: '견적서' },       // 견적서 작성·저장
+    { id: 'docs',      icon: '📑', label: '거래명세서·세금계산서' },  // 저장된 문서 허브(견적→명세서·영수증·계산서 파생)
     { id: 'store',     icon: '🛒', label: '매장 판매' },
     { id: 'payments',  icon: '💳', label: '결산' },
   ]},
