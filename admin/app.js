@@ -858,7 +858,7 @@ function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
     buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',   // 공급받는자 사업자정보(명세서·계산서용)
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:5,
-    savedId:null, doctype:'estimate', payMethod:'cash',   // 문서 종류 + 결제방법(cash/card/transfer)
+    savedId:null, doctype:'estimate', payMethod:'cash', realCost:'',   // 문서 종류 + 결제방법 + 실제 매입가(부가세 환급 계산용)
     pname:'short', pprice:'total', ptarget:'customer', manualTotal:'',   // 기본값: 고객용+간략화+총액만. manualTotal: 총액만일 때 합계 직접입력(비우면 자동합계)
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})) }; }
 function estRowHtml(x,i){ x=x||{};
@@ -996,6 +996,10 @@ function renderEstimates(){ estInit(); const s=estState;
             <option value="tax" ${s.payMethod==='tax'?'selected':''}>세금계산서</option>
           </select>
         </label>
+        <label>실제 매입가(수동)
+          <input id="est_realcost" value="${esc(s.realCost||'')}" oninput="estFmtCost(this)" placeholder="예: 547640" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
+          <span style="font-size:11px;color:var(--gray-400)">부가세 환급 계산용(컴퓨존 실결제액)</span>
+        </label>
       </div>
       <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:#f8f9fb;border:1px solid var(--gray-200)"></div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
@@ -1028,7 +1032,7 @@ async function estSave(btn){
   const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
   const body={ no:estState.no, customer_id:estState.customerId||null, customer_name:estState.customer, phone:estState.phone,
     company:estState.company, contact:estState.contact, est_date:estState.date, memo:estState.memo,
-    items:rows, opts:{doctype:estState.doctype,payMethod:estState.payMethod,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk,
+    items:rows, opts:{doctype:estState.doctype,payMethod:estState.payMethod,realCost:estState.realCost,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk,
       buyerBizno:estState.buyerBizno,buyerCeo:estState.buyerCeo,buyerAddr:estState.buyerAddr,buyerType:estState.buyerType,buyerItem:estState.buyerItem},
     subtotal:sub, vat, total:sub+vat };
   if(btn) btn.disabled=true; if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
@@ -1062,7 +1066,7 @@ async function estLoadOne(id){
   estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
     buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:(o.bulk===''||o.bulk==null)?5:(Number(o.bulk)||0), savedId:e.id,
-    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
+    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
   go('estimates');   // 견적서 화면으로 이동 + estState 반영
@@ -1126,6 +1130,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.pname=g('est_pname')||estState.pname||'full'; estState.pprice=g('est_pprice')||estState.pprice||'each';
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
   estState.payMethod=g('est_paymethod')||estState.payMethod||'cash';
+  { const e=document.getElementById('est_realcost'); if(e) estState.realCost=String(e.value||'').replace(/[^\d]/g,''); }
   { const e=document.getElementById('est_manualtotal'); if(e) estState.manualTotal=e.value; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
     const cost=Number(String(q('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(q('.est-margin').value)||0;
@@ -1156,9 +1161,12 @@ function estUpdateFee(){
   const mt=Number(String(estState.manualTotal||'').replace(/[^\d]/g,''))||0;
   const total=(estState.pprice==='total'&&mt>0)?mt:(sub+vat);
   const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.round(total*rate);
-  el.innerHTML = rate>0
+  const realCost=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
+  const refund=realCost>0?(realCost-Math.round(realCost/1.1)):0;   // 매입 부가세 환급 = 매입가 - 매입가/1.1
+  const refundHtml=refund>0?` · <span style="color:#0ca678">부가세 환급 예정 +${won(refund)}</span>`:'';
+  el.innerHTML = (rate>0
     ? `💳 <b>${estPayLabel(estState.payMethod)}</b> · 외주 수수료(${pct}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(total-cut)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
-    : `💳 <b>${estPayLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(total)}</b>`;
+    : `💳 <b>${estPayLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(total)}</b>`) + refundHtml;
 }
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
@@ -1239,6 +1247,7 @@ function estDocInner(target, copyLabel){
       <tr><td>결제방법</td><td style="text-align:right">${estPayLabel(estState.payMethod)}</td></tr>`
     + (internal ? `<tr style="color:#888"><td>총매입가</td><td style="text-align:right">${won(totCost)}</td></tr>
       ${feeRt>0?`<tr style="color:#e03131"><td>외주 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
+      ${(function(){const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0; const rf=rc>0?(rc-Math.round(rc/1.1)):0; return rf>0?`<tr style="color:#0ca678"><td>실매입가 ${won(rc)} · 부가세 환급 예정</td><td style="text-align:right">+${won(rf)}</td></tr>`:'';})()}
       <tr style="color:#1971c2;font-weight:700"><td>${feeRt>0?'실수령(마진이익)':'마진이익'}</td><td style="text-align:right">${won(profit-feeCut)}</td></tr>` : '');
   // 문서 종류별 제목·라벨·문구
   const dt = estState.doctype||'estimate';
