@@ -1118,10 +1118,10 @@ function estReset(){ if(!confirm('견적 항목을 초기화할까요?'))return;
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
 function estAddItems(items){ estSyncAll();
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));   // 빈 분류 템플릿으로 리셋
-  (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), price=(Number(it.price)||''), qty=(Number(it.qty)||1);
+  (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1);
     const empty=estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
-    if(empty){ empty.name=name; empty.qty=qty; empty.price=price; empty.cost=''; empty.margin=estState.bulk; }
-    else estState.rows.push({cat,name,qty,price,cost:'',margin:estState.bulk}); });
+    if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.price=''; empty.margin=estState.bulk; }   // 매입가로 넣어 마진% 적용
+    else estState.rows.push({cat,name,qty,cost,price:'',margin:estState.bulk}); });
   estBody();
 }
 function estRows(){ return estState? estState.rows.map(r=>{ const cost=Number(r.cost)||0, margin=Number(r.margin)||0, qty=Number(r.qty)||0;
