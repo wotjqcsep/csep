@@ -1096,7 +1096,11 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
   { const e=document.getElementById('est_manualtotal'); if(e) estState.manualTotal=e.value; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
-    return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(q('.est-cost').value||'').replace(/[^\d]/g,''), margin:Number(q('.est-margin').value)||0, price:String(q('.est-price').value||'').replace(/[^\d]/g,'') }; });
+    const cost=Number(String(q('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(q('.est-margin').value)||0;
+    const priceRaw=String(q('.est-price').value||'').replace(/[^\d]/g,''), auto=cost?Math.round(cost*(1+margin/100)):0;
+    // 판매단가가 자동계산값과 같으면 '자동'(빈값) — 마진 바꾸면 다시 계산됨. 다르면 수동값 유지.
+    const price=(priceRaw===''||Number(priceRaw)===auto)?'':priceRaw;
+    return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(cost||''), margin, price }; });
   estCalc();
 }
 function estBody(){ const b=document.getElementById('est_body'); if(b){ b.innerHTML=estState.rows.map((r,i)=>estRowHtml(r,i)).join(''); estCalc(); } }
