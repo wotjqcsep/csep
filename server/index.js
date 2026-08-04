@@ -226,6 +226,23 @@ async function initDB() {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+    CREATE TABLE IF NOT EXISTS estimates (
+      id SERIAL PRIMARY KEY,
+      no TEXT,
+      customer_id INTEGER,
+      customer_name TEXT,
+      phone TEXT,
+      company TEXT,
+      contact TEXT,
+      est_date TEXT,
+      memo TEXT,
+      items JSONB,
+      opts JSONB,
+      subtotal DOUBLE PRECISION DEFAULT 0,
+      vat DOUBLE PRECISION DEFAULT 0,
+      total DOUBLE PRECISION DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
     CREATE TABLE IF NOT EXISTS receptions (
       id SERIAL PRIMARY KEY,
       customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
@@ -449,6 +466,47 @@ app.get('/api/customers/:id/computers', wrap(async (req, res) => {
 
 app.get('/api/customers/:id/receptions', wrap(async (req, res) => {
   res.json((await pool.query('SELECT * FROM receptions WHERE customer_id=$1 ORDER BY received_at DESC', [req.params.id])).rows);
+}));
+
+// ============================================================
+//  견적서 저장 (estimates) — 저장/검색/불러오기 + 거래처 자동 등록
+// ============================================================
+app.get('/api/estimates', wrap(async (req, res) => {
+  const q = String((req.query.q || '')).trim();
+  let sql = 'SELECT id,no,customer_id,customer_name,phone,company,est_date,total,created_at FROM estimates';
+  const params = [];
+  if (q) { sql += ' WHERE customer_name ILIKE $1 OR phone ILIKE $1 OR no ILIKE $1 OR company ILIKE $1'; params.push('%' + q + '%'); }
+  sql += ' ORDER BY id DESC LIMIT 300';
+  res.json((await pool.query(sql, params)).rows);
+}));
+app.get('/api/estimates/:id', wrap(async (req, res) => {
+  const r = await pool.query('SELECT * FROM estimates WHERE id=$1', [req.params.id]);
+  if (!r.rows[0]) return res.status(404).json({ error: '견적서를 찾을 수 없습니다' });
+  res.json(r.rows[0]);
+}));
+app.post('/api/estimates', wrap(async (req, res) => {
+  const b = req.body || {};
+  const cname = String(b.customer_name || '').trim(), phone = String(b.phone || '').trim();
+  // 거래처 자동 연결/등록: id 없으면 연락처→이름 순 매칭, 그래도 없으면 신규 등록
+  let customerId = b.customer_id || null, customerCreated = false;
+  if (!customerId && (cname || phone)) {
+    let match = null;
+    if (phone) match = (await pool.query('SELECT id FROM customers WHERE phone=$1 LIMIT 1', [phone])).rows[0];
+    if (!match && cname) match = (await pool.query('SELECT id FROM customers WHERE name=$1 LIMIT 1', [cname])).rows[0];
+    if (match) customerId = match.id;
+    else { const ins = await pool.query('INSERT INTO customers (name, phone) VALUES ($1,$2) RETURNING id', [cname || phone, phone]); customerId = ins.rows[0].id; customerCreated = true; }
+  }
+  const items = Array.isArray(b.items) ? b.items : [];
+  const row = await pool.query(
+    `INSERT INTO estimates (no,customer_id,customer_name,phone,company,contact,est_date,memo,items,opts,subtotal,vat,total)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+    [b.no || '', customerId, cname, phone, b.company || '', b.contact || '', b.est_date || '', b.memo || '',
+     JSON.stringify(items), JSON.stringify(b.opts || {}), Number(b.subtotal) || 0, Number(b.vat) || 0, Number(b.total) || 0]);
+  res.json({ ...row.rows[0], customer_created: customerCreated });
+}));
+app.delete('/api/estimates/:id', wrap(async (req, res) => {
+  await pool.query('DELETE FROM estimates WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
 }));
 
 // ============================================================

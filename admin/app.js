@@ -767,9 +767,11 @@ async function submitStoreSale(){
 const EST_CATS=['CPU','메인보드','메모리','그래픽카드','SSD','HDD','케이스','파워','쿨러/튜닝','모니터','소프트웨어','주변기기','조립비/AS'];
 let estState=null;
 function estToday(){ const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
+function estCompanyDefault(){ const st=state.settings||{}; return (st.brand_name&&st.brand_name.trim())||(st.company_name||'')||''; }
 function estInit(){ if(estState) return; const n=new Date(), t=estToday();
-  estState={ company:((state.settings||{}).company_name)||'', contact:'', customer:'', date:t,
+  estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:10,
+    savedId:null,
     pname:'short', pprice:'total', ptarget:'customer', manualTotal:'',   // 기본값: 고객용+간략화+총액만. manualTotal: 총액만일 때 합계 직접입력(비우면 자동합계)
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})) }; }
 function estRowHtml(x,i){ x=x||{};
@@ -793,13 +795,30 @@ function renderEstimates(){ estInit(); const s=estState;
   <div class="page-header"><h2>📄 견적서 <span style="font-size:13px;color:var(--gray-500)">— 컴퓨존 가져오기 + 마진·부가세 자동계산 + 인쇄</span></h2></div>
   <div class="vd-card" style="margin-bottom:14px">
     <div class="form-row">
-      <div class="form-group" style="flex:2"><label>공급자 (회사명)</label><input id="est_company" value="${esc(s.company)}" placeholder="예: CSEP 컴퓨터"></div>
+      <div class="form-group" style="flex:2"><label>공급자 (회사명) <span style="font-size:11px;color:var(--gray-400)">— 기사관리 상호/브랜드명 자동연동, 수정가능</span></label><input id="est_company" value="${esc(s.company)}" placeholder="예: CSEP 컴퓨터"></div>
       <div class="form-group"><label>담당 · 연락처</label><input id="est_contact" value="${esc(s.contact)}" placeholder="담당자 / 전화"></div>
     </div>
     <div class="form-row">
-      <div class="form-group" style="flex:2"><label>고객 / 거래처</label><input id="est_customer" value="${esc(s.customer)}" placeholder="고객명 또는 거래처명"></div>
+      <div class="form-group" style="flex:2"><label>고객 / 거래처 <span style="font-size:11px;color:var(--gray-400)">— 기존 거래처 선택 또는 새로 입력</span></label>
+        <input id="est_customer" list="est_cust_list" value="${esc(s.customer)}" oninput="estCustPick()" placeholder="고객명 또는 거래처명 (검색·자동완성)">
+        <datalist id="est_cust_list">${(state.customers||[]).map(c=>`<option value="${esc(vdName(c))}" data-id="${c.id}" data-phone="${esc(c.phone||'')}">${esc(c.phone||'')}</option>`).join('')}</datalist>
+      </div>
+      <div class="form-group"><label>고객 연락처</label><input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처 (검색·자동등록용)"></div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label>견적일자</label><input id="est_date" type="date" value="${esc(s.date)}"></div>
       <div class="form-group"><label>견적번호</label><input id="est_no" value="${esc(s.no)}"></div>
+      <div class="form-group" style="flex:2;display:flex;align-items:flex-end;gap:6px">
+        <button class="btn btn-sm" onclick="estSave(this)">💾 견적 저장</button>
+        <button class="btn btn-sm btn-secondary" onclick="estToggle('est_saved_box');estLoadList()">📂 저장된 견적</button>
+        <span id="est_save_status" style="font-size:12px;color:var(--gray-500)"></span>
+      </div>
+    </div>
+    <div id="est_saved_box" style="display:none;margin-top:8px;border-top:1px solid var(--gray-200);padding-top:10px">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input id="est_search" oninput="estLoadList()" placeholder="이름·연락처·견적번호로 검색" style="flex:1;padding:8px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
+      </div>
+      <div id="est_saved_list" style="max-height:280px;overflow:auto"></div>
     </div>
   </div>
   <div class="vd-card">
@@ -874,9 +893,68 @@ function renderEstimates(){ estInit(); const s=estState;
 function estToggle(id){ const b=document.getElementById(id); if(b) b.style.display=(b.style.display==='none'?'block':'none'); }
 // 매입가 입력 실시간 천단위 콤마
 function estFmtCost(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
+// 거래처 자동완성 선택 → 연락처 자동 채움 + customer_id 연결 (자유입력이면 신규로 간주)
+function estCustPick(){
+  const name=(v('est_customer')||'').trim();
+  const c=(state.customers||[]).find(x=>vdName(x)===name || x.name===name);
+  if(c){ estState.customerId=c.id; const ph=document.getElementById('est_phone'); if(ph && c.phone) ph.value=c.phone; estState.phone=c.phone||estState.phone; }
+  else { estState.customerId=null; }   // 새 거래처 → 저장 시 자동 등록
+}
+// 견적서 저장 (거래처 없으면 자동 등록)
+async function estSave(btn){
+  estSyncAll();
+  const st=document.getElementById('est_save_status');
+  const rows=estRows().filter(r=>r.name||r.amt);
+  if(!rows.length){ if(st){st.style.color='#e03131';st.textContent='품목을 입력하세요';} return; }
+  if(!(estState.customer||'').trim() && !(estState.phone||'').trim()){ if(st){st.style.color='#e03131';st.textContent='고객/거래처 또는 연락처를 입력하세요';} return; }
+  const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
+  const body={ no:estState.no, customer_id:estState.customerId||null, customer_name:estState.customer, phone:estState.phone,
+    company:estState.company, contact:estState.contact, est_date:estState.date, memo:estState.memo,
+    items:rows, opts:{pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk},
+    subtotal:sub, vat, total:sub+vat };
+  if(btn) btn.disabled=true; if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
+  let r;
+  try{ r=await api('POST','/estimates',body); }
+  catch(e){ if(btn)btn.disabled=false; if(st){st.style.color='#e03131';st.textContent='저장 실패: '+(e&&e.message?e.message:e);} return; }
+  if(btn)btn.disabled=false;
+  estState.savedId=r.id;
+  if(st){ st.style.color='#0ca678'; st.textContent='저장됨'+(r.customer_created?' (거래처 신규 등록됨)':'')+' · 견적 #'+r.id; }
+  await loadAll();   // 거래처 목록 갱신(자동완성 반영)
+}
+// 저장된 견적 검색·목록
+async function estLoadList(){
+  const box=document.getElementById('est_saved_list'); if(!box) return;
+  const q=(v('est_search')||'').trim();
+  let list;
+  try{ list=await api('GET','/estimates'+(q?('?q='+encodeURIComponent(q)):'')); }
+  catch(e){ box.innerHTML='<div style="color:#e03131;font-size:13px">불러오기 실패: '+esc(e&&e.message?e.message:e)+'</div>'; return; }
+  if(!list.length){ box.innerHTML='<div style="color:var(--gray-400);font-size:13px;padding:8px">저장된 견적이 없습니다</div>'; return; }
+  box.innerHTML=`<table class="table" style="font-size:13px"><thead><tr><th>견적번호</th><th>고객/거래처</th><th>연락처</th><th style="text-align:right">합계</th><th>일자</th><th></th></tr></thead><tbody>`
+    + list.map(e=>`<tr>
+        <td>${esc(e.no)||('#'+e.id)}</td><td>${esc(e.customer_name)||'-'}</td><td>${esc(e.phone)||'-'}</td>
+        <td style="text-align:right;font-weight:600">${won(e.total)}</td><td>${esc(e.est_date)||''}</td>
+        <td style="white-space:nowrap"><button class="btn btn-sm" onclick="estLoadOne(${e.id})">불러오기</button>
+          <button class="btn btn-sm btn-danger" onclick="estDeleteSaved(${e.id})">×</button></td></tr>`).join('')
+    + '</tbody></table>';
+}
+async function estLoadOne(id){
+  let e; try{ e=await api('GET','/estimates/'+id); }catch(err){ alert('불러오기 실패: '+(err&&err.message?err.message:err)); return; }
+  const o=e.opts||{};
+  estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
+    customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:Number(o.bulk)||10, savedId:e.id,
+    pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
+    rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})))
+      .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0})) };
+  render();   // 견적서 화면 재렌더 → estState 반영
+}
+async function estDeleteSaved(id){
+  if(!confirm('이 저장된 견적을 삭제할까요?')) return;
+  try{ await api('DELETE','/estimates/'+id); }catch(e){ alert('삭제 실패: '+(e&&e.message?e.message:e)); return; }
+  estLoadList();
+}
 // DOM → estState (모든 입력에 반영, 화면 재렌더돼도 값 보존)
 function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
-  estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer');
+  estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer'); estState.phone=g('est_phone');
   estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=Number(g('est_bulk'))||10;
   estState.pname=g('est_pname')||estState.pname||'full'; estState.pprice=g('est_pprice')||estState.pprice||'each';
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer';
