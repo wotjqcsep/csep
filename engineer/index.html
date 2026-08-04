@@ -82,7 +82,11 @@ const won=n=>'₩'+(Number(n)||0).toLocaleString();
 function fmtMoney(el){ let v=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,''); el.value=v?Number(v).toLocaleString('en-US'):''; }
 const moneyVal=id=>{ const el=document.getElementById(id); return el?Number((el.value||'').replace(/[^0-9]/g,''))||0:0; };
 // 결제수단 칩 선택 UI (select 대신). 값은 hidden input(id)에 저장 → 기존 코드 그대로 읽음
-const PAY_METHODS_UI=[['cash','💵 현금'],['card','💳 카드'],['transfer','🏦 계좌이체'],['unpaid','📌 미수']];
+const PAY_METHODS_UI=[['cash','💵 현금'],['card','💳 카드'],['transfer','🏦 계좌이체'],['cashreceipt','🧾 현금영수증'],['unpaid','📌 미수']];
+// 외주 수수료 — PC와 동일하게 결제수단별 요율(사업자관리 settings) 사용
+function engFeeRate(m){ const map={cash:'fee_cash',transfer:'fee_transfer',cashreceipt:'fee_cashreceipt',card:'fee_card',tax:'fee_tax'}; const v=(S.settings||{})[map[m]]; return (v===''||v==null)?0:(Number(v)||0)/100; }
+function engFeeRateRec(pm,tax){ const a=engFeeRate(pm||''), b=tax?engFeeRate('tax'):0; return Math.max(a||0,b||0); }
+function engAgencyName(){ const n=(S.settings||{}).agency_name; return (n&&n.trim())?n.trim():'우리사무기'; }
 function payChips(inputId, cur){
   cur=cur||'cash';
   return `<input type="hidden" id="${inputId}" value="${cur}">
@@ -966,21 +970,21 @@ function calcCompletePay(){
   const parts=moneyVal('w_cparts'), labor=moneyVal('w_clabor');
   const pm=(document.getElementById('w_paymethod')||{}).value;
   const tax=(document.getElementById('w_tax')||{}).checked;
-  const rev=parts+labor, woori=(pm==='card'||tax)?Math.round(rev*0.15):0, mine=rev-woori;
+  const rate=engFeeRateRec(pm,tax), pct=Math.round(rate*10000)/100, rev=parts+labor, woori=Math.round(rev*rate), mine=rev-woori;
   const el=document.getElementById('w_calc'); if(!el) return;
   el.innerHTML = `매출 <b>${won(rev)}</b>`
-    + (woori?` · <span style="color:#e67700">우리사무기 15% ${won(woori)}</span>`:'')
+    + (woori?` · <span style="color:#e67700">${engAgencyName()} ${pct}% ${won(woori)}</span>`:'')
     + ` · <span style="color:#2f9e44">정산액 <b>${won(mine)}</b></span>`
-    + ((pm==='card'||tax)&&rev?`<div style="font-size:11px;color:#868e96;margin-top:4px">카드/계산서 → 나중에 우리사무기에서 ${won(mine)} 현금 정산</div>`:'');
+    + (woori?`<div style="font-size:11px;color:#868e96;margin-top:4px">${engAgencyName()} 경유 → 나중에 ${won(mine)} 현금 정산</div>`:'');
 }
 function calcProcPay(){
   const parts=moneyVal('p_cparts'), labor=moneyVal('p_clabor');
   const pm=(document.getElementById('p_paymethod')||{}).value;
   const tax=(document.getElementById('p_tax')||{}).checked;
-  const rev=parts+labor, woori=(pm==='card'||tax)?Math.round(rev*0.15):0, mine=rev-woori;
+  const rate=engFeeRateRec(pm,tax), pct=Math.round(rate*10000)/100, rev=parts+labor, woori=Math.round(rev*rate), mine=rev-woori;
   const el=document.getElementById('p_calc'); if(!el) return;
   el.innerHTML = `매출 <b>${won(rev)}</b>`
-    + (woori?` · <span style="color:#e67700">우리사무기 15% ${won(woori)}</span>`:'')
+    + (woori?` · <span style="color:#e67700">${engAgencyName()} ${pct}% ${won(woori)}</span>`:'')
     + ` · <span style="color:#2f9e44">정산액 <b>${won(mine)}</b></span>`;
 }
 function closeSheet(){ const o=document.getElementById('ov'); if(o)o.remove(); }
