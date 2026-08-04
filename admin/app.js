@@ -657,6 +657,25 @@ function renderEngineers(){
     </div>
     <div style="font-size:12px;color:var(--gray-400)">카드·세금계산서 결제는 대행업체 경유로 수수료가 차감됩니다. 직접 거래(대행 미사용)면 수수료율을 0으로 두세요. (기본 대행업체명: 우리사무기 / 15%)</div>
   </div>
+  <div class="vd-card" style="margin-bottom:16px">
+    <div style="font-weight:800;margin-bottom:12px">🧾 사업자정보 (거래명세서·세금계산서·영수증 공급자란)</div>
+    <div class="form-row">
+      ${field('set_bizno','사업자등록번호', S.biz_no||'')}
+      ${field('set_bizceo','대표자 성명', S.biz_ceo||'')}
+    </div>
+    <div class="form-row">
+      ${field('set_biztype','업태', S.biz_type||'')}
+      ${field('set_bizitem','종목', S.biz_item||'')}
+    </div>
+    <div class="form-row">
+      ${field('set_bizaddr','사업장 주소', S.biz_addr||'')}
+      ${field('set_biztel','전화번호', S.biz_tel||'')}
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn" onclick="saveBizSettings()">사업자정보 저장</button>
+      <span style="font-size:12px;color:var(--gray-400)">상호는 위 "상호/브랜드명"을 사용합니다.</span>
+    </div>
+  </div>
   <div class="table-container"><table class="table">
     <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>앱 로그인</th><th>액션</th></tr></thead>
     <tbody>${es.length? es.map(e=>`<tr>
@@ -672,6 +691,15 @@ async function saveAgencySettings(){
   await api('PUT','/settings/agency_name',{value:v('set_agency')||''});
   await api('PUT','/settings/agency_rate',{value:(v('set_rate')||'0')});
   await loadAll(); alert('설정이 저장되었습니다.');
+}
+async function saveBizSettings(){
+  await api('PUT','/settings/biz_no',{value:v('set_bizno')||''});
+  await api('PUT','/settings/biz_ceo',{value:v('set_bizceo')||''});
+  await api('PUT','/settings/biz_type',{value:v('set_biztype')||''});
+  await api('PUT','/settings/biz_item',{value:v('set_bizitem')||''});
+  await api('PUT','/settings/biz_addr',{value:v('set_bizaddr')||''});
+  await api('PUT','/settings/biz_tel',{value:v('set_biztel')||''});
+  await loadAll(); alert('사업자정보가 저장되었습니다.');
 }
 async function unlockEngineer(id){ if(!confirm('이 기사의 잠금을 해제하고 로그인 실패 횟수를 초기화할까요?'))return; await api('PUT','/engineers/'+id,{unlock:true}); await loadAll(); }
 async function deleteEngineer(id){ if(!confirm('이 기사를 삭제하시겠습니까?'))return; await api('DELETE','/engineers/'+id); await loadAll(); }
@@ -771,6 +799,7 @@ function estToday(){ const n=new Date(); return `${n.getFullYear()}-${String(n.g
 function estCompanyDefault(){ const st=state.settings||{}; return (st.brand_name&&st.brand_name.trim())||(st.company_name||'')||''; }
 function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
+    buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',   // 공급받는자 사업자정보(명세서·계산서용)
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:10,
     savedId:null, doctype:'estimate',   // 문서 종류: estimate/statement/receipt/tax
     pname:'short', pprice:'total', ptarget:'customer', manualTotal:'',   // 기본값: 고객용+간략화+총액만. manualTotal: 총액만일 때 합계 직접입력(비우면 자동합계)
@@ -805,6 +834,14 @@ function renderEstimates(){ estInit(); const s=estState;
         <datalist id="est_cust_list">${(state.customers||[]).map(c=>`<option value="${esc(vdName(c))}" data-id="${c.id}" data-phone="${esc(c.phone||'')}">${esc(c.phone||'')}</option>`).join('')}</datalist>
       </div>
       <div class="form-group"><label>고객 연락처</label><input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처 (검색·자동등록용)"></div>
+    </div>
+    <div style="margin-top:2px">
+      <div style="font-size:12px;color:#1971c2;cursor:pointer;font-weight:600" onclick="estToggle('est_buyer_box')">▸ 공급받는자 사업자정보 (거래명세서·세금계산서용, 선택)</div>
+      <div id="est_buyer_box" style="display:none;margin-top:8px">
+        <div class="form-row">${field('est_buyer_bizno','등록번호',s.buyerBizno||'')}${field('est_buyer_ceo','대표자',s.buyerCeo||'')}</div>
+        <div class="form-row">${field('est_buyer_type','업태',s.buyerType||'')}${field('est_buyer_item','종목',s.buyerItem||'')}</div>
+        <div class="form-row">${field('est_buyer_addr','사업장주소',s.buyerAddr||'')}</div>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>견적일자</label><input id="est_date" type="date" value="${esc(s.date)}"></div>
@@ -919,7 +956,8 @@ async function estSave(btn){
   const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
   const body={ no:estState.no, customer_id:estState.customerId||null, customer_name:estState.customer, phone:estState.phone,
     company:estState.company, contact:estState.contact, est_date:estState.date, memo:estState.memo,
-    items:rows, opts:{doctype:estState.doctype,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk},
+    items:rows, opts:{doctype:estState.doctype,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk,
+      buyerBizno:estState.buyerBizno,buyerCeo:estState.buyerCeo,buyerAddr:estState.buyerAddr,buyerType:estState.buyerType,buyerItem:estState.buyerItem},
     subtotal:sub, vat, total:sub+vat };
   if(btn) btn.disabled=true; if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
   let r;
@@ -950,6 +988,7 @@ async function estLoadOne(id){
   let e; try{ e=await api('GET','/estimates/'+id); }catch(err){ alert('불러오기 실패: '+(err&&err.message?err.message:err)); return; }
   const o=e.opts||{};
   estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
+    buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:Number(o.bulk)||10, savedId:e.id,
     doctype:o.doctype||'estimate', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:10})))
@@ -997,6 +1036,7 @@ async function estDeleteSaved(id){
 // DOM → estState (모든 입력에 반영, 화면 재렌더돼도 값 보존)
 function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
   estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer'); estState.phone=g('est_phone');
+  estState.buyerBizno=g('est_buyer_bizno'); estState.buyerCeo=g('est_buyer_ceo'); estState.buyerAddr=g('est_buyer_addr'); estState.buyerType=g('est_buyer_type'); estState.buyerItem=g('est_buyer_item');
   estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=Number(g('est_bulk'))||10;
   estState.pname=g('est_pname')||estState.pname||'full'; estState.pprice=g('est_pprice')||estState.pprice||'each';
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
@@ -1069,6 +1109,9 @@ function estDocInner(target){
   const showName = nameMode!=='cat', showEach = priceMode==='each';
   const clean = internal ? (x=>x) : custClean;   // 고객용만 금지어(컴퓨존·아이웍스) 제거
   const dispName = r => clean(nameMode==='short' ? czShortName(r.name) : r.name);
+  // 표준 문서(거래명세서·세금계산서·간이영수증)는 전용 표준 양식으로 렌더
+  const dtype = estState.doctype||'estimate';
+  if(dtype!=='estimate') return stdDoc(dtype, { rows, date, no, memo, dispName });
   const cols = ['No','분류'];
   if(showName) cols.push('품명 / 사양');
   cols.push('수량');
@@ -1115,6 +1158,72 @@ const EST_DOC_CSS = `h1{text-align:center;letter-spacing:8px;border-bottom:3px s
     .sum{margin-top:12px;margin-left:auto;width:300px;font-size:14px}
     .sum td{border:none;padding:4px 8px}.sum .tot{border-top:2px solid #333;font-weight:900;font-size:17px}
     .memo{margin-top:14px;font-size:12px;color:#555;white-space:pre-wrap}`;
+// ── 대한민국 표준 문서 양식 (거래명세서·세금계산서·간이영수증) ──
+function nfmt(n){ return Number(n||0).toLocaleString('ko-KR'); }
+function bizInfoTable(label,x,color){
+  return `<table style="width:100%;font-size:11px;table-layout:fixed">
+    <tr><td rowspan="4" style="width:20px;text-align:center;background:${color};font-weight:700;padding:2px">${label.split('').join('<br>')}</td>
+        <td style="width:62px;background:#f7f7f7">등록번호</td><td colspan="3">${x.bizno}</td></tr>
+    <tr><td style="background:#f7f7f7">상호</td><td>${x.nm}</td><td style="width:44px;background:#f7f7f7">성명</td><td>${x.ceo}</td></tr>
+    <tr><td style="background:#f7f7f7">주소</td><td colspan="3">${x.addr}</td></tr>
+    <tr><td style="background:#f7f7f7">업태</td><td>${x.bt}</td><td style="background:#f7f7f7">종목</td><td>${x.bi}</td></tr>
+  </table>`;
+}
+function stdDoc(dtype, ctx){
+  const S=state.settings||{};
+  const sup={ bizno:esc(S.biz_no||''), nm:esc((S.brand_name||estState.company||'(상호)')), ceo:esc(S.biz_ceo||''), addr:esc(S.biz_addr||''), bt:esc(S.biz_type||''), bi:esc(S.biz_item||''), tel:esc(S.biz_tel||estState.contact||'') };
+  const buy={ bizno:esc(estState.buyerBizno||''), nm:esc(estState.customer||'(공급받는자)'), ceo:esc(estState.buyerCeo||''), addr:esc(estState.buyerAddr||''), bt:esc(estState.buyerType||''), bi:esc(estState.buyerItem||''), tel:esc(estState.phone||'') };
+  const items=ctx.rows.filter(r=>r.name||r.amt);
+  const sub=items.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1), total=sub+vat;   // 표준문서는 라인 합계 기준(수동총액 미적용)
+  const memo=custClean(ctx.memo||'');
+  if(dtype==='receipt') return stdReceipt(sup,buy,items,sub,vat,total,ctx,memo);
+  return stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo);
+}
+function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo){
+  const isTax=dtype==='tax';
+  const title=isTax?'세 금 계 산 서':'거 래 명 세 표';
+  const dp=String(ctx.date||'').split('-'), mm=dp[1]||'', dd=dp[2]||'';
+  const body=items.map(r=>{ const amt=r.amt, tax=Math.round(amt*0.1);
+    return `<tr><td style="text-align:center">${mm}</td><td style="text-align:center">${dd}</td>
+      <td>${esc(ctx.dispName(r))}</td><td></td><td style="text-align:center">${r.qty}</td>
+      <td style="text-align:right">${nfmt(r.price)}</td><td style="text-align:right">${nfmt(amt)}</td>
+      <td style="text-align:right">${nfmt(tax)}</td><td></td></tr>`; }).join('');
+  return `<h1 style="letter-spacing:12px">${title}</h1>
+    <div style="text-align:center;font-size:12px;color:#555;margin-top:2px">(공급받는자 보관용)</div>
+    <table style="margin-top:10px"><tr>
+      <td style="width:50%;padding:0;vertical-align:top">${bizInfoTable('공급자',sup,'#eaf3ff')}</td>
+      <td style="width:50%;padding:0;vertical-align:top">${bizInfoTable('공급받는자',buy,'#fff3e6')}</td></tr></table>
+    <table style="margin-top:6px;font-size:12px"><tr>
+      <td style="background:#f7f7f7;width:70px">작성일자</td><td>${esc(ctx.date)}</td>
+      <td style="background:#f7f7f7;width:70px">공급가액</td><td style="text-align:right">${nfmt(sub)}</td>
+      <td style="background:#f7f7f7;width:52px">세액</td><td style="text-align:right">${nfmt(vat)}</td></tr></table>
+    <table style="margin-top:6px;font-size:12px"><thead><tr>
+      <th style="width:26px">월</th><th style="width:26px">일</th><th>품목</th><th style="width:56px">규격</th><th style="width:42px">수량</th><th style="width:78px">단가</th><th style="width:90px">공급가액</th><th style="width:78px">세액</th><th style="width:46px">비고</th></tr></thead>
+      <tbody>${body||`<tr><td colspan="9" style="text-align:center;color:#aaa;padding:16px">품목 없음</td></tr>`}</tbody></table>
+    <table style="margin-top:6px;font-size:13px"><tr>
+      <td style="background:#f7f7f7;width:80px;font-weight:700">합계금액</td>
+      <td style="text-align:right;font-weight:800">${nfmt(total)} 원</td>
+      <td style="text-align:center;color:#555;width:150px">이 금액을 ( ${isTax?'영수 · 청구':'청구'} ) 함</td></tr></table>
+    ${memo?`<div class="memo">비고: ${memo}</div>`:''}
+    ${isTax?'<div style="font-size:11px;color:#c00;margin-top:6px">※ 정식 발행은 국세청 전자세금계산서를 권장합니다. 본 양식은 출력용입니다.</div>':''}`;
+}
+function stdReceipt(sup,buy,items,sub,vat,total,ctx,memo){
+  const body=items.map(r=>`<tr><td>${esc(ctx.dispName(r))}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${nfmt(r.price)}</td><td style="text-align:right">${nfmt(r.amt)}</td></tr>`).join('');
+  return `<h1 style="letter-spacing:16px">영 수 증</h1>
+    <div style="text-align:center;font-size:12px;color:#555;margin-top:2px">(공급받는자용)</div>
+    <table style="margin-top:10px;font-size:12px">
+      <tr><td style="background:#f7f7f7;width:100px">No.</td><td>${esc(ctx.no)}</td><td style="background:#f7f7f7;width:80px">작성일</td><td>${esc(ctx.date)}</td></tr>
+      <tr><td style="background:#f7f7f7">사업자등록번호</td><td colspan="3">${sup.bizno}</td></tr>
+      <tr><td style="background:#f7f7f7">상호</td><td>${sup.nm}</td><td style="background:#f7f7f7">성명</td><td>${sup.ceo} (인)</td></tr>
+      <tr><td style="background:#f7f7f7">사업장소재지</td><td colspan="3">${sup.addr}</td></tr>
+      <tr><td style="background:#f7f7f7">받는분</td><td>${buy.nm} 귀하</td><td style="background:#f7f7f7">연락처</td><td>${buy.tel}</td></tr>
+    </table>
+    <table style="margin-top:6px;font-size:13px"><tr><td style="background:#fff7e6;font-weight:800;width:100px">합계금액</td><td style="text-align:right;font-weight:900;font-size:16px">${nfmt(total)} 원</td><td style="color:#555;text-align:center;width:110px">(부가세 포함)</td></tr></table>
+    <table style="margin-top:6px;font-size:12px"><thead><tr><th>품목</th><th style="width:50px">수량</th><th style="width:88px">단가</th><th style="width:100px">금액</th></tr></thead>
+      <tbody>${body||`<tr><td colspan="4" style="text-align:center;color:#aaa;padding:16px">품목 없음</td></tr>`}</tbody></table>
+    <div style="margin-top:18px;text-align:center;font-size:16px;font-weight:700">위 금액을 정히 영수함</div>
+    ${memo?`<div class="memo">비고: ${memo}</div>`:''}`;
+}
 // 실시간 미리보기 — 옵션/입력이 바뀔 때마다 화면에 즉시 반영
 function estRenderPreview(){
   const box=document.getElementById('est_preview'); if(!box||!estState) return;
