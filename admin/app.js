@@ -1121,19 +1121,22 @@ function estCalc(){ let sub=0;
   const vat=Math.round(sub*0.1), set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
   set('est_sub',sub); set('est_vat',vat); set('est_total',sub+vat);
   const mtw=document.getElementById('est_mt_wrap'); if(mtw) mtw.style.display=(estState.pprice==='total')?'':'none';   // 총액만일 때만 합계 직접입력 노출
-  // 결제방법에 따른 금액(대행 수수료·실수령) — 카드 또는 세금계산서 발급 시 수수료 발생
-  const feeEl=document.getElementById('est_fee');
-  if(feeEl){ const mt=Number(String(estState.manualTotal||'').replace(/[^\d]/g,''))||0;
-    const total=(estState.pprice==='total'&&mt>0)?mt:(sub+vat);
-    const applies=estFeeApplies(), rate=agencyRate(), cut=applies?Math.round(total*rate):0;
-    feeEl.innerHTML = applies
-      ? `💳 <b>${payMethodLabel(estState.payMethod)}</b> · ${esc(agencyName())} 수수료(${agencyPct()}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(total-cut)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
-      : `💳 <b>${payMethodLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(total)}</b>`;
-  }
+  estUpdateFee();       // 결제방법에 따른 수수료·실수령 표시
   estRenderPreview();   // 실시간 미리보기 갱신
 }
-// 대행 수수료 발생 조건: 카드 결제 또는 세금계산서 발급, 그리고 수수료율>0
+// 계산서 발행수수료 발생 조건: 카드 결제 또는 세금계산서 발급, 그리고 수수료율>0
 function estFeeApplies(){ return agencyOn() && ((estState&&estState.payMethod==='card') || (estState&&estState.doctype==='tax')); }
+// 결제방법에 따른 금액(계산서 발행수수료·실수령) 표시 — 렌더 직후에도 항상 채움
+function estUpdateFee(){
+  const el=document.getElementById('est_fee'); if(!el||!estState) return;
+  const rows=estRows(); const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
+  const mt=Number(String(estState.manualTotal||'').replace(/[^\d]/g,''))||0;
+  const total=(estState.pprice==='total'&&mt>0)?mt:(sub+vat);
+  const applies=estFeeApplies(), cut=applies?Math.round(total*agencyRate()):0;
+  el.innerHTML = applies
+    ? `💳 <b>${payMethodLabel(estState.payMethod)}</b> · 계산서 발행수수료(${agencyPct()}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(total-cut)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
+    : `💳 <b>${payMethodLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(total)}</b>`;
+}
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
 function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estState.bulk); estBody(); }
@@ -1212,7 +1215,7 @@ function estDocInner(target, copyLabel){
       <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr>
       <tr><td>결제방법</td><td style="text-align:right">${payMethodLabel(estState.payMethod)}</td></tr>`
     + (internal ? `<tr style="color:#888"><td>총매입가</td><td style="text-align:right">${won(totCost)}</td></tr>
-      ${feeApplies?`<tr style="color:#e03131"><td>${esc(agencyName())} 수수료(${agencyPct()}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
+      ${feeApplies?`<tr style="color:#e03131"><td>계산서 발행수수료(${agencyPct()}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
       <tr style="color:#1971c2;font-weight:700"><td>${feeApplies?'실수령(마진이익)':'마진이익'}</td><td style="text-align:right">${won(profit-feeCut)}</td></tr>` : '');
   // 문서 종류별 제목·라벨·문구
   const dt = estState.doctype||'estimate';
