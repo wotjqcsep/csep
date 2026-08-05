@@ -348,9 +348,11 @@ function renderProcessing(){
       <div class="fg"><label>📅 예약 날짜 (미처리 예약 시)</label><input type="date" id="p_resdate" value="${esc(r.reserved_date||'')}"></div>
       <div class="card">
         <div style="font-weight:700;margin-bottom:8px">💰 비용 · 결제</div>
-        <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcProcPay()"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcProcPay()"></div></div>
+        ${(Number(r.estimate_amount)||Number(r.parts_fee))?`<div style="font-size:12px;color:#1971c2;margin-bottom:6px">📄 견적 납품 — 견적금액 ${won(Number(r.estimate_amount)||Number(r.parts_fee)||0)} (아래 값이 자동 입력됨, 현장에서 수정 가능)</div>`:''}
+        <input type="hidden" id="p_estamt" value="${Number(r.estimate_amount)||''}">
+        <div class="row2"><div class="fg"><label>부품비</label><input id="p_cparts" type="text" inputmode="numeric" placeholder="0" value="${Number(r.parts_fee)?Number(r.parts_fee).toLocaleString('ko-KR'):''}" oninput="fmtMoney(this);calcProcPay()"></div><div class="fg"><label>공임비</label><input id="p_clabor" type="text" inputmode="numeric" placeholder="0" value="${Number(r.labor_fee)?Number(r.labor_fee).toLocaleString('ko-KR'):''}" oninput="fmtMoney(this);calcProcPay()"></div></div>
         <div class="fg"><label>결제수단 *</label>${payChips('p_paymethod', r.payment_method||'cash')}</div>
-        <div class="fg"><label style="display:flex;align-items:center;gap:10px;padding:13px 14px;border:1px solid #dee2e6;border-radius:10px;cursor:pointer;font-weight:600;margin:0"><input type="checkbox" id="p_tax" onchange="calcProcPay()" style="width:20px;height:20px;flex:none;accent-color:var(--primary)"> 🧾 세금계산서 발급</label></div>
+        <div class="fg"><label style="display:flex;align-items:center;gap:10px;padding:13px 14px;border:1px solid #dee2e6;border-radius:10px;cursor:pointer;font-weight:600;margin:0"><input type="checkbox" id="p_tax" ${r.tax_invoice?'checked':''} onchange="calcProcPay()" style="width:20px;height:20px;flex:none;accent-color:var(--primary)"> 🧾 세금계산서 발급</label></div>
         <div id="p_calc" style="background:#f1f3f5;border-radius:9px;padding:10px;font-size:13px"></div>
       </div>
       <button class="btn btn-success" onclick="submitProcessing(${r.id})">✅ 처리 완료</button>
@@ -948,13 +950,15 @@ function openComplete(id){
         <div class="fg"><label>사용 부품</label><div style="display:flex;gap:6px;align-items:center"><input id="w_parts" placeholder="예: SSD 500GB" style="flex:1">${micBtn('w_parts')}</div>
           ${S.parts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.parts.slice(0,12).map((p,i)=>`<span onclick="appendField('w_parts',S.parts[${i}].part_name)" style="padding:5px 10px;background:#f1f3f5;color:#495057;border-radius:14px;font-size:12px;cursor:pointer">${esc(p.part_name)}</span>`).join('')}</div>`:''}
         </div>
+        ${(Number(r.estimate_amount)||Number(r.parts_fee))?`<div style="font-size:12px;color:#1971c2;margin-bottom:6px">📄 견적 납품 — 견적금액 ${won(Number(r.estimate_amount)||Number(r.parts_fee)||0)} (자동 입력됨, 현장에서 수정 가능)</div>`:''}
+        <input type="hidden" id="w_estamt" value="${Number(r.estimate_amount)||''}">
         <div class="row2">
-          <div class="fg"><label>부품비</label><input id="w_cparts" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcCompletePay()"></div>
-          <div class="fg"><label>공임비</label><input id="w_clabor" type="text" inputmode="numeric" placeholder="0" oninput="fmtMoney(this);calcCompletePay()"></div>
+          <div class="fg"><label>부품비</label><input id="w_cparts" type="text" inputmode="numeric" placeholder="0" value="${Number(r.parts_fee)?Number(r.parts_fee).toLocaleString('ko-KR'):''}" oninput="fmtMoney(this);calcCompletePay()"></div>
+          <div class="fg"><label>공임비</label><input id="w_clabor" type="text" inputmode="numeric" placeholder="0" value="${Number(r.labor_fee)?Number(r.labor_fee).toLocaleString('ko-KR'):''}" oninput="fmtMoney(this);calcCompletePay()"></div>
         </div>
         <div class="fg"><label>결제수단 *</label><select id="w_paymethod" onchange="calcCompletePay()">
-          <option value="cash">현금 (입금완료)</option><option value="card">카드 (입금완료)</option><option value="transfer">계좌이체 (입금완료)</option><option value="unpaid">미수 (나중에 받음)</option></select></div>
-        <div class="fg"><label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" id="w_tax" onchange="calcCompletePay()"> 세금계산서 발급</label></div>
+          <option value="cash" ${r.payment_method==='cash'?'selected':''}>현금 (입금완료)</option><option value="card" ${r.payment_method==='card'?'selected':''}>카드 (입금완료)</option><option value="transfer" ${r.payment_method==='transfer'?'selected':''}>계좌이체 (입금완료)</option><option value="unpaid" ${r.payment_method==='unpaid'?'selected':''}>미수 (나중에 받음)</option></select></div>
+        <div class="fg"><label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" id="w_tax" ${r.tax_invoice?'checked':''} onchange="calcCompletePay()"> 세금계산서 발급</label></div>
         <div id="w_calc" style="background:#f1f3f5;border-radius:9px;padding:10px;font-size:13px;margin-bottom:10px"></div>
         <div class="fg"><label>작업 사진 (수리 전/후)</label>
           <input type="file" id="w_photo" accept="image/*" capture="environment" onchange="addCompletePhoto(this)" style="font-size:13px">
@@ -971,8 +975,11 @@ function calcCompletePay(){
   const pm=(document.getElementById('w_paymethod')||{}).value;
   const tax=(document.getElementById('w_tax')||{}).checked;
   const rate=engFeeRateRec(pm,tax), pct=Math.round(rate*10000)/100, rev=parts+labor, woori=Math.round(rev*rate), mine=rev-woori;
+  const estAmt=Number(String((document.getElementById('w_estamt')||{}).value||'').replace(/[^\d]/g,''))||0;
+  const disc=(estAmt>0&&rev>0&&rev<estAmt)?(estAmt-rev):0;
   const el=document.getElementById('w_calc'); if(!el) return;
   el.innerHTML = `매출 <b>${won(rev)}</b>`
+    + (disc?` · <span style="color:#e8590c">현장할인 ${won(disc)}</span>`:'')
     + (woori?` · <span style="color:#e67700">${engAgencyName()} ${pct}% ${won(woori)}</span>`:'')
     + ` · <span style="color:#2f9e44">정산액 <b>${won(mine)}</b></span>`
     + (woori?`<div style="font-size:11px;color:#868e96;margin-top:4px">${engAgencyName()} 경유 → 나중에 ${won(mine)} 현금 정산</div>`:'');
@@ -982,8 +989,11 @@ function calcProcPay(){
   const pm=(document.getElementById('p_paymethod')||{}).value;
   const tax=(document.getElementById('p_tax')||{}).checked;
   const rate=engFeeRateRec(pm,tax), pct=Math.round(rate*10000)/100, rev=parts+labor, woori=Math.round(rev*rate), mine=rev-woori;
+  const estAmt=Number(String((document.getElementById('p_estamt')||{}).value||'').replace(/[^\d]/g,''))||0;
+  const disc=(estAmt>0&&rev>0&&rev<estAmt)?(estAmt-rev):0;   // 견적금액보다 낮게 청구 = 현장할인
   const el=document.getElementById('p_calc'); if(!el) return;
   el.innerHTML = `매출 <b>${won(rev)}</b>`
+    + (disc?` · <span style="color:#e8590c">현장할인 ${won(disc)}</span>`:'')
     + (woori?` · <span style="color:#e67700">${engAgencyName()} ${pct}% ${won(woori)}</span>`:'')
     + ` · <span style="color:#2f9e44">정산액 <b>${won(mine)}</b></span>`;
 }

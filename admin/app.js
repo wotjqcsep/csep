@@ -1644,7 +1644,7 @@ function renderPayments(){
     <tbody>${md.length? [...md].sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||'')||b.id-a.id).map(r=>`<tr>
       <td style="font-size:12px">${(r.completed_at||'').slice(0,10)}</td>
       <td><strong>${esc(custName(r.customer_id))}</strong></td>
-      <td style="font-size:12px">${esc(r.symptom)||'-'}${(Number(r.labor_fee)||0)&&(Number(r.parts_fee)||0)?` <span style="color:var(--gray-400)">(공임 ${won(r.labor_fee)}·부품 ${won(r.parts_fee)})</span>`:''}</td>
+      <td style="font-size:12px">${esc(r.symptom)||'-'}${(Number(r.labor_fee)||0)&&(Number(r.parts_fee)||0)?` <span style="color:var(--gray-400)">(공임 ${won(r.labor_fee)}·부품 ${won(r.parts_fee)})</span>`:''}${(Number(r.estimate_amount)||0)>recRevenue(r)?` <span style="color:#e8590c;font-weight:700">· 현장할인 ${won((Number(r.estimate_amount)||0)-recRevenue(r))}</span>`:''}</td>
       <td>${r.assigned_engineer_id?engBadge(r.assigned_engineer_id):'-'}</td>
       <td><span class="chip">${PM_LABEL[r.payment_method]||payMethodLabel(r.payment_method)}${r.tax_invoice?' /계산서':''}</span></td>
       <td style="text-align:right"><strong>${won(recRevenue(r))}</strong></td>
