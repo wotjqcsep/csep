@@ -1638,6 +1638,18 @@ function renderPayments(){
       ${AG?`<td style="text-align:right;color:var(--warning)">${o.woori?won(o.woori):'-'}</td>`:''}
       <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`).join('') : `<tr><td colspan="${AG?6:5}" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>`}
     </tbody></table></div>
+  <div style="font-weight:700;margin:18px 2px 8px">🔧 이달 완료 작업·납품 내역 — ${md.length}건 · 매출 ${won(rev)}</div>
+  <div class="table-container"><table class="table">
+    <thead><tr><th>일자</th><th>거래처</th><th>내용</th><th>담당</th><th>결제수단</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
+    <tbody>${md.length? [...md].sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||'')||b.id-a.id).map(r=>`<tr>
+      <td style="font-size:12px">${(r.completed_at||'').slice(0,10)}</td>
+      <td><strong>${esc(custName(r.customer_id))}</strong></td>
+      <td style="font-size:12px">${esc(r.symptom)||'-'}${(Number(r.labor_fee)||0)&&(Number(r.parts_fee)||0)?` <span style="color:var(--gray-400)">(공임 ${won(r.labor_fee)}·부품 ${won(r.parts_fee)})</span>`:''}</td>
+      <td>${r.assigned_engineer_id?engBadge(r.assigned_engineer_id):'-'}</td>
+      <td><span class="chip">${PM_LABEL[r.payment_method]||payMethodLabel(r.payment_method)}${r.tax_invoice?' /계산서':''}</span></td>
+      <td style="text-align:right"><strong>${won(recRevenue(r))}</strong></td>
+      ${AG?`<td style="text-align:right;color:var(--warning)">${wooriCut(r)?won(wooriCut(r)):'-'}</td><td style="text-align:right;color:var(--success)"><strong>${won(mySettle(r))}</strong></td>`:''}</tr>`).join('') : `<tr><td colspan="${AG?8:6}" class="empty-state">이달 완료 작업이 없습니다</td></tr>`}
+    </tbody></table></div>
   <div style="font-weight:700;margin:18px 2px 8px">🛒 이달 판매 내역 (매장 등) — ${salesMonth.length}건 · 매출 ${won(salesRev)}${AG?` · 정산 ${won(salesMine)}`:''}</div>
   <div class="table-container"><table class="table">
     <thead><tr><th>일자</th><th>제품명</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>결제수단</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
