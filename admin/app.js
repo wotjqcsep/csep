@@ -872,7 +872,7 @@ function estInit(){ if(estState) return; const n=new Date(), t=estToday();
     buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',   // 공급받는자 사업자정보(명세서·계산서용)
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:5,
     savedId:null, doctype:'estimate', payMethod:'cash', realCost:'',   // 문서 종류 + 결제방법 + 실제 매입가(부가세 환급 계산용)
-    pname:'short', pprice:'total', ptarget:'customer', manualTotal:'',   // 기본값: 고객용+간략화+총액만. manualTotal: 총액만일 때 합계 직접입력(비우면 자동합계)
+    pname:'short', pprice:'total', ptarget:'customer',   // 기본값: 고객용+간략화+총액만
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})) }; }
 function estRowHtml(x,i){ x=x||{};
   const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:5)||0, qty=Number(x.qty)||1;
@@ -968,10 +968,12 @@ function renderEstimates(){ estInit(); const s=estState;
     </table></div>
     <button class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="estAddRow()">+ 항목 추가</button>
     <div style="margin-top:14px;display:flex;justify-content:flex-end">
-      <table style="min-width:260px">
-        <tr><td style="padding:4px 14px;color:var(--gray-600)">공급가액</td><td id="est_sub" style="text-align:right;font-weight:700">${won(sub)}</td></tr>
+      <table style="min-width:300px">
+        <tr><td style="padding:4px 14px;color:var(--gray-600)">공급가액 <span style="font-size:11px;color:var(--gray-400)">(수정 시 마진 역산)</span></td>
+          <td style="text-align:right"><input id="est_sub_in" value="${nfmt(sub)}" oninput="estFmtCost(this)" onchange="estSetSupply(this.value)" style="text-align:right;font-weight:700;width:130px;border:1px solid var(--gray-300);border-radius:6px;padding:3px 6px"> 원</td></tr>
         <tr><td style="padding:4px 14px;color:var(--gray-600)">부가세 (10%)</td><td id="est_vat" style="text-align:right;font-weight:700">${won(vat)}</td></tr>
-        <tr><td style="padding:7px 14px;font-weight:800;border-top:2px solid var(--gray-300)">합계</td><td id="est_total" style="text-align:right;font-weight:900;font-size:18px;border-top:2px solid var(--gray-300)">${won(sub+vat)}</td></tr>
+        <tr><td style="padding:7px 14px;font-weight:800;border-top:2px solid var(--gray-300)">합계</td>
+          <td style="text-align:right;border-top:2px solid var(--gray-300)"><input id="est_total_in" value="${nfmt(sub+vat)}" oninput="estFmtCost(this)" onchange="estSetTotal(this.value)" style="text-align:right;font-weight:900;font-size:17px;width:150px;border:1px solid var(--gray-300);border-radius:6px;padding:3px 6px"> 원</td></tr>
       </table>
     </div>
     <div class="form-group" style="margin-top:10px"><label>비고 / 메모</label><input id="est_memo" value="${esc(s.memo)}" placeholder="예: 견적 유효기간 7일 / 설치·배송 포함 등"></div>
@@ -996,10 +998,6 @@ function renderEstimates(){ estInit(); const s=estState;
             <option value="each" ${s.pprice==='each'?'selected':''}>개별 단가+금액</option>
             <option value="total" ${s.pprice==='total'?'selected':''}>총액만 (개별가격 숨김)</option>
           </select>
-        </label>
-        <label id="est_mt_wrap" style="${s.pprice==='total'?'':'display:none'}">합계금액 직접입력
-          <input id="est_manualtotal" value="${esc(s.manualTotal||'')}" placeholder="예: 1559000 (비우면 자동합계)" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:150px">
-          <span style="font-size:11px;color:var(--gray-400)">부가세포함 총액. 공급가액·부가세 자동 역산</span>
         </label>
         <label>결제방법
           <select id="est_paymethod" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px">
@@ -1046,7 +1044,7 @@ async function estSave(btn){
   const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
   const body={ no:estState.no, customer_id:estState.customerId||null, customer_name:estState.customer, phone:estState.phone,
     company:estState.company, contact:estState.contact, est_date:estState.date, memo:estState.memo,
-    items:rows, opts:{doctype:estState.doctype,payMethod:estState.payMethod,realCost:estState.realCost,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,manualTotal:estState.manualTotal,bulk:estState.bulk,
+    items:rows, opts:{doctype:estState.doctype,payMethod:estState.payMethod,realCost:estState.realCost,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,bulk:estState.bulk,
       buyerBizno:estState.buyerBizno,buyerCeo:estState.buyerCeo,buyerAddr:estState.buyerAddr,buyerType:estState.buyerType,buyerItem:estState.buyerItem},
     subtotal:sub, vat, total:sub+vat };
   if(btn) btn.disabled=true; if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
@@ -1082,7 +1080,7 @@ async function estLoadOne(id){
     buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:(o.bulk===''||o.bulk==null)?5:(Number(o.bulk)||0), savedId:e.id,
     delivered:e.delivered||false, fieldDiscount:Number(e.field_discount)||0, finalAmount:e.final_amount,
-    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
+    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
   go('estimates');   // 견적서 화면으로 이동 + estState 반영
@@ -1176,7 +1174,6 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
   estState.payMethod=g('est_paymethod')||estState.payMethod||'cash';
   { const e=document.getElementById('est_realcost'); if(e) estState.realCost=String(e.value||'').replace(/[^\d]/g,''); }
-  { const e=document.getElementById('est_manualtotal'); if(e) estState.manualTotal=e.value; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
     const cost=Number(String(q('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(q('.est-margin').value)||0;
     const priceRaw=String(q('.est-price').value||'').replace(/[^\d]/g,''), auto=cost?Math.round(cost*(1+margin/100)):0;
@@ -1191,20 +1188,31 @@ function estCalc(){ let sub=0;
     const qty=Number(tr.querySelector('.est-qty').value)||0;
     const price=Number(String(tr.querySelector('.est-price').value||'').replace(/[^\d]/g,''))||0, amt=price*qty;
     tr.querySelector('.est-amt').textContent=won(amt); sub+=amt; });
-  const vat=Math.round(sub*0.1), set=(id,val)=>{ const e=document.getElementById(id); if(e)e.textContent=won(val); };
-  set('est_sub',sub); set('est_vat',vat); set('est_total',sub+vat);
-  const mtw=document.getElementById('est_mt_wrap'); if(mtw) mtw.style.display=(estState.pprice==='total')?'':'none';   // 총액만일 때만 합계 직접입력 노출
+  const vat=Math.round(sub*0.1);
+  const vEl=document.getElementById('est_vat'); if(vEl) vEl.textContent=won(vat);
+  const setIn=(id,val)=>{ const e=document.getElementById(id); if(e && document.activeElement!==e) e.value=nfmt(val); };   // 입력 중엔 덮어쓰지 않음
+  setIn('est_sub_in',sub); setIn('est_total_in',sub+vat);
   estUpdateFee();       // 결제방법에 따른 수수료·실수령 표시
   estRenderPreview();   // 실시간 미리보기 갱신
 }
+// 공급가액 목표값 → 일괄 마진 역산 후 전 품목 적용
+function estSetSupply(val){
+  const target=Number(String(val||'').replace(/[^\d]/g,''))||0;
+  estSyncAll();
+  const cost=estState.rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0);
+  if(cost<=0){ alert('매입가가 입력되어야 공급가액으로 마진을 역산할 수 있습니다. (매입가 없이 값을 넣으려면 품목별 판매단가를 직접 입력하세요)'); estBody(); return; }
+  const margin=Math.round((target/cost-1)*1000)/10;   // 소수1자리 %
+  estState.bulk=margin; estState.rows.forEach(r=>{ r.margin=margin; r.price=''; });
+  render();   // 일괄마진 입력·품목 판매단가·합계 모두 재반영
+}
+function estSetTotal(val){ const t=Number(String(val||'').replace(/[^\d]/g,''))||0; estSetSupply(Math.round(t/1.1)); }
 // 결제수단별 수수료율(사업자관리) — 요율>0 이면 수수료 발생
 function estFeeRate(){ return estState?feeRate(estState.payMethod):0; }
 // 결제방법에 따른 금액(외주 수수료·실수령) 표시 — 렌더 직후에도 항상 채움
 function estUpdateFee(){
   const el=document.getElementById('est_fee'); if(!el||!estState) return;
   const rows=estRows(); const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
-  const mt=Number(String(estState.manualTotal||'').replace(/[^\d]/g,''))||0;
-  const total=(estState.pprice==='total'&&mt>0)?mt:(sub+vat);
+  const total=sub+vat;
   const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.round(total*rate);
   const realCost=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
   const refund=realCost>0?(realCost-Math.round(realCost/1.1)):0;   // 매입 부가세 환급 = 매입가 - 매입가/1.1
@@ -1219,7 +1227,7 @@ function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estStat
 function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·매입가·합계 입력이 모두 지워집니다)'))return;
   estSyncAll();
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
-  estState.realCost=''; estState.manualTotal='';
+  estState.realCost='';
   render();   // 화면 전체 다시 그려 입력칸까지 초기화
 }
 // 가져오기: 누를 때마다 기존 부품표를 버리고 새로 받음(중복 누적 방지, 초기화 불필요).
@@ -1264,11 +1272,6 @@ function estDocInner(target, copyLabel){
   // 옵션(내부용은 항상 전체 상세 + 개별 금액)
   const nameMode = internal ? 'full' : (estState.pname||'full');
   const priceMode = internal ? 'each' : (estState.pprice||'each');
-  // 총액만 + 합계 직접입력 시: 그 값을 부가세포함 합계로 쓰고 공급가액·부가세 역산
-  if(priceMode==='total'){
-    const mt=Number(String(estState.manualTotal||'').replace(/[^\d]/g,''))||0;
-    if(mt>0){ total=mt; sub=Math.round(mt/1.1); vat=total-sub; }
-  }
   const showName = nameMode!=='cat', showEach = priceMode==='each';
   const clean = internal ? (x=>x) : custClean;   // 고객용만 금지어(컴퓨존·아이웍스) 제거
   const dispName = r => clean(nameMode==='short' ? czShortName(r.name) : r.name);
