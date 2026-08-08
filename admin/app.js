@@ -1581,8 +1581,8 @@ function wooriCut(r){ return Math.round(recRevenue(r)*feeRateRec(r)); }
 function mySettle(r){ return recRevenue(r)-wooriCut(r); }
 let settleState = { y:null, m:null };
 function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }
-async function doWooriSettle(id){ await api('PUT',`/receptions/${id}/woori-settle`,{settled:true}); await loadAll(); }
-async function doWooriSettleSale(id){ await api('PUT',`/sales/${id}/woori-settle`,{settled:true}); await loadAll(); }
+async function doWooriSettle(id){ await api('PUT',`/receptions/${id}/woori-settle`,{settled:true}); await loadAll(); render(); }
+async function doWooriSettleSale(id){ await api('PUT',`/sales/${id}/woori-settle`,{settled:true}); await loadAll(); render(); }
 function renderPayments(){
   const now=new Date();
   if(settleState.y==null){ settleState.y=now.getFullYear(); settleState.m=now.getMonth(); }
