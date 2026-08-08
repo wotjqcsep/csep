@@ -372,6 +372,11 @@ async function initDB() {
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS visit_fee DOUBLE PRECISION;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS picked_up BOOLEAN DEFAULT FALSE;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS outcome TEXT;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS estimate_id INTEGER;
+    ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered BOOLEAN DEFAULT FALSE;
+    ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+    ALTER TABLE estimates ADD COLUMN IF NOT EXISTS field_discount DOUBLE PRECISION DEFAULT 0;
+    ALTER TABLE estimates ADD COLUMN IF NOT EXISTS final_amount DOUBLE PRECISION;
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax_invoice BOOLEAN DEFAULT FALSE;
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS woori_settled BOOLEAN DEFAULT FALSE;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS next_visit_parts TEXT;
@@ -473,7 +478,7 @@ app.get('/api/customers/:id/receptions', wrap(async (req, res) => {
 // ============================================================
 app.get('/api/estimates', wrap(async (req, res) => {
   const q = String((req.query.q || '')).trim();
-  let sql = 'SELECT id,no,customer_id,customer_name,phone,company,est_date,total,created_at FROM estimates';
+  let sql = 'SELECT id,no,customer_id,customer_name,phone,company,est_date,total,delivered,field_discount,final_amount,created_at FROM estimates';
   const params = [];
   if (q) { sql += ' WHERE customer_name ILIKE $1 OR phone ILIKE $1 OR no ILIKE $1 OR company ILIKE $1'; params.push('%' + q + '%'); }
   sql += ' ORDER BY id DESC LIMIT 300';
@@ -1142,7 +1147,7 @@ app.put('/api/receptions/:id/solution', wrap(async (req, res) => {
 // 결제/정산 저장 (기사앱·PC 공용) — 공임/부품/결제수단/계산서, 선택적 완료
 app.put('/api/receptions/:id/payment', wrap(async (req, res) => {
   const b = req.body;
-  const fields = ['labor_fee','parts_fee','payment_method','tax_invoice','solution','estimate_amount','visit_fee','outcome'];
+  const fields = ['labor_fee','parts_fee','payment_method','tax_invoice','solution','estimate_amount','visit_fee','outcome','estimate_id'];
   const sets = [], vals = [];
   fields.forEach(f => { if (b[f] !== undefined) { vals.push(b[f]); sets.push(`${f}=$${vals.length}`); } });
   if (b.complete) sets.push("status='completed'", 'completed_at=NOW()');
@@ -1150,9 +1155,21 @@ app.put('/api/receptions/:id/payment', wrap(async (req, res) => {
   vals.push(req.params.id);
   const { rows } = await pool.query(`UPDATE receptions SET ${sets.join(',')} WHERE id=$${vals.length} RETURNING *`, vals);
   if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  if (rows[0].status === 'completed') await syncEstimateFromReception(rows[0]);   // 견적 납품 완료 → 견적서에 현장할인·납품완료 기록
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
+// 완료된 접수가 견적 납품(estimate_id)이면 그 견적서에 납품완료·현장할인·실납품액 기록
+async function syncEstimateFromReception(rec) {
+  try {
+    if (!rec || !rec.estimate_id) return;
+    const actual = (Number(rec.labor_fee) || 0) + (Number(rec.parts_fee) || 0) + (Number(rec.visit_fee) || 0);
+    const estAmt = Number(rec.estimate_amount) || 0;
+    const discount = (estAmt > 0 && actual > 0 && actual < estAmt) ? (estAmt - actual) : 0;
+    await pool.query('UPDATE estimates SET delivered=TRUE, delivered_at=NOW(), field_discount=$2, final_amount=$3 WHERE id=$1',
+      [rec.estimate_id, discount, actual || estAmt]);
+  } catch (e) { console.log('[견적납품 동기화] 오류:', e.message); }
+}
 
 // 수거·견적대기중 + 진행중 (지도 실행 시 자동 호출) — 미처리(new/assigned)면 진행중으로
 app.put('/api/receptions/:id/pickup', wrap(async (req, res) => {
@@ -1802,6 +1819,7 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
     }
   }
 
+  await syncEstimateFromReception(rows[0]);   // 견적 납품 완료 → 견적서에 현장할인·납품완료 기록
   broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
   broadcastEngineers('reception_update', rows[0]);
   res.json(rows[0]);

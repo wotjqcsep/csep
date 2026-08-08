@@ -477,7 +477,7 @@ async function submitWorkorder(customerId, siteId){
   const rec=await api('POST','/receptions',{ customer_id:customerId, computer_id:comp?Number(comp):null, reception_channel:isDeliver?'estimate':'direct', symptom, initial_memo:memo });
   await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
   if(isDeliver){ const pm=(est.opts&&est.opts.payMethod)||'cash';
-    await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(est.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(est.total)||0 }); }
+    await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(est.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(est.total)||0, estimate_id:est.id }); }
   closeModal(); alert(isDeliver?'견적서 납품 작업지시를 전송했습니다. 완료 시 결산에 반영됩니다.':'작업지시를 전송했습니다.'); await loadAll();
 }
 
@@ -900,6 +900,7 @@ function renderEstimates(){ estInit(); const s=estState;
   return `
   <div oninput="estSyncAll()">
   <div class="page-header"><h2>📄 문서 작성 <span style="font-size:13px;color:var(--gray-500)">— 문서 종류를 골라 작성·인쇄 (같은 내용으로 종류만 전환)</span></h2></div>
+  ${s.delivered?`<div style="background:#e6fcf5;border:1px solid #63e6be;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px">✅ <b>납품완료</b>${(Number(s.fieldDiscount)||0)>0?` · <span style="color:#e8590c;font-weight:700">현장할인 ${won(s.fieldDiscount)}</span>`:''}${s.finalAmount!=null?` · 실납품액 <b>${won(s.finalAmount)}</b>`:''}</div>`:''}
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
     ${[['estimate','견적서'],['statement','거래명세서'],['tax','세금계산서'],['receipt','간이영수증']].map(([k,l])=>{
       const on=(s.doctype||'estimate')===k;
@@ -1067,7 +1068,7 @@ async function estLoadList(){
   if(!list.length){ box.innerHTML='<div style="color:var(--gray-400);font-size:13px;padding:8px">저장된 견적이 없습니다</div>'; return; }
   box.innerHTML=`<table class="table" style="font-size:13px"><thead><tr><th>견적번호</th><th>고객/거래처</th><th>연락처</th><th style="text-align:right">합계</th><th>일자</th><th></th></tr></thead><tbody>`
     + list.map(e=>`<tr>
-        <td>${esc(e.no)||('#'+e.id)}</td><td>${esc(e.customer_name)||'-'}</td><td>${esc(e.phone)||'-'}</td>
+        <td>${esc(e.no)||('#'+e.id)}${e.delivered?' <span class="badge assigned" style="font-size:10px">납품완료</span>':''}${(Number(e.field_discount)||0)>0?` <span style="color:#e8590c;font-size:11px">현장할인 ${won(e.field_discount)}</span>`:''}</td><td>${esc(e.customer_name)||'-'}</td><td>${esc(e.phone)||'-'}</td>
         <td style="text-align:right;font-weight:600">${won(e.total)}</td><td>${esc(e.est_date)||''}</td>
         <td style="white-space:nowrap"><button class="btn btn-sm" onclick="estLoadOne(${e.id})">불러오기</button>
           <button class="btn btn-sm" style="background:#7048e8" onclick="estToWorkorder(${e.id})">📤 작업지시</button>
@@ -1080,6 +1081,7 @@ async function estLoadOne(id){
   estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
     buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:(o.bulk===''||o.bulk==null)?5:(Number(o.bulk)||0), savedId:e.id,
+    delivered:e.delivered||false, fieldDiscount:Number(e.field_discount)||0, finalAmount:e.final_amount,
     doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer', manualTotal:o.manualTotal||'',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
@@ -1110,7 +1112,7 @@ async function estToWorkorderSubmit(id){
   try{
     const rec=await api('POST','/receptions',{ customer_id:e.customer_id, reception_channel:'estimate', symptom, initial_memo:memo });
     await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
-    await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(e.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(e.total)||0 });
+    await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(e.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(e.total)||0, estimate_id:e.id });
   }catch(err){ alert('작업지시 전송 실패: '+(err&&err.message?err.message:err)); return; }
   closeModal(); alert('작업지시를 전송했습니다. 기사가 완료 처리하면 결산에 등록됩니다.'); await loadAll();
 }
