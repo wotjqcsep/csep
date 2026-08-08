@@ -1596,21 +1596,23 @@ function renderPayments(){
   const salesMonth=(state.sales||[]).filter(s=>(s.sale_date||'').slice(0,7)===monthTag);
   const saleWoori=s=>Math.round((Number(s.total_price)||0)*feeRateRec(s));
   const saleMine=s=>(Number(s.total_price)||0)-saleWoori(s);
-  const salesRev=salesMonth.reduce((t,s)=>t+(Number(s.total_price)||0),0);
-  const salesWoori=salesMonth.reduce((t,s)=>t+saleWoori(s),0);
+  const salesSettled=salesMonth.filter(s=>feeRateRec(s)<=0||s.woori_settled);   // 대행 경유 매장판매도 정산받은 것만
+  const salesRev=salesSettled.reduce((t,s)=>t+(Number(s.total_price)||0),0);
+  const salesWoori=salesSettled.reduce((t,s)=>t+saleWoori(s),0);
   const salesMine=salesRev-salesWoori;
   const salesWpend=AG?(state.sales||[]).filter(s=>(s.payment_method==='card'||s.tax_invoice)&&!s.woori_settled):[];
   const salesWpendAmt=salesWpend.reduce((t,s)=>t+saleMine(s),0);
-  const rev=md.reduce((s,r)=>s+recRevenue(r),0);
-  const myTotal=md.reduce((s,r)=>s+mySettle(r),0);
-  const wooriMonth=md.reduce((s,r)=>s+wooriCut(r),0);
+  const mdSettled=md.filter(r=>!isWoori(r)||r.woori_settled);   // 대행 경유는 정산받은 것만 매출 집계
+  const rev=mdSettled.reduce((s,r)=>s+recRevenue(r),0);
+  const myTotal=mdSettled.reduce((s,r)=>s+mySettle(r),0);
+  const wooriMonth=mdSettled.reduce((s,r)=>s+wooriCut(r),0);
   const wooriPending=done.filter(r=>isWoori(r) && !r.woori_settled);
   const wooriPendingAmt=wooriPending.reduce((s,r)=>s+mySettle(r),0);
   const unpaid=done.filter(r=>r.payment_method==='unpaid');
   const unpaidAmt=unpaid.reduce((s,r)=>s+recRevenue(r),0);
-  const byPM={cash:0,transfer:0,cashreceipt:0,card:0,tax:0,unpaid:0}; md.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
-  salesMonth.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
-  const byCust={}; md.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); });
+  const byPM={cash:0,transfer:0,cashreceipt:0,card:0,tax:0,unpaid:0}; mdSettled.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
+  salesSettled.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
+  const byCust={}; mdSettled.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); });
   const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
   return `
   <div class="page-header"><h2>💳 결산${brandName()?` <span style="font-size:13px;color:var(--gray-500)">— ${esc(brandName())}</span>`:''}</h2>
