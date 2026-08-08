@@ -870,12 +870,12 @@ function estCompanyDefault(){ const st=state.settings||{}; return (st.brand_name
 function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
     buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',   // 공급받는자 사업자정보(명세서·계산서용)
-    no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:5,
+    no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:0,
     savedId:null, doctype:'estimate', payMethod:'cash', realCost:'',   // 문서 종류 + 결제방법 + 실제 매입가(부가세 환급 계산용)
     pname:'short', pprice:'total', ptarget:'customer',   // 기본값: 고객용+간략화+총액만
-    rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})) }; }
+    rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})) }; }
 function estRowHtml(x,i){ x=x||{};
-  const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:5)||0, qty=Number(x.qty)||1;
+  const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:0)||0, qty=Number(x.qty)||1;
   const price=(x.price!=null&&x.price!=='')?(Number(String(x.price).replace(/[^\d]/g,''))||0):(cost?Math.round(cost*(1+margin/100)):0);
   const amt=price*qty, fc=n=>n?Number(n).toLocaleString('ko-KR'):'';
   return `<tr class="est-row" data-i="${i}">
@@ -883,7 +883,7 @@ function estRowHtml(x,i){ x=x||{};
     <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [AMD] 라이젠5 라파엘 7500F (6코어/12스레드/3.7GHz) 쿨러포함)" style="width:100%;min-width:340px"></td>
     <td><input class="est-qty" type="number" min="1" value="${x.qty||1}" style="width:56px"></td>
     <td><input class="est-cost" type="text" inputmode="numeric" value="${(x.cost!=null&&x.cost!=='')?fc(Number(String(x.cost).replace(/[^\d]/g,''))||0):''}" oninput="estFmtCost(this);estRecalcPrice(this)" placeholder="매입가" style="width:96px;text-align:right"></td>
-    <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:5}" oninput="estRecalcPrice(this)" style="width:52px"> %</td>
+    <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:0}" oninput="estRecalcPrice(this)" style="width:52px"> %</td>
     <td><input class="est-price" type="text" inputmode="numeric" value="${fc(price)}" oninput="estFmtCost(this)" placeholder="판매단가" style="width:100px;text-align:right;font-weight:700"></td>
     <td class="est-amt" style="text-align:right;font-weight:800">${won(amt)}</td>
     <td><button class="btn btn-sm btn-danger" onclick="estDelRow(this)">×</button></td>
@@ -1078,10 +1078,10 @@ async function estLoadOne(id){
   const o=e.opts||{};
   estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
     buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
-    customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:(o.bulk===''||o.bulk==null)?5:(Number(o.bulk)||0), savedId:e.id,
+    customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:(o.bulk===''||o.bulk==null)?0:(Number(o.bulk)||0), savedId:e.id,
     delivered:e.delivered||false, fieldDiscount:Number(e.field_discount)||0, finalAmount:e.final_amount,
     doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
-    rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:5})))
+    rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
   go('estimates');   // 견적서 화면으로 이동 + estState 반영
 }
@@ -1169,7 +1169,7 @@ async function estDeleteSaved(id){
 function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
   estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer'); estState.phone=g('est_phone');
   estState.buyerBizno=g('est_buyer_bizno'); estState.buyerCeo=g('est_buyer_ceo'); estState.buyerAddr=g('est_buyer_addr'); estState.buyerType=g('est_buyer_type'); estState.buyerItem=g('est_buyer_item');
-  estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=(g('est_bulk')==='')?5:(Number(g('est_bulk'))||0);
+  estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=(g('est_bulk')==='')?0:(Number(g('est_bulk'))||0);
   estState.pname=g('est_pname')||estState.pname||'full'; estState.pprice=g('est_pprice')||estState.pprice||'each';
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
   estState.payMethod=g('est_paymethod')||estState.payMethod||'cash';
@@ -1216,10 +1216,14 @@ function estUpdateFee(){
   const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.round(total*rate);
   const realCost=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
   const refund=realCost>0?(realCost-Math.round(realCost/1.1)):0;   // 매입 부가세 환급 = 매입가 - 매입가/1.1
-  const refundHtml=refund>0?` · <span style="color:#0ca678">외주업체 부가세 환급 예정 +${won(refund)}</span>`:'';
+  const net=total-cut;               // 실수령 = 합계 - 외주업체 수수료
+  const finalProfit=net+refund;      // 예정 총 수익 = 실수령 + 외주업체 부가세 환급 예정
+  const bracket=` <span style="color:var(--gray-500)">[ 실수령 <b style="color:#1971c2">${won(net)}</b> · 외주업체 부가세 환급 예정 <b style="color:#0ca678">${won(refund)}</b> ]</span>`;
   el.innerHTML = (rate>0
-    ? `💳 <b>${estPayLabel(estState.payMethod)}</b> · 외주 수수료(${pct}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(total-cut)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
-    : `💳 <b>${estPayLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(total)}</b>`) + refundHtml;
+    ? `💳 <b>${estPayLabel(estState.payMethod)}</b> · 외주업체 수수료(${pct}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(net)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
+    : `💳 <b>${estPayLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(net)}</b>`)
+    + bracket
+    + `<div style="margin-top:6px;font-weight:700;border-top:1px dashed var(--gray-300);padding-top:6px">= 예정 총 수익 <b style="color:#1971c2;font-size:15px">${won(finalProfit)}</b> <span style="font-weight:400;color:var(--gray-400)">(실수령 + 외주업체 부가세 환급 예정)</span></div>`;
 }
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
@@ -1299,9 +1303,10 @@ function estDocInner(target, copyLabel){
       <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr>
       <tr><td>결제방법</td><td style="text-align:right">${estPayLabel(estState.payMethod)}</td></tr>`
     + (internal ? `<tr style="color:#888"><td>총매입가</td><td style="text-align:right">${won(totCost)}</td></tr>
-      ${feeRt>0?`<tr style="color:#e03131"><td>외주 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
+      ${feeRt>0?`<tr style="color:#e03131"><td>외주업체 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
       ${(function(){const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0; const rf=rc>0?(rc-Math.round(rc/1.1)):0; return rf>0?`<tr style="color:#0ca678"><td>실매입가 ${won(rc)} · 외주업체 부가세 환급 예정</td><td style="text-align:right">+${won(rf)}</td></tr>`:'';})()}
-      <tr style="color:#1971c2;font-weight:700"><td>${feeRt>0?'실수령(마진이익)':'마진이익'}</td><td style="text-align:right">${won(profit-feeCut)}</td></tr>` : '');
+      <tr style="color:#1971c2;font-weight:700"><td>${feeRt>0?'실수령(마진이익)':'마진이익'}</td><td style="text-align:right">${won(profit-feeCut)}</td></tr>
+      ${(function(){const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0; const rf=rc>0?(rc-Math.round(rc/1.1)):0; return rf>0?`<tr style="color:#1971c2;font-weight:800;border-top:2px solid #ccc"><td>최종 수익 (실수령 + 부가세 환급)</td><td style="text-align:right">${won(profit-feeCut+rf)}</td></tr>`:'';})()}` : '');
   // 문서 종류별 제목·라벨·문구
   const dt = estState.doctype||'estimate';
   const DT = {
