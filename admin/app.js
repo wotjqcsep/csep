@@ -1556,10 +1556,10 @@ function renderInventory(){
 async function deleteInventory(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/inventory/'+id); await loadAll(); }
 
 // ── 미수금 · 결제 (회계 장부: 어떤 작업으로 어떻게 입금됐는지) ──
-const PAY_METHODS = { cash:'현금', card:'카드', transfer:'계좌이체', unpaid:'미수' };
+const PAY_METHODS = { cash:'현금', transfer:'계좌이체', cashreceipt:'현금영수증', card:'카드', tax:'세금계산서', unpaid:'미수' };
 function payMethodLabel(m){ return PAY_METHODS[m] || m || '-'; }
 // ── 결산 ──
-const PM_LABEL = { card:'카드', cash:'현금', transfer:'계좌이체', unpaid:'미수금' };
+const PM_LABEL = { cash:'현금', transfer:'계좌이체', cashreceipt:'현금영수증', card:'카드', tax:'세금계산서', unpaid:'미수금' };
 // 대행업체(카드/계산서 경유) 설정 — 기사관리에서 변경. 이름/수수료율/사용여부 동적
 function agencyName(){ const n=(state.settings||{}).agency_name; return (n&&n.trim())? n.trim() : '우리사무기'; }
 function brandName(){ const n=(state.settings||{}).brand_name; return (n&&n.trim())? n.trim() : ''; }
@@ -1601,7 +1601,7 @@ function renderPayments(){
   const wooriPendingAmt=wooriPending.reduce((s,r)=>s+mySettle(r),0);
   const unpaid=done.filter(r=>r.payment_method==='unpaid');
   const unpaidAmt=unpaid.reduce((s,r)=>s+recRevenue(r),0);
-  const byPM={card:0,cash:0,transfer:0,unpaid:0}; md.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
+  const byPM={cash:0,transfer:0,cashreceipt:0,card:0,tax:0,unpaid:0}; md.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
   salesMonth.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
   const byCust={}; md.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); });
   const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
@@ -1623,7 +1623,7 @@ function renderPayments(){
   <div class="split" style="grid-template-columns:${AG?'1fr 1fr':'1fr'};margin-bottom:16px">
     <div class="detail-panel" style="position:static">
       <h3>이달 결제수단별</h3>
-      ${['card','cash','transfer','unpaid'].map(k=>`<div class="detail-row"><span class="detail-value">${PM_LABEL[k]}</span><span class="detail-value" style="text-align:right"><strong>${won(byPM[k])}</strong></span></div>`).join('')}
+      ${['cash','transfer','cashreceipt','card','tax','unpaid'].map(k=>`<div class="detail-row"><span class="detail-value">${PM_LABEL[k]}</span><span class="detail-value" style="text-align:right"><strong>${won(byPM[k])}</strong></span></div>`).join('')}
       ${AG?`<div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">${esc(agencyName())} 대행수수료(이달, 판매 포함)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth+salesWoori)}</strong></span></div>`:''}
     </div>
     ${AG?`<div class="detail-panel" style="position:static">
