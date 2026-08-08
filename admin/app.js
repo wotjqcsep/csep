@@ -1010,7 +1010,7 @@ function renderEstimates(){ estInit(); const s=estState;
         </label>
         <label>실제 매입가(수동)
           <input id="est_realcost" value="${esc(s.realCost||'')}" oninput="estFmtCost(this)" placeholder="예: 547640" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
-          <span style="font-size:11px;color:var(--gray-400)">부가세 환급 계산용(컴퓨존 실결제액)</span>
+          <span style="font-size:11px;color:var(--gray-400)">외주업체 부가세 환급 계산용(컴퓨존 실결제액, 부가세 포함)</span>
         </label>
       </div>
       <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:#f8f9fb;border:1px solid var(--gray-200)"></div>
@@ -1216,7 +1216,7 @@ function estUpdateFee(){
   const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.round(total*rate);
   const realCost=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
   const refund=realCost>0?(realCost-Math.round(realCost/1.1)):0;   // 매입 부가세 환급 = 매입가 - 매입가/1.1
-  const refundHtml=refund>0?` · <span style="color:#0ca678">부가세 환급 예정 +${won(refund)}</span>`:'';
+  const refundHtml=refund>0?` · <span style="color:#0ca678">외주업체 부가세 환급 예정 +${won(refund)}</span>`:'';
   el.innerHTML = (rate>0
     ? `💳 <b>${estPayLabel(estState.payMethod)}</b> · 외주 수수료(${pct}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(total-cut)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
     : `💳 <b>${estPayLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(total)}</b>`) + refundHtml;
@@ -1300,7 +1300,7 @@ function estDocInner(target, copyLabel){
       <tr><td>결제방법</td><td style="text-align:right">${estPayLabel(estState.payMethod)}</td></tr>`
     + (internal ? `<tr style="color:#888"><td>총매입가</td><td style="text-align:right">${won(totCost)}</td></tr>
       ${feeRt>0?`<tr style="color:#e03131"><td>외주 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
-      ${(function(){const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0; const rf=rc>0?(rc-Math.round(rc/1.1)):0; return rf>0?`<tr style="color:#0ca678"><td>실매입가 ${won(rc)} · 부가세 환급 예정</td><td style="text-align:right">+${won(rf)}</td></tr>`:'';})()}
+      ${(function(){const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0; const rf=rc>0?(rc-Math.round(rc/1.1)):0; return rf>0?`<tr style="color:#0ca678"><td>실매입가 ${won(rc)} · 외주업체 부가세 환급 예정</td><td style="text-align:right">+${won(rf)}</td></tr>`:'';})()}
       <tr style="color:#1971c2;font-weight:700"><td>${feeRt>0?'실수령(마진이익)':'마진이익'}</td><td style="text-align:right">${won(profit-feeCut)}</td></tr>` : '');
   // 문서 종류별 제목·라벨·문구
   const dt = estState.doctype||'estimate';
