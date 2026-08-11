@@ -82,6 +82,14 @@ const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[]
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString();
+const WO_TYPE_COLOR={출장:'#1971c2',설치:'#2b8a3e',납품:'#e67700','견적서 납품':'#7048e8',무상점검:'#0ca678'};
+function woTypeBadge(memo){
+  if(!memo) return '';
+  const m=String(memo).match(/^\[([^\]]+)\]/);
+  if(!m) return '';
+  const t=m[1], c=WO_TYPE_COLOR[t]||'#868e96';
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff;background:${c}">${esc(t)}</span>`;
+}
 // 금액 입력: 앞자리 0 제거 + 3자리마다 콤마. 저장 시엔 moneyVal()로 숫자만 추출
 function fmtMoney(el){ let v=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,''); el.value=v?Number(v).toLocaleString('en-US'):''; }
 const moneyVal=id=>{ const el=document.getElementById(id); return el?Number((el.value||'').replace(/[^0-9]/g,''))||0:0; };
@@ -218,7 +226,7 @@ function cardHtml(r){
   const stClass=isRes?'st-reserved':('st-'+r.status);
   return `<div class="card ${stClass}">
     <div class="card-head">
-      <div><div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
+      <div><div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'} ${woTypeBadge(r.initial_memo)}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
       <span class="badge ${badgeClass}">● ${st}</span>
     </div>
     ${isAdmin&&r.assigned_engineer_id?`<div class="info-line">👤 <span style="color:${engColorById(r.assigned_engineer_id)};font-weight:700">${esc(engName(r.assigned_engineer_id))}${engColorById(r.assigned_engineer_id)==='#e03131'?' (대표)':''}</span></div>`:''}
@@ -326,7 +334,7 @@ function renderProcessing(){
     <div class="topbar"><h1>🔧 작업 처리</h1><span class="who"><a onclick="closeProcessing()" style="color:#6b9cff;cursor:pointer">← 목록</a></span></div>
     <div class="content">
       <div class="card">
-        <div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>
+        <div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'} ${woTypeBadge(r.initial_memo)}</div>
         ${done?`<span class="badge completed">● 완료</span>`:(r.status==='repairing'?`<span class="badge" style="background:#7048e8;color:#fff">🔧 수거·점검</span>`:(r.status==='in_progress'?`<span class="badge" style="background:#1971c2;color:#fff">● 진행중</span>`:`<span class="badge new">● 미처리</span>`))}
         ${r.customer_phone?`<div class="info-line" style="margin-top:6px">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
         ${addr?`<div class="info-line">📍 ${esc(addr)}</div>`:''}
