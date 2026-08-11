@@ -412,15 +412,23 @@ async function initDB() {
 // ============================================================
 //  로그인 (인증 미들웨어보다 먼저 등록 — 보호 대상 제외)
 // ============================================================
-// 관리자(PC) 로그인 — 단일 비밀번호
-app.post('/api/admin-login', express.json(), (req, res) => {
+// 관리자(PC) 로그인 — DB settings 또는 환경변수 비밀번호
+app.post('/api/admin-login', express.json(), wrap(async (req, res) => {
   const { password } = req.body;
-  const adminPw = process.env.ADMIN_PASSWORD || 'csep2026!';
-  if (password !== adminPw) return res.status(401).json({ error: '비밀번호가 올바르지 않습니다' });
+  const dbRow = (await pool.query("SELECT value FROM settings WHERE key='admin_password'")).rows[0];
+  const adminPw = dbRow ? dbRow.value : (process.env.ADMIN_PASSWORD || 'csep2026!');
+  if (adminPw && adminPw.length > 0 && password !== adminPw) return res.status(401).json({ error: '비밀번호가 올바르지 않습니다' });
   const token = crypto.randomUUID();
   sessions.set(token, { role: 'admin', expires: Date.now() + 24 * 60 * 60 * 1000 });
   res.json({ token });
-});
+}));
+
+// 관리자 비밀번호 조회 (공란 여부 확인용)
+app.get('/api/admin-password-status', wrap(async (req, res) => {
+  const dbRow = (await pool.query("SELECT value FROM settings WHERE key='admin_password'")).rows[0];
+  const pw = dbRow ? dbRow.value : (process.env.ADMIN_PASSWORD || 'csep2026!');
+  res.json({ hasPassword: !!(pw && pw.length > 0) });
+}));
 
 // 기사 로그인 (이름 선택 / 대표는 비번 확인)
 app.post('/api/engineer-login', wrap(async (req, res) => {
@@ -452,7 +460,7 @@ app.post('/api/engineer-login', wrap(async (req, res) => {
 // ============================================================
 app.use('/api', (req, res, next) => {
   // 로그인 엔드포인트는 인증 없이 허용
-  if (req.path === '/admin-login' || req.path === '/engineer-login' || (req.method === 'GET' && req.path === '/engineers')) return next();
+  if (req.path === '/admin-login' || req.path === '/engineer-login' || req.path === '/admin-password-status' || (req.method === 'GET' && req.path === '/engineers')) return next();
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   const session = sessions.get(token);
   if (!session || session.expires < Date.now()) {
@@ -1275,6 +1283,15 @@ app.get('/api/settings', wrap(async (req, res) => {
 }));
 app.put('/api/settings/:key', wrap(async (req, res) => {
   await pool.query('INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2', [req.params.key, req.body.value ?? '']);
+  res.json({ ok: true });
+}));
+
+app.put('/api/admin-password', express.json(), wrap(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const dbRow = (await pool.query("SELECT value FROM settings WHERE key='admin_password'")).rows[0];
+  const currentPw = dbRow ? dbRow.value : (process.env.ADMIN_PASSWORD || 'csep2026!');
+  if (currentPw && currentPw.length > 0 && oldPassword !== currentPw) return res.status(403).json({ error: '현재 비밀번호가 올바르지 않습니다' });
+  await pool.query("INSERT INTO settings (key, value) VALUES ('admin_password', $1) ON CONFLICT (key) DO UPDATE SET value=$1", [newPassword ?? '']);
   res.json({ ok: true });
 }));
 

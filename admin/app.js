@@ -650,6 +650,15 @@ function renderEngineers(){
   return `
   <div class="page-header"><h2>👷 사업자 관리 (${es.length}명)</h2><div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="go('workorders')">← 작업지시</button><button class="btn" onclick="openEngineerModal()">+ 기사 추가</button></div></div>
   <div class="vd-card" style="margin-bottom:16px">
+    <div style="font-weight:800;margin-bottom:8px">🔐 CSEP 관리자 비밀번호</div>
+    <div class="form-row">
+      <div class="form-group"><label>현재 비밀번호</label><input id="set_oldpw" type="password" placeholder="현재 비밀번호"></div>
+      <div class="form-group"><label>새 비밀번호</label><input id="set_newpw" type="password" placeholder="새 비밀번호 (공란=비밀번호 없음)"></div>
+      <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn" onclick="saveAdminPassword()">비밀번호 변경</button></div>
+    </div>
+    <div style="font-size:12px;color:var(--gray-400)">공란으로 저장하면 비밀번호 없이 바로 접속할 수 있습니다. 기본 비밀번호: csep2026!</div>
+  </div>
+  <div class="vd-card" style="margin-bottom:16px">
     <div style="font-weight:800;margin-bottom:4px">⚙️ 결산 · 대행업체 설정</div>
     <div class="form-row">
       ${field('set_brand','상호/브랜드명 (결산 화면 표시)', S.brand_name||'')}
@@ -716,6 +725,21 @@ function renderEngineers(){
       <td>${e.locked?'<span style="color:var(--danger);font-weight:700">🔒 잠김</span>':(e.has_password?'🔑 비번 설정됨':'<span style="color:var(--gray-400)">비번 없음</span>')}</td>
       <td><span style="display:flex;gap:6px">${e.locked?`<button class="btn btn-sm btn-success" onclick="unlockEngineer(${e.id})">잠금해제</button>`:''}<button class="btn btn-sm btn-secondary" onclick="openEngineerModal(${e.id})">편집</button><button class="btn btn-sm btn-danger" onclick="deleteEngineer(${e.id})">삭제</button></span></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">기사가 없습니다</td></tr>'}
     </tbody></table></div>`;
+}
+async function saveAdminPassword(){
+  const oldPw = v('set_oldpw') || '';
+  const newPw = v('set_newpw') || '';
+  try {
+    const r = await api('PUT', '/admin-password', { oldPassword: oldPw, newPassword: newPw });
+    if (r && r.error) { alert(r.error); return; }
+    document.getElementById('set_oldpw').value = '';
+    document.getElementById('set_newpw').value = '';
+    if (!newPw) {
+      alert('비밀번호가 제거되었습니다. 다음 접속부터 비밀번호 없이 바로 접속됩니다.');
+    } else {
+      alert('비밀번호가 변경되었습니다.');
+    }
+  } catch(e) { alert('비밀번호 변경 실패: ' + (e.message || e)); }
 }
 async function saveAgencySettings(){
   await api('PUT','/settings/brand_name',{value:v('set_brand')||''});
