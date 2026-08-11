@@ -685,10 +685,44 @@ function showToast(message, color){
   setTimeout(remove, 3000);
 }
 
+// 완료 알림 — 사라지지 않는 영구 팝업 (클릭 시 상세보기 / 고객 등록)
 function showCompletionNotification(rec){
+  if(!document.getElementById('cnStyles')){
+    const s = document.createElement('style'); s.id = 'cnStyles';
+    s.textContent = `@keyframes cnSlideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes cnFadeOut{from{opacity:1}to{opacity:0}}.cn-wrap{position:fixed;top:70px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:10px;pointer-events:none;max-height:calc(100vh - 90px);overflow-y:auto}.cn-card{pointer-events:auto;background:#fff;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.2);width:340px;overflow:hidden;animation:cnSlideIn .35s ease-out;border-left:5px solid var(--success)}.cn-card .cn-hd{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--gray-50,#f8f9fa);border-bottom:1px solid var(--gray-200,#e9ecef);font-weight:700;font-size:14px}.cn-card .cn-x{cursor:pointer;font-size:18px;color:var(--gray-400);padding:0 4px;line-height:1}.cn-card .cn-x:hover{color:var(--danger)}.cn-card .cn-bd{padding:10px 14px;font-size:13px;line-height:1.7}.cn-card .cn-row{color:var(--gray-600,#495057)}.cn-card .cn-ft{padding:6px 14px 10px;display:flex;gap:6px;border-top:1px solid var(--gray-200,#e9ecef)}`;
+    document.head.appendChild(s);
+  }
+  let wrap = document.getElementById('cnWrap');
+  if(!wrap){ wrap=document.createElement('div'); wrap.id='cnWrap'; wrap.className='cn-wrap'; document.body.appendChild(wrap); }
+
   const cust = custObj(rec.customer_id) || {};
-  const name = cust.name || cust.phone || ('고객'+rec.customer_id);
-  showToast(`✅ 완료!<br><span style="font-weight:400">${esc(name)}<br>${esc(rec.symptom||'작업')}</span>`);
+  const name = cust.name || cust.company_name || '';
+  const phone = rec.reception_phone || cust.phone || '';
+  const isNew = !name;
+  const displayName = name || phone || ('고객'+rec.customer_id);
+  const cost = (Number(rec.labor_fee)||0) + (Number(rec.parts_fee)||0);
+
+  const el = document.createElement('div');
+  el.className = 'cn-card';
+  const lines = [];
+  if(phone && name) lines.push('📞 '+esc(phone));
+  if(rec.symptom) lines.push('💬 '+esc(rec.symptom));
+  if(rec.solution) lines.push('🔧 '+esc(rec.solution));
+  if(cost) lines.push('💰 '+cost.toLocaleString('ko-KR')+'원');
+
+  el.innerHTML = `<div class="cn-hd"><span>✅ 작업 완료</span><span class="cn-x">✕</span></div>`
+    +`<div class="cn-bd"><div style="font-weight:600;font-size:14px">${esc(displayName)}</div>`
+    + lines.map(l=>`<div class="cn-row">${l}</div>`).join('') + `</div>`
+    +`<div class="cn-ft"><button class="btn btn-sm">📋 상세보기</button>`
+    +(isNew?`<button class="btn btn-sm" style="background:var(--success);color:#fff">➕ 고객 등록</button>`:'')
+    +`</div>`;
+  wrap.appendChild(el);
+
+  function removeCard(){ el.style.animation='cnFadeOut .3s ease-in forwards'; setTimeout(()=>el.remove(),300); }
+  el.querySelector('.cn-x').onclick = removeCard;
+  el.querySelectorAll('.cn-ft .btn')[0].onclick = ()=>{ removeCard(); openReceptionDetail(rec.id); };
+  const regBtn = el.querySelectorAll('.cn-ft .btn')[1];
+  if(regBtn && isNew) regBtn.onclick = ()=>{ removeCard(); openCustomerModal(rec.customer_id); };
 }
 
 function connectSSE(){

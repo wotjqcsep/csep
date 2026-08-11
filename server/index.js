@@ -1821,7 +1821,7 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
 
   await syncEstimateFromReception(rows[0]);   // 견적 납품 완료 → 견적서에 현장할인·납품완료 기록
   broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
-  broadcastEngineers('reception_update', rows[0]);
+  broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
 
