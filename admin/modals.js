@@ -644,11 +644,71 @@ async function pollPopups(){
 // ============================================================
 //  SSE 실시간
 // ============================================================
+// 완료 알림: 소리 + 팝업
+function playNotificationSound(){
+  try{
+    // Web Audio API로 간단한 beep 음 생성 (2024 이상 모던 브라우저용)
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const now = audioContext.currentTime;
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+    osc.frequency.value = 800;  // 800 Hz 신호음
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    osc.start(now);
+    osc.stop(now + 0.3);
+  }catch(e){
+    console.log('소리 재생 실패:', e.message);
+  }
+}
+
+// 비차단 토스트 알림 (alert() 대체 — alert은 JS 블로킹 + IME 끊김 유발)
+let _toastOffset = 0;
+function showToast(message, color){
+  if(!document.getElementById('toastStyles')){
+    const style = document.createElement('style');
+    style.id = 'toastStyles';
+    style.textContent = `@keyframes toastIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes toastOut{from{opacity:1}to{opacity:0}}`;
+    document.head.appendChild(style);
+  }
+  const el = document.createElement('div');
+  const top = 80 + _toastOffset;
+  _toastOffset += 72;
+  el.style.cssText = `position:fixed;top:${top}px;right:20px;background:${color||'var(--success)'};color:#fff;padding:14px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:10000;font-weight:600;max-width:340px;word-break:break-word;animation:toastIn .3s ease-out;cursor:pointer;font-size:14px`;
+  el.innerHTML = message;
+  el.onclick = () => remove();
+  document.body.appendChild(el);
+  function remove(){ if(!el.parentElement) return; el.style.animation='toastOut .3s ease-in forwards'; setTimeout(()=>{el.remove(); _toastOffset=Math.max(0,_toastOffset-72);}, 300); }
+  setTimeout(remove, 3000);
+}
+
+function showCompletionNotification(rec){
+  const cust = custObj(rec.customer_id) || {};
+  const name = cust.name || cust.phone || ('고객'+rec.customer_id);
+  showToast(`✅ 완료!<br><span style="font-weight:400">${esc(name)}<br>${esc(rec.symptom||'작업')}</span>`);
+}
+
 function connectSSE(){
   try{
     const es = new EventSource(API+'/admin-stream');
-    const reloadEvents = ['reception_new','reception_update','reception_deleted','job_update','engineer_update'];
+    const reloadEvents = ['reception_new','reception_deleted','job_update','engineer_update'];
     reloadEvents.forEach(ev=>es.addEventListener(ev, ()=>loadAll()));
+
+    // 완료 처리: 소리 + 팝업 표시
+    es.addEventListener('reception_update', e=>{
+      try{
+        const rec = JSON.parse(e.data);
+        if(rec.status === 'completed'){
+          playNotificationSound();
+          showCompletionNotification(rec);
+        }
+      }catch(x){}
+      loadAll();  // 화면 갱신
+    });
+
     es.addEventListener('incoming_call', e=>{ const c=JSON.parse(e.data); pendingCalls.push(c); renderPopups(); });
     es.addEventListener('incoming_sms', e=>{ const s=JSON.parse(e.data); pendingSms.push(s); renderPopups(); });
     es.addEventListener('new_message', e=>{ let d={}; try{d=JSON.parse(e.data);}catch(x){}

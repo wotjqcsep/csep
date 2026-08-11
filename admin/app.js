@@ -478,7 +478,7 @@ async function submitWorkorder(customerId, siteId){
   await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
   if(isDeliver){ const pm=(est.opts&&est.opts.payMethod)||'cash';
     await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(est.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(est.total)||0, estimate_id:est.id }); }
-  closeModal(); alert(isDeliver?'견적서 납품 작업지시를 전송했습니다. 완료 시 결산에 반영됩니다.':'작업지시를 전송했습니다.'); await loadAll();
+  closeModal(); showToast(isDeliver?'📤 견적서 납품 작업지시 전송 완료':'📤 작업지시를 전송했습니다'); await loadAll();
 }
 
 // ============================================================
@@ -1112,7 +1112,7 @@ async function estToWorkorderSubmit(id){
     await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
     await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(e.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(e.total)||0, estimate_id:e.id });
   }catch(err){ alert('작업지시 전송 실패: '+(err&&err.message?err.message:err)); return; }
-  closeModal(); alert('작업지시를 전송했습니다. 기사가 완료 처리하면 결산에 등록됩니다.'); await loadAll();
+  closeModal(); showToast('📤 작업지시 전송 완료 — 기사가 완료 처리하면 결산에 등록됩니다'); await loadAll();
 }
 // 새 문서 작성 — 빈 양식 + 문서 종류 지정
 function estNew(dtype){
