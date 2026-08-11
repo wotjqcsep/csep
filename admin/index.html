@@ -64,6 +64,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 .badge.in_progress{background:#d3f9d8;color:#2b8a3e}
 .badge.completed{background:var(--gray-200);color:var(--gray-600)}
 .badge.cancelled{background:#f1f3f5;color:#868e96}
+.badge.repairing{background:#f3f0ff;color:#7048e8}
 .outstanding{color:var(--danger);font-weight:600}
 /* 분할 레이아웃 */
 .split{display:grid;grid-template-columns:1fr 380px;gap:16px}
@@ -125,6 +126,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 .ws-card.in_progress{border-left-color:#1971c2}
 .ws-card.completed{border-left-color:var(--success)}
 .ws-card.cancelled{border-left-color:#868e96}
+.ws-card.repairing{border-left-color:#7048e8}
 .ws-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:11px}
 .ws-name{font-size:16px;font-weight:800;color:var(--gray-700)}
 .ws-pill{padding:4px 12px;border-radius:13px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}
@@ -331,7 +333,7 @@ function renderDashboard(){
   </div>`;
 }
 function statCard(label,value,color,size){ return `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value" style="${color?`color:${color};`:''}${size?`font-size:${size}px;`:''}">${value}</div></div>`; }
-function statusLabel(s){ return {idle:'대기',on_the_way:'출동',working:'작업중',off_duty:'퇴근',new:'미처리',assigned:'미처리',in_progress:'진행중',completed:'완료'}[s]||s; }
+function statusLabel(s){ return {idle:'대기',on_the_way:'출동',working:'작업중',off_duty:'퇴근',new:'미처리',assigned:'미처리',in_progress:'진행중',repairing:'수거·점검',completed:'완료'}[s]||s; }
 function custName(id){ const c=state.customers.find(c=>c.id==id); if(!c) return id?`고객${id}`:'-'; return c.name||c.phone||`고객${c.id}`; }
 function engName(id){ return (state.engineers.find(e=>e.id==id)||{}).name || '-'; }
 // 담당별 색 (기사앱과 동일 규칙: 대표=빨강, 기사=id별 고정색)

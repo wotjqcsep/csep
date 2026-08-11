@@ -390,6 +390,7 @@ async function initDB() {
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS picked_up BOOLEAN DEFAULT FALSE;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS outcome TEXT;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS estimate_id INTEGER;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered BOOLEAN DEFAULT FALSE;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS field_discount DOUBLE PRECISION DEFAULT 0;
@@ -1267,6 +1268,19 @@ app.put('/api/receptions/:id/pickup', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
+// 장비수거 → 사무실 수거·점검 상태 전환
+app.put('/api/receptions/:id/collect', express.json(), wrap(async (req, res) => {
+  const desc = req.body.work_description || '장비 수거';
+  const { rows } = await pool.query(
+    `UPDATE receptions SET status='repairing', picked_up=TRUE, collected_at=NOW(), solution=$2 WHERE id=$1 RETURNING *`,
+    [req.params.id, desc]
+  );
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  await pool.query(`UPDATE jobs SET status='in_progress', started_at=COALESCE(started_at, NOW()), work_description=$2 WHERE reception_id=$1 AND status <> 'completed'`, [req.params.id, desc]);
+  broadcastReception('reception_update', rows[0]);
+  res.json(rows[0]);
+}));
+
 // 우리사무기 정산 받음 처리 (토글)
 app.put('/api/receptions/:id/woori-settle', wrap(async (req, res) => {
   const val = req.body.settled !== undefined ? !!req.body.settled : true;
@@ -1454,7 +1468,7 @@ app.get('/api/dashboard', wrap(async (req, res) => {
   res.json({
     today_new: todayR.filter(r => r.status === 'new').length,
     assigned_pending: receptions.filter(r => r.status === 'new' || r.status === 'assigned').length,
-    in_progress: receptions.filter(r => r.status === 'in_progress').length,
+    in_progress: receptions.filter(r => r.status === 'in_progress' || r.status === 'repairing').length,
     completed_today: todayR.filter(r => r.status === 'completed').length,
     total_outstanding: customers.reduce((s, c) => s + (c.outstanding_amount || 0), 0),
     low_stock_count: inventory.filter(i => i.quantity <= i.reorder_level).length,

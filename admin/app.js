@@ -76,6 +76,7 @@ const REC_ST = {
   new:        { l:'미처리', c:'var(--danger)' },
   assigned:   { l:'미처리', c:'var(--danger)' },   // 배정 개념 없음 — 콜 오면 자동 배당, 미처리로 표시
   in_progress:{ l:'진행중', c:'#1971c2' },
+  repairing:  { l:'수거·점검', c:'#7048e8' },
   completed:  { l:'완료',   c:'var(--success)' },
 };
 function custObj(id){ return state.customers.find(c=>c.id==id); }
@@ -106,7 +107,7 @@ function recCard(r){
       <div class="ws-name">${esc(custName(r.customer_id))} <span style="font-size:13px;font-weight:400;color:var(--gray-400)">${ch}</span></div>
       <div style="text-align:right;flex-shrink:0">
         <div style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap">
-          ${(r.picked_up && r.status!=='completed')?`<span class="ws-pill" style="background:#7048e8">수거·견적</span>`:''}
+          ${r.status==='repairing'?`<span class="ws-pill" style="background:#7048e8">🔧 수거·점검</span>`:(r.picked_up && r.status!=='completed')?`<span class="ws-pill" style="background:#7048e8">수거·견적</span>`:''}
           ${r.reserved_date?`<span class="ws-pill" style="background:var(--warning)">예약</span>`:''}
           <span class="ws-pill" style="background:${st.c}">${st.l}</span>
         </div>
@@ -141,8 +142,8 @@ function renderReceptions(){
   // 완료 후 24시간 지난 건은 작업현황에서 숨김(일정표에서 확인)
   const within24h = r => { const d=recDate(r.completed_at||r.received_at); return !d || (Date.now()-d.getTime()) <= 24*60*60*1000; };
   // 진행중(기사가 네비 실행 등)은 미처리에서 분리해 맨 위로
-  const inProgress= rs.filter(r=>recSection(r)==='pending' && r.status==='in_progress').sort(byDesc);
-  const pending   = rs.filter(r=>recSection(r)==='pending' && r.status!=='in_progress').sort(byDesc);
+  const inProgress= rs.filter(r=>recSection(r)==='pending' && (r.status==='in_progress'||r.status==='repairing')).sort(byDesc);
+  const pending   = rs.filter(r=>recSection(r)==='pending' && r.status!=='in_progress' && r.status!=='repairing').sort(byDesc);
   const reserved  = rs.filter(r=>recSection(r)==='reserved').sort(byDesc);
   const completed = rs.filter(r=>recSection(r)==='completed' && within24h(r)).sort(byDesc);
   // 구간 헤더(구분선) + 2열 카드
@@ -444,7 +445,7 @@ async function openWorkorderModal(customerId, siteId){
       : '<div style="text-align:center;color:var(--gray-400);padding:14px 0;margin-bottom:8px">이전 이력이 없습니다</div>'}
     <div style="color:#7048e8;font-weight:700;margin:6px 0 10px">➕ 작업지시 작성</div>
     <div class="form-group"><label>장비 선택 (선택사항)</label><select id="wo_comp"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>
-    <div class="form-group"><label>작업 구분 (선택사항)</label><select id="wo_type" onchange="document.getElementById('wo_est_box').style.display=this.value==='견적서 납품'?'block':'none'"><option value="일반">일반</option><option value="점검">점검</option><option value="수리">수리</option><option value="설치">설치</option><option value="견적서 납품">📄 견적서 납품</option><option value="기타">기타</option></select></div>
+    <div class="form-group"><label>작업 구분 (선택사항)</label><select id="wo_type" onchange="document.getElementById('wo_est_box').style.display=this.value==='견적사 납품'?'block':'none'"><option value="출장">출장</option><option value="설치">설치</option><option value="납품">납품</option><option value="견적사 납품">📄 견적사 납품</option><option value="무상점검">무상점검</option></select></div>
     <div class="form-group" id="wo_est_box" style="display:none"><label>납품할 견적서 선택 *</label>
       <select id="wo_est">${ests.length?('<option value="">선택하세요</option>'+ests.map(e=>`<option value="${e.id}">${esc(e.no)||('#'+e.id)} · ${won(e.total)} · ${esc(e.est_date)||''}</option>`).join('')):'<option value="">저장된 견적이 없습니다</option>'}</select></div>
     <div class="form-group"><label>담당 기사 *</label><select id="wo_eng"><option value="">선택하세요</option>${state.engineers.map(e=>`<option value="${e.id}" style="color:${engColor(e.id)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}</select></div>
@@ -456,7 +457,7 @@ async function submitWorkorder(customerId, siteId){
   const eng=v('wo_eng'); if(!eng){ alert('담당 기사를 선택하세요'); return; }
   const comp=v('wo_comp'); const type=v('wo_type');
   const site=siteId? state.sites.find(s=>s.id==siteId):null;
-  const isDeliver=(type==='견적서 납품');
+  const isDeliver=(type==='견적사 납품');
   // 견적서 납품: 저장된 견적을 불러와 금액·결제수단까지 지정
   let est=null;
   if(isDeliver){ const estId=v('wo_est'); if(!estId){ alert('납품할 견적서를 선택하세요'); return; }
@@ -465,7 +466,7 @@ async function submitWorkorder(customerId, siteId){
     ? '[납품] '+(est.no||'견적')+' — '+((Array.isArray(est.items)?est.items:[]).slice(0,3).map(i=>i.name).join(', ')||'PC 납품')
     : v('wo_symptom');
   if(!symptom){ alert('증상 또는 작업 내용을 입력하세요'); return; }
-  const memo=[type&&type!=='일반'?`[${type}]`:'', site?`현장:${site.name}`:'', isDeliver?`합계 ${won(est.total)}`:''].filter(Boolean).join(' ');
+  const memo=[type?`[${type}]`:'', site?`현장:${site.name}`:'', isDeliver?`합계 ${won(est.total)}`:''].filter(Boolean).join(' ');
   const rec=await api('POST','/receptions',{ customer_id:customerId, computer_id:comp?Number(comp):null, reception_channel:isDeliver?'estimate':'direct', symptom, initial_memo:memo });
   await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
   if(isDeliver){ const pm=(est.opts&&est.opts.payMethod)||'cash';

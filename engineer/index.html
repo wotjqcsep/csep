@@ -36,6 +36,9 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 .badge.in_progress{background:#d3f9d8;color:#2b8a3e}
 .badge.completed{background:#e9ecef;color:#868e96}
 .badge.cancelled{background:#f1f3f5;color:#868e96}
+.badge.repairing{background:#f3f0ff;color:#7048e8}
+.card.st-repairing{border-left-color:#7048e8}
+@keyframes slideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}
 .info-line{font-size:13px;color:var(--gray-600);margin:3px 0}
 .info-line a{color:var(--primary);text-decoration:none}
 .symptom{background:#fff9db;border:2px solid #f59f00;border-radius:8px;padding:12px 14px;margin:10px 0;font-size:16px;font-weight:600;color:#343a40;line-height:1.5}
@@ -174,7 +177,7 @@ function render(){
   const isAdmin=S.engineer.is_admin, myId=S.engineer.id;
   const notDone=r=>r.status!=='completed'&&r.status!=='cancelled';   // 취소건은 진행목록에서 제외
   const reserved=r=>r.reserved_date&&notDone(r);
-  const ipFirst=list=>[...list.filter(r=>r.status==='in_progress'),...list.filter(r=>r.status!=='in_progress')]; // 진행중을 맨 위로
+  const ipFirst=list=>[...list.filter(r=>r.status==='in_progress'||r.status==='repairing'),...list.filter(r=>r.status!=='in_progress'&&r.status!=='repairing')]; // 진행중·수리중을 맨 위로
   const mineActive=ipFirst(S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r)));
   const done=S.receptions.filter(r=>r.status==='completed');
   const tabs = isAdmin
@@ -210,7 +213,7 @@ function setTab(t){ S.tab=t; if(t==='sched'){ schedState={ym:ymStr(new Date()),s
 function cardHtml(r){
   const isAdmin=S.engineer.is_admin, mine=r.assigned_engineer_id==S.engineer.id;
   const isRes=r.reserved_date&&r.status!=='completed'&&r.status!=='cancelled';
-  const st=isRes?'예약':({new:'미처리',assigned:'미처리',in_progress:'진행중',completed:'완료',cancelled:'취소'}[r.status]||r.status);
+  const st=isRes?'예약':({new:'미처리',assigned:'미처리',in_progress:'진행중',repairing:'수거·점검',completed:'완료',cancelled:'취소'}[r.status]||r.status);
   const badgeClass=isRes?'assigned':r.status;
   const stClass=isRes?'st-reserved':('st-'+r.status);
   return `<div class="card ${stClass}">
@@ -227,6 +230,7 @@ function cardHtml(r){
     ${r.status==='new'&&isAdmin?`<button class="btn btn-primary" onclick="openAssign(${r.id})">기사 배정</button>`:''}
     ${r.status!=='new'&&(mine||isAdmin)?`<button class="btn btn-primary" onclick="openProcessing(${r.id})">${r.status==='completed'?'상세보기 →':'상세보기 / 처리하기 →'}</button>`:''}
     ${r.status!=='new'?`<button class="btn" style="background:#7048e8;color:#fff" onclick="openChat(${r.id})">💬 대화${S.chatUnread[r.id]?` (${S.chatUnread[r.id]})`:''}</button>`:''}
+    ${(mine||isAdmin)&&r.status!=='completed'&&r.status!=='cancelled'&&r.status!=='repairing'?`<button class="btn" style="background:#5f3dc4;color:#fff" onclick="submitCollect(${r.id})">🔧 장비수거</button>`:''}
     ${isAdmin&&r.status!=='completed'&&r.status!=='cancelled'&&r.assigned_engineer_id?`<button class="btn btn-ghost" onclick="openAssign(${r.id})">🔁 기사 재배정</button>`:''}
   </div>`;
 }
@@ -323,7 +327,7 @@ function renderProcessing(){
     <div class="content">
       <div class="card">
         <div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'}</div>
-        ${done?`<span class="badge completed">● 완료</span>`:(r.status==='in_progress'?`<span class="badge" style="background:#1971c2;color:#fff">● 진행중</span>`:`<span class="badge new">● 미처리</span>`)}
+        ${done?`<span class="badge completed">● 완료</span>`:(r.status==='repairing'?`<span class="badge" style="background:#7048e8;color:#fff">🔧 수거·점검</span>`:(r.status==='in_progress'?`<span class="badge" style="background:#1971c2;color:#fff">● 진행중</span>`:`<span class="badge new">● 미처리</span>`))}
         ${r.customer_phone?`<div class="info-line" style="margin-top:6px">📞 <a href="tel:${esc(r.customer_phone)}">${esc(r.customer_phone)}</a></div>`:''}
         ${addr?`<div class="info-line">📍 ${esc(addr)}</div>`:''}
         ${!done?`<div class="row2" style="margin-top:8px">
@@ -367,7 +371,11 @@ function renderProcessing(){
         <div class="fg"><label>결제수단 *</label>${payChips('p_paymethod', (r.payment_method==='tax'||r.tax_invoice)?'tax':(r.payment_method||'cash'))}</div>
         <div id="p_calc" style="background:#f1f3f5;border-radius:9px;padding:10px;font-size:13px"></div>
       </div>
-      <button class="btn btn-success" onclick="submitProcessing(${r.id})">✅ 처리 완료</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-success" style="flex:1" onclick="submitProcessing(${r.id})">✅ 처리 완료</button>
+        ${r.status!=='repairing'?`<button class="btn" style="flex:1;background:#7048e8;color:#fff" onclick="submitCollect(${r.id})">🔧 장비수거 (사무실 수리)</button>`:''}
+      </div>
+      ${r.status==='repairing'&&r.collected_at?`<div style="background:#f3f0ff;border:1px solid #d0bfff;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:13px;color:#7048e8">🔧 장비수거일: ${(r.collected_at||'').slice(0,10)} — 점검/수리 완료 후 위 [처리 완료] 버튼을 눌러주세요</div>`:''}
       <button class="btn" style="background:#f76707;color:#fff" onclick="submitReserve(${r.id})">⏳ 미처리 (예약)</button>
       `}
       ${(S.engineer&&S.engineer.is_admin&&!done)?`<div style="border-top:1px solid #e9ecef;margin:16px 0 8px;padding-top:12px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">🚫 콜 취소</div><div class="row2">
@@ -418,11 +426,20 @@ async function submitReserve(id){
   }catch(e){ alert('예약 저장 실패: '+(e.message||e)); }
   finally{ if(btn) btn.disabled=false; }
 }
+async function submitCollect(id){
+  if(!confirm('장비를 수거하여 사무실에서 수리하시겠습니까?\n작업현황에 "수거·점검"으로 표시됩니다.')) return;
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
+  try{
+    await api('PUT',`/receptions/${id}/collect`,{work_description:'장비 수거'});
+    S.processing=null; await loadReceptions(); alert('장비수거 처리되었습니다.\n수리 완료 후 [처리 완료]를 눌러주세요.');
+  }catch(e){ alert('장비수거 처리 실패: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
+}
 async function openHistory(custId){
   let hist=[]; try{ hist=await api('GET',`/customers/${custId}/receptions`); }catch(e){}
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🕘 거래처 이력 (${hist.length})</h3>
-      ${hist.length?hist.map(r=>`<div style="padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px"><span class="badge ${r.status}">${({new:'미처리',assigned:'배정',in_progress:'진행중',completed:'완료'})[r.status]||r.status}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join(''):'<div class="empty">이력 없음</div>'}
+      ${hist.length?hist.map(r=>`<div style="padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px"><span class="badge ${r.status}">${({new:'미처리',assigned:'배정',in_progress:'진행중',repairing:'수거·점검',completed:'완료'})[r.status]||r.status}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join(''):'<div class="empty">이력 없음</div>'}
       <button class="btn btn-ghost" onclick="closeSheet()">닫기</button></div></div>`);
 }
 
@@ -1405,12 +1422,39 @@ function launchRouteNav(){
   if(first.customer_address) navKakao(first.customer_address);
 }
 
+// ── 알림 소리 (업무지시 도착) ──
+function playEngNotification(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const now=ctx.currentTime;
+    [[800,.15],[1000,.15],[800,.2]].forEach(([freq,dur],i)=>{
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type='square'; osc.frequency.value=freq;
+      gain.gain.setValueAtTime(0.3,now+i*0.2);
+      gain.gain.exponentialRampToValueAtTime(0.01,now+i*0.2+dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(now+i*0.2); osc.stop(now+i*0.2+dur+0.05);
+    });
+    setTimeout(()=>ctx.close(),2000);
+  }catch(e){}
+  showAssignmentBanner();
+}
+function showAssignmentBanner(){
+  if(document.getElementById('eng-noti-banner')) return;
+  const div=document.createElement('div'); div.id='eng-noti-banner';
+  div.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:#1971c2;color:#fff;padding:14px 16px;text-align:center;font-weight:700;font-size:15px;box-shadow:0 2px 12px rgba(0,0,0,.3);cursor:pointer;animation:slideDown .3s ease';
+  div.textContent='📋 새 업무지시가 도착했습니다!';
+  div.onclick=()=>{ div.remove(); S.tab=S.engineer&&S.engineer.is_admin?'all':'list'; render(); };
+  document.body.appendChild(div);
+  setTimeout(()=>{ if(div.parentNode) div.remove(); },8000);
+}
+
 // ── SSE ──
 function connectSSE(){
   if(!S.engineer)return;
   try{
     const es=new EventSource(`${API}/engineer-stream/${S.engineer.id}?token=${encodeURIComponent(localStorage.getItem('authToken')||'')}`);
-    es.addEventListener('new_assignment',()=>{ loadReceptions(); if(navigator.vibrate)navigator.vibrate(400); });
+    es.addEventListener('new_assignment',()=>{ loadReceptions(); playEngNotification(); if(navigator.vibrate)navigator.vibrate(400); });
     // PC·다른 대표의 접수 생성/배정/상태/삭제 → 목록 실시간 동기화 (편집 중이면 화면 유지)
     es.addEventListener('reception_new',()=>{ loadReceptions(); });
     es.addEventListener('reception_update',()=>{ loadReceptions(); });
