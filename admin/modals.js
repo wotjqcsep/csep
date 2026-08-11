@@ -187,7 +187,7 @@ function collectPrinters(){ return [...document.querySelectorAll('#printer_rows 
 
 // ── 고객 추가/수정 ──
 function openCustomerModal(id, prefill){
-  const c = id? state.customers.find(x=>x.id==id) : (prefill||{});
+  const c = id? (state.customers.find(x=>x.id==id) || {}) : (prefill||{});
   const isEdit = !!id;
   const body = `
     <div class="form-group"><label>고객 구분 *</label><select id="c_type" onchange="toggleBiz()">
@@ -231,7 +231,8 @@ function openComputerModal(id, customerId){
   const cname = cust.company_name || cust.name || cust.phone || ('고객'+cid);
   const mb = mbParse(c.motherboard);
   // 파워/모니터 기존값 분해 (선택식 프리필용)
-  const pwType = POWER_TYPES.slice().sort((a,b)=>b.length-a.length).find(t=>(c.power||'').includes(t)) || '';
+  const allPwTypes = [...POWER_TYPES, ...((state.partOptions||[]).filter(o=>o.kind==='pwtype').map(o=>o.value))];
+  const pwType = allPwTypes.slice().sort((a,b)=>b.length-a.length).find(t=>(c.power||'').includes(t)) || '';
   const pwWatt = (c.power||'').replace(pwType,'').trim();
   const mon = monParse(c.monitor);
   const body = `
@@ -467,7 +468,7 @@ function openEngineerModal(id){
     <div class="form-row">${field('e_name','이름 *',e.name||'')}${field('e_phone','전화번호',e.phone||'')}</div>
     <div class="form-group"><label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" id="e_admin" ${e.is_admin?'checked':''}> 대표 권한 (기사앱 대표 모드 · 전체 배차/전화감지)</label></div>
     <div class="form-group"><label>기사앱 로그인 비밀번호 ${isEdit?'<span style="font-weight:400;color:var(--gray-400)">(변경할 때만 입력)</span>':''}</label>
-      <input id="e_pw" type="text" autocomplete="off" placeholder="${isEdit?(e.has_password?'●●● 설정됨 — 바꾸려면 새 비번 입력':'미설정 — 입력하면 비번 설정'):'비워두면 비번 없이 로그인'}" style="padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px;width:100%"></div>
+      <input id="e_pw" type="password" autocomplete="off" placeholder="${isEdit?(e.has_password?'●●● 설정됨 — 바꾸려면 새 비번 입력':'미설정 — 입력하면 비번 설정'):'비워두면 비번 없이 로그인'}" style="padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px;width:100%"></div>
     ${isEdit&&e.has_password?`<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;margin-bottom:8px"><input type="checkbox" id="e_clearpw"> 비밀번호 제거 (비번 없이 로그인)</label>`:''}
     ${isEdit&&e.locked?`<div style="margin-bottom:10px;padding:9px 12px;background:#fff0f0;border-radius:8px;color:var(--danger);font-weight:600">🔒 계정 잠김 (비번 3회 오류) — <button class="btn btn-sm btn-success" onclick="unlockEngineer(${e.id});closeModal()">잠금 해제</button></div>`:''}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveEngineer(${id||'null'})">저장</button></div>`;
@@ -725,9 +726,15 @@ function showCompletionNotification(rec){
   if(regBtn && isNew) regBtn.onclick = ()=>{ removeCard(); openCustomerModal(rec.customer_id); };
 }
 
+let _knownCompleted = new Set();
+let _completionReady = false;
+function initCompletionTracking(){
+  (state.receptions||[]).forEach(r=>{ if(r.status==='completed') _knownCompleted.add(r.id); });
+  _completionReady = true;
+}
 function connectSSE(){
   try{
-    const es = new EventSource(API+'/admin-stream');
+    const es = new EventSource(API+'/admin-stream?token='+(localStorage.getItem('authToken')||''));
     const reloadEvents = ['reception_new','reception_deleted','job_update','engineer_update'];
     reloadEvents.forEach(ev=>es.addEventListener(ev, ()=>loadAll()));
 
@@ -735,7 +742,8 @@ function connectSSE(){
     es.addEventListener('reception_update', e=>{
       try{
         const rec = JSON.parse(e.data);
-        if(rec.status === 'completed'){
+        if(rec.status === 'completed' && _completionReady && !_knownCompleted.has(rec.id)){
+          _knownCompleted.add(rec.id);
           playNotificationSound();
           showCompletionNotification(rec);
         }
@@ -749,18 +757,21 @@ function connectSSE(){
       if(adminChatOpen==d.reception_id){ openAdminChat(d.reception_id); }
       else { adminChatUnread[d.reception_id]=(adminChatUnread[d.reception_id]||0)+1; if(!document.querySelector('.modal-overlay'))renderInto(); }
     });
-    es.onerror = ()=>{ es.close(); setTimeout(connectSSE, 5000); };
+    es.onerror = ()=>{ if(es.readyState === EventSource.CLOSED){ setTimeout(connectSSE, 3000); } };
   }catch(e){}
 }
 
 // ============================================================
 //  초기화
 // ============================================================
-renderNav();
-loadAll(true);
-setInterval(()=>loadAll(false), 30000);
-pollPopups();
-setInterval(pollPopups, 3000);
-pollChatUnread();
-setInterval(pollChatUnread, 5000);
-connectSSE();
+function startApp(){
+  renderNav();
+  loadAll(true);
+  setInterval(()=>loadAll(false), 30000);
+  pollPopups();
+  setInterval(pollPopups, 3000);
+  pollChatUnread();
+  setInterval(pollChatUnread, 5000);
+  connectSSE();
+}
+checkAuth();

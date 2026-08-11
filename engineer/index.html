@@ -9,7 +9,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=d51112f1641c58ced9ecc03bd942b08f&libraries=services&autoload=false"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 :root{--primary:#3b5bdb;--success:#2f9e44;--warning:#f08c00;--danger:#e03131;--bg:#f1f3f5;--gray-400:#adb5bd;--gray-500:#868e96;--gray-600:#495057}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -26,6 +25,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 .card.st-assigned{border-left-color:var(--warning)}
 .card.st-in_progress{border-left-color:var(--success)}
 .card.st-completed{border-left-color:var(--gray-400)}
+.card.st-cancelled{border-left-color:#868e96}
 .card.st-reserved{border-left-color:#f59f00}
 .card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #eceef1}
 .cust-name{font-size:17px;font-weight:700}
@@ -35,6 +35,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 .badge.assigned{background:#fff3bf;color:#e67700}
 .badge.in_progress{background:#d3f9d8;color:#2b8a3e}
 .badge.completed{background:#e9ecef;color:#868e96}
+.badge.cancelled{background:#f1f3f5;color:#868e96}
 .info-line{font-size:13px;color:var(--gray-600);margin:3px 0}
 .info-line a{color:var(--primary);text-decoration:none}
 .symptom{background:#fff9db;border:2px solid #f59f00;border-radius:8px;padding:12px 14px;margin:10px 0;font-size:16px;font-weight:600;color:#343a40;line-height:1.5}
@@ -98,13 +99,21 @@ function pickPay(inputId, val){
   const hid=document.getElementById(inputId); if(hid)hid.value=val;
   const box=document.getElementById(inputId+'_chips'); if(box){ [...box.children].forEach(ch=>{ const on=ch.getAttribute('data-v')===val; ch.style.border='2px solid '+(on?'var(--primary)':'#dee2e6'); ch.style.background=on?'#eef3ff':'#fff'; ch.style.color=on?'var(--primary)':'#495057'; }); }
   if(inputId==='p_paymethod'&&typeof calcProcPay==='function') calcProcPay();
-  if(inputId==='w_paymethod'&&typeof calcCompletePay==='function') calcCompletePay();
 }
 // 기사·대표 색 구분: 대표=빨강, 기사는 id별 고정 색
 const ENG_PALETTE=['#1971c2','#2f9e44','#e8590c','#6741d9','#0c8599','#c2255c','#5c940d','#1098ad'];
 function engColor(e){ if(!e) return '#868e96'; if(e.is_admin) return '#e03131'; return ENG_PALETTE[(Number(e.id)||0)%ENG_PALETTE.length]; }
 function engColorById(id){ return engColor((S.engineers||[]).find(x=>x.id==id)); }
-async function api(m,u,b){const o={method:m,headers:{'Content-Type':'application/json'}};if(b)o.body=JSON.stringify(b);const r=await fetch(API+u,o);if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.status);return r.json();}
+async function api(m,u,b){
+  const headers={'Content-Type':'application/json'};
+  const token=localStorage.getItem('authToken');
+  if(token) headers['Authorization']='Bearer '+token;
+  const o={method:m,headers};if(b)o.body=JSON.stringify(b);
+  const r=await fetch(API+u,o);
+  if(r.status===401){ localStorage.removeItem('authToken'); localStorage.removeItem('csep_eng'); location.reload(); throw new Error('인증 만료'); }
+  if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.status);
+  return r.json();
+}
 
 // ── 로그인 ──
 async function renderLogin(){
@@ -123,10 +132,11 @@ async function login(id,hasPassword,locked){
   try{
     const e=await api('POST','/engineer-login',{engineer_id:id,password});
     S.engineer=e; localStorage.setItem('csep_eng',JSON.stringify(e));
+    if(e.token) localStorage.setItem('authToken', e.token);
     connectSSE(); loadReceptions(true); setupPush(); setNativeRole(); pollIncoming();
   }catch(err){ alert(err.message); renderLogin(); }
 }
-function logout(){ localStorage.removeItem('csep_eng'); S.engineer=null; clearNativeRole(); renderLogin(); }
+function logout(){ localStorage.removeItem('csep_eng'); localStorage.removeItem('authToken'); S.engineer=null; clearNativeRole(); renderLogin(); }
 // 네이티브(APK) 전화감지 게이팅용 역할 저장 (대표만 감지)
 function setNativeRole(){
   try{ const P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Preferences;
@@ -217,7 +227,7 @@ function cardHtml(r){
     ${r.status==='new'&&isAdmin?`<button class="btn btn-primary" onclick="openAssign(${r.id})">기사 배정</button>`:''}
     ${r.status!=='new'&&(mine||isAdmin)?`<button class="btn btn-primary" onclick="openProcessing(${r.id})">${r.status==='completed'?'상세보기 →':'상세보기 / 처리하기 →'}</button>`:''}
     ${r.status!=='new'?`<button class="btn" style="background:#7048e8;color:#fff" onclick="openChat(${r.id})">💬 대화${S.chatUnread[r.id]?` (${S.chatUnread[r.id]})`:''}</button>`:''}
-    ${isAdmin&&r.status!=='completed'&&r.assigned_engineer_id?`<button class="btn btn-ghost" onclick="openAssign(${r.id})">🔁 기사 재배정</button>`:''}
+    ${isAdmin&&r.status!=='completed'&&r.status!=='cancelled'&&r.assigned_engineer_id?`<button class="btn btn-ghost" onclick="openAssign(${r.id})">🔁 기사 재배정</button>`:''}
   </div>`;
 }
 
@@ -249,8 +259,10 @@ async function submitChargedCancel(id){
   const amt=moneyVal('cc_amt'); if(!amt){ alert('청구 금액을 입력하세요'); return; }
   const pm=document.getElementById('cc_pm').value;
   const reason=(document.getElementById('cc_reason')||{}).value||'';
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
   try{ await api('PUT',`/receptions/${id}/payment`,{ visit_fee:amt, labor_fee:0, parts_fee:0, payment_method:pm, outcome:'charged_cancel', solution:'[비용청구 콜취소]'+(reason?' '+reason:''), complete:true }); }
   catch(e){ alert('처리 실패: '+(e&&e.message||e)); return; }
+  finally{ if(btn) btn.disabled=false; }
   const ov=document.getElementById('ov2'); if(ov)ov.remove();
   S.processing=null; await loadReceptions(); alert('비용청구 후 콜 취소되었습니다');
 }
@@ -304,7 +316,7 @@ async function openProcessing(id){
 function closeProcessing(){ S.processing=null; render(); }
 function renderProcessing(){
   const r=S.receptions.find(x=>x.id==S.processing); if(!r){ closeProcessing(); return; }
-  const done=r.status==='completed';
+  const done=r.status==='completed'||r.status==='cancelled';
   const addr=r.customer_address||'';
   document.getElementById('app').innerHTML=`
     <div class="topbar"><h1>🔧 작업 처리</h1><span class="who"><a onclick="closeProcessing()" style="color:#6b9cff;cursor:pointer">← 목록</a></span></div>
@@ -378,26 +390,36 @@ function renderProcDone(r){
 }
 function addProcPhoto(input){ const f=input.files&&input.files[0]; if(!f)return; compressImage(f,d=>{ S.procPhotos.push(d); renderProcPhotos(); }); input.value=''; }
 function renderProcPhotos(){ const el=document.getElementById('p_photos'); if(!el)return;
-  el.innerHTML=[...S.procExisting.map(p=>`<img src="${p.photo}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;opacity:.6">`),
+  el.innerHTML=[...S.procExisting.map(p=>`<img src="${esc(p.photo)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;opacity:.6">`),
     ...S.procPhotos.map((p,i)=>`<div style="position:relative"><img src="${p}" style="width:64px;height:64px;object-fit:cover;border-radius:8px"><span onclick="S.procPhotos.splice(${i},1);renderProcPhotos()" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border-radius:50%;width:18px;height:18px;text-align:center;line-height:18px;font-size:12px;cursor:pointer">×</span></div>`)].join('');
 }
 async function uploadProcPhotos(id){ for(const p of S.procPhotos){ try{ await api('POST',`/receptions/${id}/photos`,{photo:p}); }catch(e){} } S.procPhotos=[]; }
 async function submitProcessing(id){
   const g=x=>{const el=document.getElementById(x);return el?el.value:'';};
   const desc=g('p_desc').trim(); if(!desc){ alert('처리 내용을 입력하세요'); return; }
-  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:moneyVal('p_cparts'), cost_labor:moneyVal('p_clabor'), payment_method:g('p_paymethod'), tax_invoice:(g('p_paymethod')==='tax') });
-  await uploadProcPhotos(id);
-  S.processing=null; await loadReceptions(); alert('처리 완료');
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
+  try{
+    await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:moneyVal('p_cparts'), cost_labor:moneyVal('p_clabor'), payment_method:g('p_paymethod'), tax_invoice:(g('p_paymethod')==='tax') });
+    await uploadProcPhotos(id);
+    S.processing=null; await loadReceptions(); alert('처리 완료');
+  }catch(e){ alert('처리 실패: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
 }
 async function submitReserve(id){
   const g=x=>{const el=document.getElementById(x);return el?el.value:'';};
   const date=g('p_resdate'); if(!date){ alert('예약 날짜를 선택하세요'); return; }
-  await api('PUT',`/engineer/receptions/${id}/reserve`,{ reserved_date:date, work_description:g('p_desc'), parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req') });
-  await uploadProcPhotos(id);
-  S.processing=null; await loadReceptions(); alert('예약 처리 완료');
+  const hasCost = (moneyVal('p_cparts') > 0 || moneyVal('p_clabor') > 0);
+  if(hasCost && !confirm('입력한 비용 정보는 예약 시 저장되지 않습니다. 계속할까요?')) return;
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
+  try{
+    await api('PUT',`/engineer/receptions/${id}/reserve`,{ reserved_date:date, work_description:g('p_desc'), parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req') });
+    await uploadProcPhotos(id);
+    S.processing=null; await loadReceptions(); alert('예약 처리 완료');
+  }catch(e){ alert('예약 저장 실패: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
 }
 async function openHistory(custId){
-  let hist=[]; try{ hist=(await api('GET',`/receptions`)).filter(r=>r.customer_id==custId); }catch(e){}
+  let hist=[]; try{ hist=await api('GET',`/customers/${custId}/receptions`); }catch(e){}
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🕘 거래처 이력 (${hist.length})</h3>
       ${hist.length?hist.map(r=>`<div style="padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px"><span class="badge ${r.status}">${({new:'미처리',assigned:'배정',in_progress:'진행중',completed:'완료'})[r.status]||r.status}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join(''):'<div class="empty">이력 없음</div>'}
@@ -562,12 +584,16 @@ function scanBiosPhoto(input, merge){
   if(!f) return;
   const cur = merge ? collectDevScanForm() : null;   // 보강이면 현재 값 보존
   scanProgress(merge?'보강 사진을 분석하고 있습니다…':'사진을 분석하고 있습니다…');
-  compressImage(f,async d=>{
-    let r={};
-    try{ r=await api('POST','/computers/ai-scan',{image:d})||{}; }
-    catch(e){ alert('글자 인식 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); renderDevScanForm(cur||{}); return; }
-    renderDevScanForm(merge?mergeDevData(cur,r):r);
-  });
+  const reader=new FileReader();
+  reader.onload=e=>{
+    preprocessForOcr(e.target.result, async d=>{
+      let r={};
+      try{ r=await api('POST','/computers/ai-scan',{image:d})||{}; }
+      catch(e){ alert('글자 인식 실패: '+(e&&e.message?e.message:e)+'\n직접 입력해주세요.'); renderDevScanForm(cur||{}); return; }
+      renderDevScanForm(merge?mergeDevData(cur,r):r);
+    });
+  };
+  reader.readAsDataURL(f);
 }
 // 확인폼의 현재 입력값을 구조화 객체로 수집
 function collectDevScanForm(){
@@ -720,9 +746,13 @@ async function submitWoTab(){
   const symptom=document.getElementById('woT_symptom').value.trim(); if(!symptom){ alert('작업 내용을 입력하세요'); return; }
   const engId=document.getElementById('woT_eng').value; if(!engId){ alert('담당 기사를 선택하세요'); return; }
   const compEl=document.getElementById('woT_comp'); const cid=compEl&&compEl.value?Number(compEl.value):null;
-  const rec=await api('POST','/receptions',{customer_id:Number(woState.customerId),computer_id:cid,reception_channel:'direct',symptom});
-  await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${engId}`);
-  woState={customerId:'',customer:null,search:'',results:[],comps:[],symptom:'',searchSeq:(woState.searchSeq||0)}; alert('작업지시 완료'); S.tab='all'; await loadReceptions();
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
+  try{
+    const rec=await api('POST','/receptions',{customer_id:Number(woState.customerId),computer_id:cid,reception_channel:'direct',symptom});
+    await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${engId}`);
+    woState={customerId:'',customer:null,search:'',results:[],comps:[],symptom:'',searchSeq:(woState.searchSeq||0)}; alert('작업지시 완료'); S.tab='all'; await loadReceptions();
+  }catch(e){ alert('작업지시 전송 실패: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
 }
 
 // ── 일정 탭 (인라인 달력) — 수동일정 + 예약작업 + 완료이력 표시 ──
@@ -775,50 +805,14 @@ function renderScheduleInline(){
   ${S.engineer.is_admin?`<button class="btn btn-ghost" onclick="openLeaveAdmin()">🏖️ 휴가 신청 관리</button>`:`<button class="btn btn-ghost" onclick="openLeaveMy()">🏖️ 휴가 신청</button>`}`;
 }
 async function delScheduleInline(id){ await api('DELETE','/schedules/'+id); await loadSchedules(); renderScheduleInline(); }
-// 대표: 기사별 실적
-function openStats(){
-  const st=S.stats, es=st?st.engineer_stats:[];
-  document.body.insertAdjacentHTML('beforeend',`
-    <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
-      <div class="sheet"><h3>📊 기사별 실적</h3>
-        ${st?`<div style="display:flex;gap:8px;margin-bottom:14px">
-          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--gray-500)">총 매출</div><div style="font-size:18px;font-weight:700">${won(st.total_revenue)}</div></div>
-          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--gray-500)">완료 작업</div><div style="font-size:18px;font-weight:700">${st.completed_jobs}건</div></div>
-          <div style="flex:1;background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:12px;color:var(--gray-500)">미수금</div><div style="font-size:18px;font-weight:700;color:var(--danger)">${won(st.total_outstanding)}</div></div>
-        </div>`:''}
-        ${es.length?es.map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f3f5"><div><strong>${esc(e.name)}</strong><div style="font-size:12px;color:var(--gray-500)">완료 ${e.completed_jobs} / 전체 ${e.total_jobs}건</div></div><div style="font-weight:700;color:var(--primary)">${won(e.revenue)}</div></div>`).join(''):'<div class="empty">데이터 없음</div>'}
-        <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
-      </div></div>`);
-}
 
 // ── 대표: 일정 (달력) ──
 // 로컬(KST) 기준 YYYY-MM 문자열 — toISOString은 UTC라 8월↔7월 경계 오류 발생
 const ymStr=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
 let schedState={ ym:ymStr(new Date()), sel:null };
 async function loadSchedules(){ try{ S.schedules=await api('GET',`/schedules?month=${schedState.ym}`); }catch(e){ S.schedules=[]; } }
-async function openSchedule(){ schedState={ ym:ymStr(new Date()), sel:null }; await loadSchedules(); renderScheduleSheet(); }
-function reSched(){ if(document.getElementById('schedInline'))renderScheduleInline(); else renderScheduleSheet(); }
+function reSched(){ renderScheduleInline(); }
 async function shiftMonth(d){ const [y,m]=schedState.ym.split('-').map(Number); const nd=new Date(y,m-1+d,1); schedState.ym=ymStr(nd); schedState.sel=null; await loadSchedules(); reSched(); }
-function renderScheduleSheet(){
-  const [y,m]=schedState.ym.split('-').map(Number);
-  const startDow=new Date(y,m-1,1).getDay(); const days=new Date(y,m,0).getDate();
-  const byDate={}; (S.schedules||[]).forEach(s=>{ (byDate[s.date]=byDate[s.date]||[]).push(s); });
-  let cells=''; for(let i=0;i<startDow;i++) cells+='<div></div>';
-  for(let d=1;d<=days;d++){ const ds=`${schedState.ym}-${String(d).padStart(2,'0')}`; const cnt=(byDate[ds]||[]).length; const seld=schedState.sel===ds;
-    cells+=`<div onclick="schedState.sel='${ds}';renderScheduleSheet()" style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-size:13px;${seld?'background:var(--primary);color:#fff':cnt?'background:#e7f5ff':''}">${d}${cnt?`<span style="font-size:9px;${seld?'':'color:var(--primary)'}">●${cnt}</span>`:''}</div>`; }
-  const selList=schedState.sel?(byDate[schedState.sel]||[]):[];
-  const html=`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
-    <div class="sheet">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><button onclick="shiftMonth(-1)" style="border:none;background:none;font-size:18px;cursor:pointer">◀</button><h3 style="margin:0">📅 ${y}년 ${m}월</h3><button onclick="shiftMonth(1)" style="border:none;background:none;font-size:18px;cursor:pointer">▶</button></div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:11px;color:var(--gray-500);margin-bottom:4px">${['일','월','화','수','목','금','토'].map(d=>`<div>${d}</div>`).join('')}</div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">${cells}</div>
-      ${schedState.sel?`<div style="margin-top:12px"><div style="font-size:13px;font-weight:600;margin-bottom:6px">${schedState.sel} 일정</div>
-        ${selList.length?selList.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px"><span>${esc(s.title)}${s.engineer_id?` · ${esc(engName(s.engineer_id))}`:''}</span><button onclick="delSchedule(${s.id})" style="border:none;background:none;color:var(--danger);cursor:pointer;font-size:13px">삭제</button></div>`).join(''):'<div style="color:var(--gray-400);font-size:13px">일정 없음</div>'}
-        <button class="btn btn-primary" onclick="openAddSchedule()" style="margin-top:6px">+ 일정 추가</button></div>`:'<div style="margin-top:10px;color:var(--gray-400);font-size:13px;text-align:center">날짜를 선택하세요</div>'}
-      <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
-    </div></div>`;
-  const ex=document.getElementById('ov'); if(ex)ex.outerHTML=html; else document.body.insertAdjacentHTML('beforeend',html);
-}
 function openAddSchedule(){
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
     <div class="sheet"><h3>일정 추가 (${schedState.sel})</h3>
@@ -831,8 +825,12 @@ function openAddSchedule(){
 }
 async function submitSchedule(){
   const title=document.getElementById('sc_title').value.trim(); if(!title){alert('제목을 입력하세요');return;}
-  await api('POST','/schedules',{title,engineer_id:document.getElementById('sc_eng').value||null,date:schedState.sel,memo:document.getElementById('sc_memo').value});
-  document.getElementById('ov2').remove(); await loadSchedules(); reSched();
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
+  try{
+    await api('POST','/schedules',{title,engineer_id:document.getElementById('sc_eng').value||null,date:schedState.sel,memo:document.getElementById('sc_memo').value});
+    document.getElementById('ov2').remove(); await loadSchedules(); reSched();
+  }catch(e){ alert('일정 저장 실패: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
 }
 async function delSchedule(id){ await api('DELETE','/schedules/'+id); await loadSchedules(); reSched(); }
 
@@ -865,8 +863,12 @@ async function openLeaveMy(){
 async function submitLeave(){
   const s=document.getElementById('lv_start').value, e=document.getElementById('lv_end').value;
   if(!s||!e){ alert('날짜를 선택하세요'); return; }
-  await api('POST','/leave-requests',{engineer_id:S.engineer.id,start_date:s,end_date:e,reason:document.getElementById('lv_reason').value});
-  closeSheet(); alert('휴가 신청 완료');
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
+  try{
+    await api('POST','/leave-requests',{engineer_id:S.engineer.id,start_date:s,end_date:e,reason:document.getElementById('lv_reason').value});
+    closeSheet(); alert('휴가 신청 완료');
+  }catch(err){ alert('휴무 신청 실패: '+(err.message||err)); }
+  finally{ if(btn) btn.disabled=false; }
 }
 
 // ── 대표: 기사 배정 (현장) ──
@@ -890,97 +892,16 @@ function openAssign(id){
 async function doAssign(id){
   const eng=document.getElementById('a_eng').value;
   if(!eng){ alert('기사를 선택하세요'); return; }
-  await api('PUT',`/receptions/${id}/assign?engineer_id=${eng}`);
-  closeSheet(); loadReceptions();
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
+  try{
+    await api('PUT',`/receptions/${id}/assign?engineer_id=${eng}`);
+    closeSheet(); loadReceptions();
+  }catch(e){ alert('배정 실패: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
 }
 
 // ── 대표: 작업지시 생성 (고객·장비 DB에서 → 기사/본인 배정) ──
 let woState={ customerId:'', customer:null, search:'', results:[], comps:[], symptom:'', searchSeq:0 };
-function openWorkOrder(){ woState={ customerId:'', search:'' }; renderWorkOrderSheet(); }
-function renderWorkOrderSheet(){
-  const sel=S.customers.find(c=>c.id==woState.customerId);
-  const q=woState.search.toLowerCase();
-  const filtered=woState.customerId?[]:S.customers.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)).slice(0,8);
-  const comps=woState.customerId?S.computers.filter(c=>c.customer_id==woState.customerId):[];
-  const custBlock = sel
-    ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px"><span><strong>${esc(sel.name)||esc(sel.phone)}</strong>${sel.name?` <span style="color:var(--gray-500);font-size:13px">${esc(sel.phone)}</span>`:''}</span><button onclick="woState.customerId='';renderWorkOrderSheet()" style="border:none;background:none;font-size:18px;color:var(--gray-400);cursor:pointer">×</button></div>`
-    : `<input id="wo_search" placeholder="이름·전화번호 검색" value="${esc(woState.search)}" oninput="woState.search=this.value;renderWorkOrderSheet();var i=document.getElementById('wo_search');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}">
-       ${filtered.length?`<div style="border:1px solid #eee;border-radius:9px;margin-top:4px;max-height:170px;overflow-y:auto">${filtered.map(c=>`<div onmousedown="woState.customerId='${c.id}';woState.search='';renderWorkOrderSheet()" style="padding:10px 12px;border-bottom:1px solid #f1f3f5;cursor:pointer"><strong>${esc(c.name)||esc(c.phone)}</strong>${c.name?` <span style="color:var(--gray-400);font-size:12px">${esc(c.phone)}</span>`:''}${c.company_name?` · ${esc(c.company_name)}`:''}</div>`).join('')}</div>`:(woState.search?'<div style="color:var(--gray-400);padding:8px 4px">검색 결과 없음</div>':'')}`;
-  const html=`
-    <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
-      <div class="sheet">
-        <h3>작업지시 등록</h3>
-        <div class="fg"><label>고객 *</label>${custBlock}</div>
-        ${comps.length?`<div class="fg"><label>장비 (선택)</label><select id="wo_comp" style="width:100%;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px;font-size:15px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
-        <div class="fg"><label>작업 내용 / 증상 *</label><textarea id="wo_symptom" placeholder="작업 지시 내용을 입력하세요"></textarea></div>
-        <div class="fg"><label>담당 기사 *</label><select id="wo_eng" style="width:100%;padding:11px 13px;border:1px solid #dee2e6;border-radius:9px;font-size:15px"><option value="">선택하세요</option>${S.engineers.map(e=>`<option value="${e.id}" ${e.id==S.engineer.id?'selected':''} style="color:${engColor(e)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}${e.id==S.engineer.id?' — 나':''}</option>`).join('')}</select></div>
-        <button class="btn btn-primary" onclick="submitWorkOrder()">작업지시 + 배정</button>
-        <button class="btn btn-ghost" onclick="closeSheet()">취소</button>
-      </div>
-    </div>`;
-  const existing=document.getElementById('ov');
-  if(existing) existing.outerHTML=html; else document.body.insertAdjacentHTML('beforeend',html);
-}
-async function submitWorkOrder(){
-  if(!woState.customerId){ alert('고객을 선택하세요'); return; }
-  const symptom=document.getElementById('wo_symptom').value.trim();
-  if(!symptom){ alert('작업 내용을 입력하세요'); return; }
-  const engId=document.getElementById('wo_eng').value;
-  if(!engId){ alert('담당 기사를 선택하세요'); return; }
-  const compEl=document.getElementById('wo_comp');
-  const computerId=compEl&&compEl.value?Number(compEl.value):null;
-  const rec=await api('POST','/receptions',{ customer_id:Number(woState.customerId), computer_id:computerId, reception_channel:'direct', symptom });
-  await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${engId}`);
-  closeSheet(); loadReceptions();
-}
-
-// ── 작업 시작/완료 ──
-async function startWork(id){ await api('PUT',`/engineer/receptions/${id}/start`); loadReceptions(); }
-function openComplete(id){
-  const r=S.receptions.find(x=>x.id==id);
-  completePhotos=[];
-  document.body.insertAdjacentHTML('beforeend',`
-    <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
-      <div class="sheet">
-        <h3>작업 완료 - ${esc(r.customer_name)||'고객'}</h3>
-        <div class="fg"><label>작업 내용 *</label>
-          <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="w_desc" placeholder="처리한 작업을 입력하세요" style="flex:1"></textarea>${micBtn('w_desc')}</div>
-          ${S.presets.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.presets.map((p,i)=>`<span onclick="appendField('w_desc',S.presets[${i}].text)" style="padding:5px 10px;background:#e7f5ff;color:#1971c2;border-radius:14px;font-size:12px;cursor:pointer">${esc(p.text)}</span>`).join('')}</div>`:''}
-        </div>
-        <div class="fg"><label>사용 부품</label><div style="display:flex;gap:6px;align-items:center"><input id="w_parts" placeholder="예: SSD 500GB" style="flex:1">${micBtn('w_parts')}</div>
-          ${S.parts.length?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${S.parts.slice(0,12).map((p,i)=>`<span onclick="appendField('w_parts',S.parts[${i}].part_name)" style="padding:5px 10px;background:#f1f3f5;color:#495057;border-radius:14px;font-size:12px;cursor:pointer">${esc(p.part_name)}</span>`).join('')}</div>`:''}
-        </div>
-        ${(Number(r.estimate_amount)||Number(r.parts_fee))?`<div style="font-size:12px;color:#1971c2;margin-bottom:6px">📄 견적 납품 — 견적금액 ${won(Number(r.estimate_amount)||Number(r.parts_fee)||0)} (자동 입력됨, 현장에서 수정 가능)</div>`:''}
-        <input type="hidden" id="w_estamt" value="${Number(r.estimate_amount)||''}">
-        <div class="row2">
-          <div class="fg"><label>부품비</label><input id="w_cparts" type="text" inputmode="numeric" placeholder="0" value="${Number(r.parts_fee)?Number(r.parts_fee).toLocaleString('ko-KR'):''}" oninput="fmtMoney(this);calcCompletePay()"></div>
-          <div class="fg"><label>공임비</label><input id="w_clabor" type="text" inputmode="numeric" placeholder="0" value="${Number(r.labor_fee)?Number(r.labor_fee).toLocaleString('ko-KR'):''}" oninput="fmtMoney(this);calcCompletePay()"></div>
-        </div>
-        <div class="fg"><label>결제수단 *</label>${payChips('w_paymethod', (r.payment_method==='tax'||r.tax_invoice)?'tax':(r.payment_method||'cash'))}</div>
-        <div id="w_calc" style="background:#f1f3f5;border-radius:9px;padding:10px;font-size:13px;margin-bottom:10px"></div>
-        <div class="fg"><label>작업 사진 (수리 전/후)</label>
-          <input type="file" id="w_photo" accept="image/*" capture="environment" onchange="addCompletePhoto(this)" style="font-size:13px">
-          <div id="w_photos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
-        </div>
-        <button class="btn btn-success" onclick="submitComplete(${id})">완료 처리</button>
-        <button class="btn btn-ghost" onclick="closeSheet()">취소</button>
-      </div>
-    </div>`);
-  calcCompletePay();
-}
-function calcCompletePay(){
-  const parts=moneyVal('w_cparts'), labor=moneyVal('w_clabor');
-  const pm=(document.getElementById('w_paymethod')||{}).value, tax=(pm==='tax');
-  const rate=engFeeRateRec(pm,tax), pct=Math.round(rate*10000)/100, rev=parts+labor, woori=Math.round(rev*rate), mine=rev-woori;
-  const estAmt=Number(String((document.getElementById('w_estamt')||{}).value||'').replace(/[^\d]/g,''))||0;
-  const disc=(estAmt>0&&rev>0&&rev<estAmt)?(estAmt-rev):0;
-  const el=document.getElementById('w_calc'); if(!el) return;
-  el.innerHTML = `매출 <b>${won(rev)}</b>`
-    + (disc?` · <span style="color:#e8590c">현장할인 ${won(disc)}</span>`:'')
-    + (woori?` · <span style="color:#e67700">${engAgencyName()} ${pct}% ${won(woori)}</span>`:'')
-    + ` · <span style="color:#2f9e44">정산액 <b>${won(mine)}</b></span>`
-    + (woori?`<div style="font-size:11px;color:#868e96;margin-top:4px">${engAgencyName()} 경유 → 나중에 ${won(mine)} 현금 정산</div>`:'');
-}
 function calcProcPay(){
   const parts=moneyVal('p_cparts'), labor=moneyVal('p_clabor');
   const pm=(document.getElementById('p_paymethod')||{}).value, tax=(pm==='tax');
@@ -998,7 +919,6 @@ function closeSheet(){ const o=document.getElementById('ov'); if(o)o.remove(); }
 function appendField(id,text){ const el=document.getElementById(id); if(!el)return; el.value = el.value ? (el.value.replace(/\s*$/,'').replace(/,\s*$/,'')+', '+text) : text; }
 
 // ── 작업 사진 (촬영/압축/미리보기) ──
-let completePhotos=[];
 function compressImage(file,cb){
   const reader=new FileReader();
   reader.onload=e=>{ const img=new Image(); img.onload=()=>{
@@ -1010,16 +930,12 @@ function compressImage(file,cb){
   }; img.src=e.target.result; };
   reader.readAsDataURL(file);
 }
-function addCompletePhoto(input){ const f=input.files&&input.files[0]; if(!f)return; compressImage(f,d=>{ completePhotos.push(d); renderCompletePhotos(); }); input.value=''; }
-function renderCompletePhotos(){ const el=document.getElementById('w_photos'); if(!el)return;
-  el.innerHTML=completePhotos.map((p,i)=>`<div style="position:relative"><img src="${p}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6"><span onclick="completePhotos.splice(${i},1);renderCompletePhotos()" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border-radius:50%;width:18px;height:18px;text-align:center;line-height:18px;font-size:12px;cursor:pointer">×</span></div>`).join('');
-}
 async function openPhotos(id){
   let photos=[]; try{ photos=await api('GET',`/receptions/${id}/photos`); }catch(e){}
   document.body.insertAdjacentHTML('beforeend',`
     <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
       <div class="sheet"><h3>작업 사진 (${photos.length})</h3>
-        ${photos.length? photos.map(p=>`<img src="${p.photo}" style="width:100%;border-radius:10px;margin-bottom:8px">`).join('') : '<div class="empty">사진이 없습니다</div>'}
+        ${photos.length? photos.map(p=>`<img src="${esc(p.photo)}" style="width:100%;border-radius:10px;margin-bottom:8px">`).join('') : '<div class="empty">사진이 없습니다</div>'}
         <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
       </div>
     </div>`);
@@ -1038,7 +954,7 @@ function chatBubble(m){
   const mine=m.sender==='engineer';
   return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px">
     <div style="max-width:78%;padding:8px 12px;border-radius:12px;background:${mine?'var(--primary)':'#f1f3f5'};color:${mine?'#fff':'#343a40'};font-size:14px;word-break:break-word">
-      ${m.photo?`<img src="${m.photo}" style="max-width:100%;border-radius:8px;${m.text?'margin-bottom:4px':''}">`:''}
+      ${m.photo?`<img src="${esc(m.photo)}" style="max-width:100%;border-radius:8px;${m.text?'margin-bottom:4px':''}">`:''}
       ${m.text?esc(m.text):''}
     </div></div>`;
 }
@@ -1070,15 +986,6 @@ async function sendChatPhoto(id,input){
   compressImage(f,async d=>{ await api('POST',`/receptions/${id}/messages`,{sender:'engineer',photo:d}); const msgs=await api('GET',`/receptions/${id}/messages`); renderChat(id,msgs); });
   input.value='';
 }
-async function submitComplete(id){
-  const g=x=>document.getElementById(x).value;
-  const desc=g('w_desc'); if(!desc){ alert('작업 내용을 입력하세요'); return; }
-  await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('w_parts'), cost_parts:moneyVal('w_cparts'), cost_labor:moneyVal('w_clabor'), payment_method:g('w_paymethod'), tax_invoice:(g('w_paymethod')==='tax') });
-  for(const p of completePhotos){ try{ await api('POST',`/receptions/${id}/photos`,{photo:p}); }catch(e){} }
-  completePhotos=[];
-  closeSheet(); loadReceptions();
-}
-
 // ── FCM 웹푸시 ──
 const FCM_CONFIG={ apiKey:"AIzaSyDfaFRkI54m7T4gvhd9nDGNeahFQtaXJtk", authDomain:"csep-bce3c.firebaseapp.com", projectId:"csep-bce3c", storageBucket:"csep-bce3c.firebasestorage.app", messagingSenderId:"206099383232", appId:"1:206099383232:web:4fea5b4f9a51e7730efe25" };
 const FCM_VAPID="BH9eaAvjygGraocpu6koTSpGRGsejUR_hqbiCSyQzVXjfuQyoWw5Y1lu2edn8BSrPAY7v4EGyme6iQZTPBTJEgQ";
@@ -1226,11 +1133,15 @@ async function saveCustomerAdd(){
   const g=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
   const phone=g('ca_phone'); if(!phone){ alert('전화번호를 입력하세요'); return; }
   const memo=g('ca_memo');
-  const cust=await api('POST','/customers',{ name:g('ca_name'), phone, customer_type:g('ca_type'), address:g('ca_addr'), memo });
-  closeSheet();
-  // 등록 직후 바로 작업지시 진입 (증상엔 메모 자동 채움)
-  woState={customerId:String(cust.id),customer:cust,search:'',results:[],comps:[],symptom:memo||'',searchSeq:(woState.searchSeq||0)};
-  S.tab='wo'; render(); woLoadComps(cust.id);
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
+  try{
+    const cust=await api('POST','/customers',{ name:g('ca_name'), phone, customer_type:g('ca_type'), address:g('ca_addr'), memo });
+    closeSheet();
+    // 등록 직후 바로 작업지시 진입 (증상엔 메모 자동 채움)
+    woState={customerId:String(cust.id),customer:cust,search:'',results:[],comps:[],symptom:memo||'',searchSeq:(woState.searchSeq||0)};
+    S.tab='wo'; render(); woLoadComps(cust.id);
+  }catch(e){ alert('고객 저장 실패: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
 }
 
 // ── 배차 경로 최적화 ──
@@ -1498,7 +1409,7 @@ function launchRouteNav(){
 function connectSSE(){
   if(!S.engineer)return;
   try{
-    const es=new EventSource(`${API}/engineer-stream/${S.engineer.id}`);
+    const es=new EventSource(`${API}/engineer-stream/${S.engineer.id}?token=${encodeURIComponent(localStorage.getItem('authToken')||'')}`);
     es.addEventListener('new_assignment',()=>{ loadReceptions(); if(navigator.vibrate)navigator.vibrate(400); });
     // PC·다른 대표의 접수 생성/배정/상태/삭제 → 목록 실시간 동기화 (편집 중이면 화면 유지)
     es.addEventListener('reception_new',()=>{ loadReceptions(); });

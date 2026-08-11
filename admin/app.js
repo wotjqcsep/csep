@@ -276,14 +276,6 @@ async function savePayment(recId, complete){
   catch(e){ alert('저장 실패: '+(e&&e.message?e.message:e)); return; }
   closeModal(); await loadAll();
 }
-async function saveSolution(recId, complete){
-  const solution=v('rd_sol');
-  if(complete && !confirm('완료 처리하시겠습니까?')) return;
-  try{ await api('PUT',`/receptions/${recId}/solution`, { solution, complete: !!complete }); }
-  catch(e){ alert('저장 실패: '+(e&&e.message?e.message:e)); return; }
-  closeModal(); await loadAll();
-}
-
 // ============================================================
 //  거래처 (customers 재사용) + 현장(sites)
 // ============================================================
@@ -1121,33 +1113,6 @@ function estNew(dtype){
 }
 // 문서 종류 전환(견적서 내부 버튼) — 내용 유지, 양식만 변경
 function estSetDoc(dtype){ estSyncAll(); estState.doctype=dtype||'estimate'; render(); }
-// 📑 거래명세서·세금계산서 허브 — 저장된 모든 문서 검색·불러오기
-function renderDocs(){
-  return `<div class="page-header"><h2>📑 거래명세서·세금계산서 <span style="font-size:13px;color:var(--gray-500)">— 새 문서 작성 또는 저장된 문서 열기</span></h2>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn" onclick="estNew('estimate')">📄 견적서</button>
-      <button class="btn" onclick="estNew('statement')">📑 거래명세서</button>
-      <button class="btn" onclick="estNew('tax')">🧾 세금계산서</button>
-      <button class="btn" onclick="estNew('receipt')">🧾 간이영수증</button>
-    </div></div>
-    <div style="font-size:12px;color:var(--gray-500);margin:-6px 0 10px">※ 버튼을 누르면 빈 양식으로 바로 작성 화면이 열립니다. 품목·판매단가를 직접 입력하거나 컴퓨존에서 가져올 수 있습니다.</div>
-  <div class="vd-card">
-    <input id="docs_search" oninput="docsLoadList()" placeholder="고객명·연락처·문서번호로 검색" style="width:100%;padding:9px;border:1px solid var(--gray-300);border-radius:8px;margin-bottom:10px">
-    <div id="docs_list"><div class="loading">불러오는 중...</div></div>
-  </div>`;
-}
-async function docsLoadList(){
-  const box=document.getElementById('docs_list'); if(!box) return;
-  const q=(v('docs_search')||'').trim();
-  let list; try{ list=await api('GET','/estimates'+(q?('?q='+encodeURIComponent(q)):'')); }
-  catch(e){ box.innerHTML='<div style="color:#e03131">불러오기 실패: '+esc(e&&e.message?e.message:e)+'</div>'; return; }
-  if(!list.length){ box.innerHTML='<div class="empty-state">저장된 문서가 없습니다</div>'; return; }
-  box.innerHTML=`<div class="table-container"><table class="table"><thead><tr><th>문서번호</th><th>고객/거래처</th><th>연락처</th><th style="text-align:right">합계</th><th>일자</th><th></th></tr></thead><tbody>`
-    + list.map(e=>`<tr><td>${esc(e.no)||('#'+e.id)}</td><td><strong>${esc(e.customer_name)||'-'}</strong></td><td>${esc(e.phone)||'-'}</td><td style="text-align:right;font-weight:600">${won(e.total)}</td><td>${esc(e.est_date)||''}</td>
-      <td style="white-space:nowrap"><button class="btn btn-sm" onclick="estLoadOne(${e.id})">열기</button> <button class="btn btn-sm btn-danger" onclick="docsDelete(${e.id})">×</button></td></tr>`).join('')
-    + '</tbody></table></div>';
-}
-async function docsDelete(id){ if(!confirm('이 문서를 삭제할까요?'))return; try{ await api('DELETE','/estimates/'+id); }catch(e){ alert('삭제 실패'); return; } docsLoadList(); }
 // 거래처 카드 → 그 거래처의 저장된 문서
 async function openVendorDocs(customerId){
   const cust=state.customers.find(c=>c.id==customerId)||{};
@@ -1170,7 +1135,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer'); estState.phone=g('est_phone');
   estState.buyerBizno=g('est_buyer_bizno'); estState.buyerCeo=g('est_buyer_ceo'); estState.buyerAddr=g('est_buyer_addr'); estState.buyerType=g('est_buyer_type'); estState.buyerItem=g('est_buyer_item');
   estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=(g('est_bulk')==='')?0:(Number(g('est_bulk'))||0);
-  estState.pname=g('est_pname')||estState.pname||'full'; estState.pprice=g('est_pprice')||estState.pprice||'each';
+  estState.pname=g('est_pname')||estState.pname||'short'; estState.pprice=g('est_pprice')||estState.pprice||'total';
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
   estState.payMethod=g('est_paymethod')||estState.payMethod||'cash';
   { const e=document.getElementById('est_realcost'); if(e) estState.realCost=String(e.value||'').replace(/[^\d]/g,''); }

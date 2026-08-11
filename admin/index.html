@@ -63,6 +63,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 .badge.assigned{background:#fff3bf;color:#e67700}
 .badge.in_progress{background:#d3f9d8;color:#2b8a3e}
 .badge.completed{background:var(--gray-200);color:var(--gray-600)}
+.badge.cancelled{background:#f1f3f5;color:#868e96}
 .outstanding{color:var(--danger);font-weight:600}
 /* 분할 레이아웃 */
 .split{display:grid;grid-template-columns:1fr 380px;gap:16px}
@@ -123,6 +124,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 .ws-card.assigned{border-left-color:var(--danger)}
 .ws-card.in_progress{border-left-color:#1971c2}
 .ws-card.completed{border-left-color:var(--success)}
+.ws-card.cancelled{border-left-color:#868e96}
 .ws-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:11px}
 .ws-name{font-size:16px;font-weight:800;color:var(--gray-700)}
 .ws-pill{padding:4px 12px;border-radius:13px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}
@@ -174,6 +176,15 @@ select,input,textarea{font-family:inherit;font-size:14px}
     <nav class="tabbar" id="nav"></nav>
   </div>
   <main class="main">
+    <div id="loginScreen" style="display:none;position:fixed;inset:0;background:var(--gray-50);z-index:99999;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 4px 24px rgba(0,0,0,.1);width:340px;text-align:center">
+        <h2 style="margin-bottom:8px;font-size:20px">CSEP 관리자</h2>
+        <p style="color:var(--gray-500);font-size:13px;margin-bottom:24px">관리자 비밀번호를 입력하세요</p>
+        <input id="loginPw" type="password" placeholder="비밀번호" style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;margin-bottom:12px" onkeydown="if(event.key==='Enter')doAdminLogin()">
+        <button onclick="doAdminLogin()" style="width:100%;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">로그인</button>
+        <div id="loginError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></div>
+      </div>
+    </div>
     <div class="page" id="page"><div class="loading">불러오는 중...</div></div>
   </main>
 </div>
@@ -187,17 +198,38 @@ const state = { page:'dashboard', dashboard:null, customers:[], computers:[], en
 // MENUS, TITLES 는 menu.js 에서 정의됨 (메뉴 수정은 menu.js 한 곳에서)
 const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', other:'기타' };
 
+// ── 로그인 ──
+async function doAdminLogin(){
+  const pw = document.getElementById('loginPw').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display='none';
+  try{
+    const r = await fetch(API+'/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    if(!r.ok){ errEl.textContent='비밀번호가 올바르지 않습니다'; errEl.style.display='block'; return; }
+    const d = await r.json();
+    localStorage.setItem('authToken', d.token);
+    document.getElementById('loginScreen').style.display='none';
+    startApp();
+  }catch(e){ errEl.textContent='서버 연결 실패'; errEl.style.display='block'; }
+}
+function checkAuth(){
+  const token = localStorage.getItem('authToken');
+  if(!token){ document.getElementById('loginScreen').style.display='flex'; return; }
+  startApp();
+}
+
 // ── API 헬퍼 ──
 async function api(method, url, body){
-  const opt = { method, headers:{'Content-Type':'application/json'} };
+  const opt = { method, headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+(localStorage.getItem('authToken')||'')} };
   if(body) opt.body = JSON.stringify(body);
   const r = await fetch(API+url, opt);
+  if(r.status === 401){ localStorage.removeItem('authToken'); document.getElementById('loginScreen').style.display='flex'; throw new Error('인증 만료'); }
   if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || r.status);
   return r.json();
 }
 const digits = s => (s||'').replace(/\D/g,'');
 const won = n => '₩'+(Number(n)||0).toLocaleString();
-const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // ── 데이터 로딩 (백그라운드) ──
 let firstLoad = true;
@@ -230,7 +262,7 @@ async function _doLoadAll(showLoading){
   // 입력 중(검색창·폼 입력칸)엔 배경 새로고침이 화면을 다시 그리지 않게 (타이핑 유실 방지)
   const ae = document.activeElement;
   const typing = ae && ( (ae.classList && ae.classList.contains('vd-search')) || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA');
-  if(firstLoad){ firstLoad=false; render(); } else if(!document.querySelector('.modal-overlay') && !typing) render();
+  if(firstLoad){ firstLoad=false; render(); if(typeof initCompletionTracking==='function') initCompletionTracking(); } else if(!document.querySelector('.modal-overlay') && !typing) render();
   }finally{ _loadAllRunning = false; }
 }
 
@@ -252,7 +284,6 @@ function render(){
   const r = pageRenderer(state.page);   // menu.js: id → renderXxx 자동 매핑
   el.innerHTML = r ? r() : placeholderPage(state.page);
   if(state.page==='estimates' && typeof estRenderPreview==='function'){ estRenderPreview(); if(typeof estUpdateFee==='function') estUpdateFee(); }   // 견적서 미리보기·수수료 초기 렌더
-  if(state.page==='docs' && typeof docsLoadList==='function') docsLoadList();   // 문서 허브 목록 로드
 }
 // 렌더 함수가 아직 없는 메뉴 → "준비 중" 안내 (메뉴만)
 function placeholderPage(id){

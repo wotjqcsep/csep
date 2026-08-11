@@ -11,6 +11,22 @@ let webpush = null, admin = null;
 try { webpush = require('web-push'); } catch (e) {}
 try { admin = require('firebase-admin'); } catch (e) {}
 
+// ── 비밀번호 해시 (Node 내장 crypto, 외부 패키지 불필요) ──
+function hashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(pw, salt, 64).toString('hex');
+  return salt + ':' + hash;
+}
+function verifyPassword(pw, stored) {
+  if (!stored) return false;
+  if (!stored.includes(':')) return pw === stored; // plain-text legacy
+  const [salt, hash] = stored.split(':');
+  return crypto.scryptSync(pw, salt, 64).toString('hex') === hash;
+}
+
+// ── 로그인 세션 저장소 (메모리) ──
+const sessions = new Map();
+
 // timestamp를 Date 객체가 아닌 문자열로 반환 (필드서비스 방식)
 types.setTypeParser(1114, v => v);
 types.setTypeParser(1184, v => v);
@@ -62,8 +78,8 @@ const pool = new Pool({
 // ── 유틸 ──
 const digits = s => (s || '').replace(/\D/g, '');
 const wrap = fn => (req, res) => fn(req, res).catch(e => {
-  console.error(req.method, req.path, e.message);
-  res.status(500).json({ error: e.message });
+  console.error(req.method, req.path, e);
+  res.status(500).json({ error: '서버 오류가 발생했습니다' });
 });
 
 // ============================================================
@@ -86,7 +102,8 @@ function broadcastAdmin(event, data) {
 
 // 접속된 모든 기사(대표 포함)에게 실시간 이벤트 → 접수 목록 동기화
 function broadcastEngineers(event, data) {
-  const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  const minimal = { id: data.id || data.reception_id };
+  const msg = `event: ${event}\ndata: ${JSON.stringify(minimal)}\n\n`;
   engineerClients.forEach((res, id) => { try { res.write(msg); } catch (e) { engineerClients.delete(id); } });
 }
 
@@ -391,6 +408,61 @@ async function initDB() {
   `);
   console.log('DB 초기화 완료');
 }
+
+// ============================================================
+//  로그인 (인증 미들웨어보다 먼저 등록 — 보호 대상 제외)
+// ============================================================
+// 관리자(PC) 로그인 — 단일 비밀번호
+app.post('/api/admin-login', express.json(), (req, res) => {
+  const { password } = req.body;
+  const adminPw = process.env.ADMIN_PASSWORD || 'csep2026!';
+  if (password !== adminPw) return res.status(401).json({ error: '비밀번호가 올바르지 않습니다' });
+  const token = crypto.randomUUID();
+  sessions.set(token, { role: 'admin', expires: Date.now() + 24 * 60 * 60 * 1000 });
+  res.json({ token });
+});
+
+// 기사 로그인 (이름 선택 / 대표는 비번 확인)
+app.post('/api/engineer-login', wrap(async (req, res) => {
+  const { engineer_id, password } = req.body;
+  const { rows } = await pool.query('SELECT * FROM engineers WHERE id=$1', [engineer_id]);
+  const e = rows[0];
+  if (!e) return res.status(404).json({ error: '기사 없음' });
+  if (e.locked) return res.status(423).json({ error: '계정이 잠겼습니다. 관리자(CSEP)에게 문의하세요.', locked: true });
+  const hasPw = !!(e.password && String(e.password).length);
+  if (hasPw && !verifyPassword(password, e.password)) {
+    const cnt = (e.login_fail_count || 0) + 1;
+    const lock = cnt >= 3;
+    await pool.query('UPDATE engineers SET login_fail_count=$1, locked=$2 WHERE id=$3', [cnt, lock, e.id]);
+    if (lock) return res.status(423).json({ error: '비밀번호 3회 오류로 계정이 잠겼습니다. 관리자(CSEP)에게 문의하세요.', locked: true });
+    return res.status(401).json({ error: `비밀번호 오류 (남은 시도 ${3 - cnt}회)` });
+  }
+  if (hasPw && e.login_fail_count) await pool.query('UPDATE engineers SET login_fail_count=0 WHERE id=$1', [e.id]);
+  // 평문 비밀번호로 로그인 성공 시 해시로 자동 업그레이드
+  if (e.password && !e.password.includes(':')) {
+    pool.query('UPDATE engineers SET password=$2 WHERE id=$1', [e.id, hashPassword(password)]).catch(err => console.error(err));
+  }
+  const token = crypto.randomUUID();
+  sessions.set(token, { role: 'engineer', engineerId: e.id, expires: Date.now() + 24 * 60 * 60 * 1000 });
+  res.json({ id: e.id, name: e.name, is_admin: e.is_admin, token });
+}));
+
+// ============================================================
+//  인증 미들웨어 — 이후의 모든 /api 라우트(SSE 스트림 포함) 보호
+// ============================================================
+app.use('/api', (req, res, next) => {
+  // 로그인 엔드포인트는 인증 없이 허용
+  if (req.path === '/admin-login' || req.path === '/engineer-login' || (req.method === 'GET' && req.path === '/engineers')) return next();
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  const session = sessions.get(token);
+  if (!session || session.expires < Date.now()) {
+    if (token) sessions.delete(token);
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  session.expires = Date.now() + 24 * 60 * 60 * 1000; // 만료시간 갱신
+  req.user = session;
+  next();
+});
 
 // ============================================================
 //  SSE 엔드포인트
@@ -1023,6 +1095,7 @@ app.get('/api/engineers/:id', wrap(async (req, res) => {
 
 app.post('/api/engineers', wrap(async (req, res) => {
   const b = req.body;
+  if (b.password) b.password = hashPassword(b.password);
   const { rows } = await pool.query(
     `INSERT INTO engineers (name, phone, status, is_admin, password, total_jobs, total_revenue)
      VALUES ($1,$2,'idle',$3,$4,0,0) RETURNING *`,
@@ -1033,6 +1106,7 @@ app.post('/api/engineers', wrap(async (req, res) => {
 
 app.put('/api/engineers/:id', wrap(async (req, res) => {
   const b = req.body; const sets = [], vals = []; let i = 1;
+  if (b.password) b.password = hashPassword(b.password);
   if (b.name !== undefined)     { sets.push(`name=$${i++}`); vals.push(b.name); }
   if (b.phone !== undefined)    { sets.push(`phone=$${i++}`); vals.push(b.phone); }
   if (b.is_admin !== undefined) { sets.push(`is_admin=$${i++}`); vals.push(!!b.is_admin); }
@@ -1093,6 +1167,7 @@ app.put('/api/receptions/:id/assign', wrap(async (req, res) => {
     `UPDATE receptions SET assigned_engineer_id=$1, status='assigned', assigned_at=NOW() WHERE id=$2 RETURNING *`,
     [engineerId, req.params.id]
   );
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   // jobs 생성 (이미 있으면 기사만 갱신 — 재배정 시 중복 방지)
   const existJob = await pool.query('SELECT id FROM jobs WHERE reception_id=$1', [req.params.id]);
   if (existJob.rows[0]) await pool.query('UPDATE jobs SET engineer_id=$1 WHERE reception_id=$2', [engineerId, req.params.id]);
@@ -1109,6 +1184,7 @@ app.put('/api/receptions/:id/status', wrap(async (req, res) => {
   const status = req.query.status || req.body.status;
   const extra = status === 'completed' ? ', completed_at=NOW()' : '';
   const { rows } = await pool.query(`UPDATE receptions SET status=$1${extra} WHERE id=$2 RETURNING *`, [status, req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
@@ -1267,7 +1343,7 @@ app.post('/api/sales', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 app.put('/api/sales/:id/woori-settle', wrap(async (req, res) => {
-  const val = req.body.settled !== false;
+  const val = req.body.settled !== undefined ? !!req.body.settled : true;
   const { rows } = await pool.query('UPDATE sales SET woori_settled=$1 WHERE id=$2 RETURNING *', [val, req.params.id]);
   res.json(rows[0] || {});
 }));
@@ -1360,7 +1436,7 @@ app.get('/api/dashboard', wrap(async (req, res) => {
   const todayR = receptions.filter(r => (r.received_at || '').slice(0, 10) === today);
   res.json({
     today_new: todayR.filter(r => r.status === 'new').length,
-    assigned_pending: receptions.filter(r => r.status === 'assigned').length,
+    assigned_pending: receptions.filter(r => r.status === 'new' || r.status === 'assigned').length,
     in_progress: receptions.filter(r => r.status === 'in_progress').length,
     completed_today: todayR.filter(r => r.status === 'completed').length,
     total_outstanding: customers.reduce((s, c) => s + (c.outstanding_amount || 0), 0),
@@ -1746,24 +1822,7 @@ app.delete('/api/result-presets/:id', wrap(async (req, res) => {
 // ============================================================
 //  기사앱 전용 API
 // ============================================================
-// 기사 로그인 (이름 선택 / 대표는 비번 확인)
-app.post('/api/engineer-login', wrap(async (req, res) => {
-  const { engineer_id, password } = req.body;
-  const { rows } = await pool.query('SELECT * FROM engineers WHERE id=$1', [engineer_id]);
-  const e = rows[0];
-  if (!e) return res.status(404).json({ error: '기사 없음' });
-  if (e.locked) return res.status(423).json({ error: '계정이 잠겼습니다. 관리자(CSEP)에게 문의하세요.', locked: true });
-  const hasPw = !!(e.password && String(e.password).length);
-  if (hasPw && password !== e.password) {
-    const cnt = (e.login_fail_count || 0) + 1;
-    const lock = cnt >= 3;
-    await pool.query('UPDATE engineers SET login_fail_count=$1, locked=$2 WHERE id=$3', [cnt, lock, e.id]);
-    if (lock) return res.status(423).json({ error: '비밀번호 3회 오류로 계정이 잠겼습니다. 관리자(CSEP)에게 문의하세요.', locked: true });
-    return res.status(401).json({ error: `비밀번호 오류 (남은 시도 ${3 - cnt}회)` });
-  }
-  if (hasPw && e.login_fail_count) await pool.query('UPDATE engineers SET login_fail_count=0 WHERE id=$1', [e.id]);
-  res.json({ id: e.id, name: e.name, is_admin: e.is_admin });
-}));
+// (기사 로그인은 인증 미들웨어보다 먼저 등록되어야 하므로 파일 상단으로 이동함)
 
 // 기사의 배정 작업 (고객정보 조인). 대표(all=1)는 전체
 app.get('/api/engineer/:id/receptions', wrap(async (req, res) => {
@@ -1838,6 +1897,14 @@ app.put('/api/engineer/receptions/:id/reserve', wrap(async (req, res) => {
 //  SPA 폴백 + 서버 시작
 // ============================================================
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../admin/index.html')));
+
+// 만료된 로그인 세션 주기적 정리
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, session] of sessions) {
+    if (session.expires < now) sessions.delete(token);
+  }
+}, 60 * 60 * 1000);
 
 initDB()
   .then(() => { cleanupOldPhotos(); setInterval(cleanupOldPhotos, 24 * 60 * 60 * 1000); })
