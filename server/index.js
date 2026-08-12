@@ -86,13 +86,24 @@ const wrap = fn => (req, res) => fn(req, res).catch(e => {
 //  SSE (실시간)
 // ============================================================
 const adminClients = new Set();          // 관리자 SSE 연결
-const engineerClients = new Map();        // engineer_id → res
+const engineerClients = new Map();        // engineer_id → Set<res> (다중 연결 지원)
+
+function addEngineerClient(id, res) {
+  const key = String(id);
+  if (!engineerClients.has(key)) engineerClients.set(key, new Set());
+  engineerClients.get(key).add(res);
+}
+function removeEngineerClient(id, res) {
+  const key = String(id);
+  const s = engineerClients.get(key);
+  if (s) { s.delete(res); if (s.size === 0) engineerClients.delete(key); }
+}
 
 function notifyEngineer(engineerId, event, data) {
-  const res = engineerClients.get(String(engineerId));
-  if (!res) return;
-  try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
-  catch (e) { engineerClients.delete(String(engineerId)); }
+  const s = engineerClients.get(String(engineerId));
+  if (!s) return;
+  const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  s.forEach(res => { try { res.write(msg); } catch (e) { s.delete(res); } });
 }
 
 function broadcastAdmin(event, data) {
@@ -104,7 +115,9 @@ function broadcastAdmin(event, data) {
 function broadcastEngineers(event, data) {
   const minimal = { id: data.id || data.reception_id };
   const msg = `event: ${event}\ndata: ${JSON.stringify(minimal)}\n\n`;
-  engineerClients.forEach((res, id) => { try { res.write(msg); } catch (e) { engineerClients.delete(id); } });
+  engineerClients.forEach((clients, id) => {
+    clients.forEach(res => { try { res.write(msg); } catch (e) { clients.delete(res); } });
+  });
 }
 
 // 접수 변경을 PC·기사앱 모두에 동시 반영
@@ -493,9 +506,9 @@ app.get('/api/engineer-stream/:id', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders && res.flushHeaders();
   res.write(':connected\n\n');
-  engineerClients.set(String(req.params.id), res);
+  addEngineerClient(req.params.id, res);
   const hb = setInterval(() => { try { res.write(':hb\n\n'); } catch (e) {} }, 25000);
-  req.on('close', () => { clearInterval(hb); engineerClients.delete(String(req.params.id)); });
+  req.on('close', () => { clearInterval(hb); removeEngineerClient(req.params.id, res); });
 });
 
 // ============================================================
@@ -1182,10 +1195,11 @@ app.put('/api/receptions/:id/assign', wrap(async (req, res) => {
   if (existJob.rows[0]) await pool.query('UPDATE jobs SET engineer_id=$1 WHERE reception_id=$2', [engineerId, req.params.id]);
   else await pool.query('INSERT INTO jobs (reception_id, engineer_id, status) VALUES ($1,$2,$3)', [req.params.id, engineerId, 'assigned']);
   const cust = await pool.query('SELECT name FROM customers WHERE id=$1', [rows[0].customer_id]);
-  // 기사에게 알림
+  // 배정된 기사에게 FCM 푸시
   await sendPushToEngineer(engineerId, '새 작업 배정', `${cust.rows[0]?.name || '고객'} - ${rows[0].symptom || ''}`);
-  notifyEngineer(engineerId, 'new_assignment', rows[0]);
-  broadcastReception('reception_update', rows[0]);
+  // 모든 기사 앱에 new_assignment (소리+팝업), PC에도 동기화
+  broadcastEngineers('new_assignment', rows[0]);
+  broadcastAdmin('reception_update', rows[0]);
   res.json(rows[0]);
 }));
 

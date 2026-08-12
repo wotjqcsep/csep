@@ -1431,9 +1431,27 @@ function launchRouteNav(){
 }
 
 // ── 알림 소리 (업무지시 도착) ──
+let _audioCtx=null;
+function getAudioCtx(){
+  if(!_audioCtx||_audioCtx.state==='closed'){
+    _audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  }
+  if(_audioCtx.state==='suspended') _audioCtx.resume().catch(()=>{});
+  return _audioCtx;
+}
+// Android WebView 자동재생 제한 우회: 첫 터치에 AudioContext unlock
+document.addEventListener('touchstart',function _unlock(){
+  try{ getAudioCtx(); }catch(e){}
+  document.removeEventListener('touchstart',_unlock,true);
+},true);
+document.addEventListener('click',function _unlock2(){
+  try{ getAudioCtx(); }catch(e){}
+  document.removeEventListener('click',_unlock2,true);
+},true);
+
 function playEngNotification(){
   try{
-    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=getAudioCtx();
     const now=ctx.currentTime;
     [[800,.15],[1000,.15],[800,.2]].forEach(([freq,dur],i)=>{
       const osc=ctx.createOscillator(), gain=ctx.createGain();
@@ -1443,7 +1461,6 @@ function playEngNotification(){
       osc.connect(gain); gain.connect(ctx.destination);
       osc.start(now+i*0.2); osc.stop(now+i*0.2+dur+0.05);
     });
-    setTimeout(()=>ctx.close(),2000);
   }catch(e){}
   showAssignmentBanner();
 }
