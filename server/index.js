@@ -475,7 +475,7 @@ app.post('/api/engineer-login', wrap(async (req, res) => {
 // ============================================================
 app.use('/api', (req, res, next) => {
   // 로그인 엔드포인트는 인증 없이 허용
-  if (req.path === '/admin-login' || req.path === '/engineer-login' || req.path === '/admin-password-status' || (req.method === 'GET' && req.path === '/engineers') || req.path === '/_pushtest') return next();
+  if (req.path === '/admin-login' || req.path === '/engineer-login' || req.path === '/admin-password-status' || (req.method === 'GET' && req.path === '/engineers')) return next();
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   const session = sessions.get(token);
   if (!session || session.expires < Date.now()) {
@@ -1736,29 +1736,6 @@ app.post('/api/fcm-token', wrap(async (req, res) => {
     [engineer_id, fcm_token]
   );
   res.json({ ok: true });
-}));
-
-// [임시 진단] FCM 페이로드별 배달 테스트 — mode=data|noti|both
-app.get('/api/_pushtest', wrap(async (req, res) => {
-  const id = req.query.engineer_id;
-  const mode = req.query.mode || 'data';
-  const fcm = await pool.query('SELECT fcm_token FROM fcm_tokens WHERE engineer_id=$1', [id]);
-  if (!fcm.rows[0]) return res.json({ ok: false, reason: 'no_token', rows: fcm.rows.length });
-  const token = fcm.rows[0].fcm_token;
-  let msg;
-  if (mode === 'noti') {
-    msg = { token, notification: { title: 'CSEP-noti', body: 'notification 페이로드' }, android: { priority: 'high' } };
-  } else if (mode === 'both') {
-    msg = { token, data: { title: 'CSEP-both', body: 'both', type: 'engineer' }, notification: { title: 'CSEP-both', body: 'both' }, android: { priority: 'high' } };
-  } else {
-    msg = { token, data: { title: 'CSEP-data', body: 'data-only 고우선', type: 'engineer' }, android: { priority: 'high' } };
-  }
-  try {
-    await admin.messaging().send(msg);
-    res.json({ ok: true, mode, tokenTail: String(token).slice(-14) });
-  } catch (e) {
-    res.json({ ok: false, mode, error: e.code || e.message, tokenTail: String(token).slice(-14), tokenLen: token.length });
-  }
 }));
 
 app.post('/api/push-subscribe', wrap(async (req, res) => {

@@ -49,16 +49,5 @@ public class CallMonitorService extends Service {
     }
 
     @Override
-    public void onTaskRemoved(Intent rootIntent) {
-        Intent restart = new Intent(getApplicationContext(), CallMonitorService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getApplicationContext().startForegroundService(restart);
-        } else {
-            getApplicationContext().startService(restart);
-        }
-        super.onTaskRemoved(rootIntent);
-    }
-
-    @Override
     public IBinder onBind(Intent intent) { return null; }
 }
