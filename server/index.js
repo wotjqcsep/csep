@@ -151,14 +151,15 @@ async function sendPushToEngineer(engineer_id, title, body) {
   try {
     const fcm = await pool.query('SELECT fcm_token FROM fcm_tokens WHERE engineer_id=$1', [engineer_id]);
     if (fcm.rows[0] && admin && process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
-      // data-only → 앱의 MyFCMService가 커스텀 소리 재생 + 무음 알림 (필드서비스 동일)
-      await fcmSend(fcm.rows[0].fcm_token, {
+      const ok = await fcmSend(fcm.rows[0].fcm_token, {
         token: fcm.rows[0].fcm_token,
         data: { title: String(title), body: String(body), type: 'engineer' },
         android: { priority: 'high' },
       });
+      console.log(`[FCM] 기사${engineer_id} → ${ok?'성공':'실패'} | ${title}`);
       return;
     }
+    console.log(`[FCM] 기사${engineer_id} 토큰없음 (fcm_token=${fcm.rows.length}건, admin=${!!admin})`);
     if (webpush) {
       const subs = await pool.query('SELECT subscription FROM push_subscriptions WHERE engineer_id=$1', [engineer_id]);
       for (const r of subs.rows) {
