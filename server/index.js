@@ -1753,8 +1753,12 @@ app.get('/api/_pushtest', wrap(async (req, res) => {
   } else {
     msg = { token, data: { title: 'CSEP-data', body: 'data-only 고우선', type: 'engineer' }, android: { priority: 'high' } };
   }
-  const ok = await fcmSend(token, msg);
-  res.json({ ok, mode, tokenTail: String(token).slice(-14) });
+  try {
+    await admin.messaging().send(msg);
+    res.json({ ok: true, mode, tokenTail: String(token).slice(-14) });
+  } catch (e) {
+    res.json({ ok: false, mode, error: e.code || e.message, tokenTail: String(token).slice(-14), tokenLen: token.length });
+  }
 }));
 
 app.post('/api/push-subscribe', wrap(async (req, res) => {
