@@ -25,6 +25,7 @@ import java.util.Map;
 public class MyFCMService extends MessagingService {
 
     private static final String SILENT_CHANNEL_ID = "csep_silent";
+    private static final String ALERT_CHANNEL_ID = "csep_alert";
 
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
@@ -89,13 +90,25 @@ public class MyFCMService extends MessagingService {
     private void showNotification(String title, String body) {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm == null) return;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                && nm.getNotificationChannel(SILENT_CHANNEL_ID) == null) {
-            NotificationChannel ch = new NotificationChannel(
-                SILENT_CHANNEL_ID, "CSEP 알림", NotificationManager.IMPORTANCE_HIGH);
-            ch.setSound(null, null);
-            ch.enableVibration(true);
-            nm.createNotificationChannel(ch);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (nm.getNotificationChannel(SILENT_CHANNEL_ID) == null) {
+                NotificationChannel ch = new NotificationChannel(
+                    SILENT_CHANNEL_ID, "CSEP 알림", NotificationManager.IMPORTANCE_HIGH);
+                ch.setSound(null, null);
+                ch.enableVibration(true);
+                nm.createNotificationChannel(ch);
+            }
+            if (nm.getNotificationChannel(ALERT_CHANNEL_ID) == null) {
+                NotificationChannel alertCh = new NotificationChannel(
+                    ALERT_CHANNEL_ID, "CSEP 알림 (소리)", NotificationManager.IMPORTANCE_HIGH);
+                Uri soundUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.noti1);
+                alertCh.setSound(soundUri, new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build());
+                alertCh.enableVibration(true);
+                nm.createNotificationChannel(alertCh);
+            }
         }
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);

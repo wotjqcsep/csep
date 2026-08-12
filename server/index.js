@@ -154,7 +154,8 @@ async function sendPushToEngineer(engineer_id, title, body) {
       const ok = await fcmSend(fcm.rows[0].fcm_token, {
         token: fcm.rows[0].fcm_token,
         data: { title: String(title), body: String(body), type: 'engineer' },
-        android: { priority: 'high' },
+        notification: { title: String(title), body: String(body) },
+        android: { priority: 'high', notification: { channelId: 'csep_alert', sound: 'noti1', defaultVibrateTimings: true } },
       });
       console.log(`[FCM] 기사${engineer_id} → ${ok?'성공':'실패'} | ${title}`);
       return;
@@ -180,7 +181,8 @@ async function sendPushToBosses(title, body, type) {
       await fcmSend(r.fcm_token, {
         token: r.fcm_token,
         data: { title: String(title), body: String(body), type: type || 'incoming_call' },
-        android: { priority: 'high' },
+        notification: { title: String(title), body: String(body) },
+        android: { priority: 'high', notification: { channelId: 'csep_alert', sound: 'noti1', defaultVibrateTimings: true } },
       });
     }
   } catch (e) { console.log('sendPushToBosses 오류:', e.message); }
