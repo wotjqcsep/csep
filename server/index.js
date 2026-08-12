@@ -1738,6 +1738,25 @@ app.post('/api/fcm-token', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// [임시 진단] FCM 페이로드별 배달 테스트 — mode=data|noti|both
+app.get('/api/_pushtest', wrap(async (req, res) => {
+  const id = req.query.engineer_id;
+  const mode = req.query.mode || 'data';
+  const fcm = await pool.query('SELECT fcm_token FROM fcm_tokens WHERE engineer_id=$1', [id]);
+  if (!fcm.rows[0]) return res.json({ ok: false, reason: 'no_token', rows: fcm.rows.length });
+  const token = fcm.rows[0].fcm_token;
+  let msg;
+  if (mode === 'noti') {
+    msg = { token, notification: { title: 'CSEP-noti', body: 'notification 페이로드' }, android: { priority: 'high' } };
+  } else if (mode === 'both') {
+    msg = { token, data: { title: 'CSEP-both', body: 'both', type: 'engineer' }, notification: { title: 'CSEP-both', body: 'both' }, android: { priority: 'high' } };
+  } else {
+    msg = { token, data: { title: 'CSEP-data', body: 'data-only 고우선', type: 'engineer' }, android: { priority: 'high' } };
+  }
+  const ok = await fcmSend(token, msg);
+  res.json({ ok, mode, tokenTail: String(token).slice(-14) });
+}));
+
 app.post('/api/push-subscribe', wrap(async (req, res) => {
   const { engineer_id, subscription } = req.body;
   await pool.query('INSERT INTO push_subscriptions (engineer_id, subscription) VALUES ($1,$2)', [engineer_id, JSON.stringify(subscription)]);
