@@ -475,7 +475,7 @@ app.post('/api/engineer-login', wrap(async (req, res) => {
 // ============================================================
 app.use('/api', (req, res, next) => {
   // 로그인 엔드포인트는 인증 없이 허용
-  if (req.path === '/admin-login' || req.path === '/engineer-login' || req.path === '/admin-password-status' || (req.method === 'GET' && req.path === '/engineers')) return next();
+  if (req.path === '/admin-login' || req.path === '/engineer-login' || req.path === '/admin-password-status' || (req.method === 'GET' && req.path === '/engineers') || req.path === '/_pushtest') return next();
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   const session = sessions.get(token);
   if (!session || session.expires < Date.now()) {
