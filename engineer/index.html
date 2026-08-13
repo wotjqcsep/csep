@@ -156,9 +156,23 @@ function setNativeRole(){
 }
 function clearNativeRole(){ try{ const P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Preferences; if(P)P.set({key:'csep_role',value:'none'}); }catch(e){} }
 
+// ── toast (alert 대체 — 비차단) ──
+function engToast(msg,color){
+  const el=document.createElement('div');
+  el.style.cssText=`position:fixed;top:env(safe-area-inset-top,12px);left:50%;transform:translateX(-50%);background:${color||'#333'};color:#fff;padding:12px 20px;border-radius:10px;z-index:9999;font-size:14px;font-weight:600;max-width:90vw;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:etIn .25s ease-out`;
+  el.textContent=msg; el.onclick=()=>rm();
+  if(!document.getElementById('etS')){ const s=document.createElement('style');s.id='etS';s.textContent='@keyframes etIn{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}@keyframes etOut{from{opacity:1}to{opacity:0}}';document.head.appendChild(s); }
+  document.body.appendChild(el);
+  function rm(){ if(!el.parentElement)return; el.style.animation='etOut .2s forwards'; setTimeout(()=>el.remove(),200); }
+  setTimeout(rm,2500);
+}
+
 // ── 데이터 ──
+let _engLoadRunning=false;
 async function loadReceptions(showLoading){
   if(!S.engineer)return;
+  if(_engLoadRunning && !showLoading) return;
+  _engLoadRunning=true;
   try{
     const all = S.engineer.is_admin ? '?all=1' : '';   // 대표는 전체 조회 (미배정·전체 탭용)
     S.receptions = await api('GET',`/engineer/${S.engineer.id}/receptions${all}`);
@@ -173,6 +187,7 @@ async function loadReceptions(showLoading){
     }
     if(showLoading || !isEditing()) render();   // 편집 중(음성·작성)엔 화면 안 지움
   }catch(e){ if(showLoading)document.getElementById('app').innerHTML='<div class="empty">서버 연결 실패</div>'; }
+  finally{ _engLoadRunning=false; }
 }
 // 편집 중이면 배경 새로고침이 화면을 다시 그리지 않게
 function isEditing(){ return !!S.processing || S.tab==='wo' || !!document.getElementById('ov') || !!document.getElementById('ov2'); }
@@ -276,7 +291,7 @@ async function submitChargedCancel(id){
   catch(e){ alert('처리 실패: '+(e&&e.message||e)); return; }
   finally{ if(btn) btn.disabled=false; }
   const ov=document.getElementById('ov2'); if(ov)ov.remove();
-  S.processing=null; await loadReceptions(); alert('비용청구 후 콜 취소되었습니다');
+  S.processing=null; await loadReceptions(); engToast('비용청구 후 콜 취소되었습니다','#2b8a3e');
 }
 function navTmapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address){ markPickup(id); navTmap(r.customer_address); } else alert('주소가 없습니다'); }
 function navKakaoFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address){ markPickup(id); navKakao(r.customer_address); } else alert('주소가 없습니다'); }
@@ -417,8 +432,8 @@ async function submitProcessing(id){
   try{
     await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:moneyVal('p_cparts'), cost_labor:moneyVal('p_clabor'), payment_method:g('p_paymethod'), tax_invoice:(g('p_paymethod')==='tax') });
     await uploadProcPhotos(id);
-    S.processing=null; await loadReceptions(); alert('처리 완료');
-  }catch(e){ alert('처리 실패: '+(e.message||e)); }
+    S.processing=null; await loadReceptions(); engToast('처리 완료','#2b8a3e');
+  }catch(e){ engToast('처리 실패: '+(e.message||e),'#e03131'); }
   finally{ if(btn) btn.disabled=false; }
 }
 async function submitReserve(id){
@@ -430,8 +445,8 @@ async function submitReserve(id){
   try{
     await api('PUT',`/engineer/receptions/${id}/reserve`,{ reserved_date:date, work_description:g('p_desc'), parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req') });
     await uploadProcPhotos(id);
-    S.processing=null; await loadReceptions(); alert('예약 처리 완료');
-  }catch(e){ alert('예약 저장 실패: '+(e.message||e)); }
+    S.processing=null; await loadReceptions(); engToast('예약 처리 완료','#2b8a3e');
+  }catch(e){ engToast('예약 저장 실패: '+(e.message||e),'#e03131'); }
   finally{ if(btn) btn.disabled=false; }
 }
 async function submitCollect(id){
@@ -439,15 +454,24 @@ async function submitCollect(id){
   const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
   try{
     await api('PUT',`/receptions/${id}/collect`,{work_description:'장비 수거'});
-    S.processing=null; await loadReceptions(); alert('장비수거 처리되었습니다.\n수리 완료 후 [처리 완료]를 눌러주세요.');
-  }catch(e){ alert('장비수거 처리 실패: '+(e.message||e)); }
+    S.processing=null; await loadReceptions(); engToast('장비수거 처리 완료. 수리 후 [처리 완료]를 눌러주세요.','#1971c2');
+  }catch(e){ engToast('장비수거 처리 실패: '+(e.message||e),'#e03131'); }
   finally{ if(btn) btn.disabled=false; }
 }
+let _ehHist=[];
+function ehFilterHtml(filter){
+  const rows=filter? _ehHist.filter(r=>(r.work_type||'')==filter) : _ehHist;
+  if(!rows.length) return '<div class="empty">해당 분류의 이력이 없습니다</div>';
+  const SL={new:'미처리',assigned:'배정',in_progress:'진행중',repairing:'수거·점검',completed:'완료'};
+  return rows.map(r=>`<div style="padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px">${r.work_type?`<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;color:#fff;background:${WO_TYPE_COLOR[r.work_type]||'#868e96'};margin-right:4px">${esc(r.work_type)}</span>`:''}<span class="badge ${r.status}">${SL[r.status]||r.status}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join('');
+}
 async function openHistory(custId){
-  let hist=[]; try{ hist=await api('GET',`/customers/${custId}/receptions`); }catch(e){}
+  try{ _ehHist=await api('GET',`/customers/${custId}/receptions`); }catch(e){ _ehHist=[]; }
+  const types=[...new Set(_ehHist.map(r=>r.work_type).filter(Boolean))];
+  const tabs=types.length? `<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap"><button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;background:var(--gray-800);color:#fff;border-radius:14px" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='var(--gray-800)';this.style.color='#fff';document.getElementById('eh_body').innerHTML=ehFilterHtml('')">전체</button>${types.map(t=>`<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;background:var(--gray-100);color:var(--gray-700);border-radius:14px" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='${WO_TYPE_COLOR[t]||'var(--gray-600)'}';this.style.color='#fff';document.getElementById('eh_body').innerHTML=ehFilterHtml('${esc(t)}')">${esc(t)}</button>`).join('')}</div>` : '';
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
-    <div class="sheet"><h3>🕘 거래처 이력 (${hist.length})</h3>
-      ${hist.length?hist.map(r=>`<div style="padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px"><span class="badge ${r.status}">${({new:'미처리',assigned:'배정',in_progress:'진행중',repairing:'수거·점검',completed:'완료'})[r.status]||r.status}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join(''):'<div class="empty">이력 없음</div>'}
+    <div class="sheet"><h3>🕘 거래처 이력 (${_ehHist.length})</h3>
+      ${tabs}<div id="eh_body">${_ehHist.length?ehFilterHtml(''):'<div class="empty">이력 없음</div>'}</div>
       <button class="btn btn-ghost" onclick="closeSheet()">닫기</button></div></div>`);
 }
 
@@ -472,6 +496,7 @@ function renderWoTab(){
       </div>`).join('')}`:''}
     <div class="sec-label">📋 작업 지시</div>
     ${comps.length?`<div class="fg"><label>작업 대상 장비 (선택)</label><select id="woT_comp" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
+    <div class="fg"><label>작업 구분 (선택사항)</label><select id="woT_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="출장">출장</option><option value="설치">설치</option><option value="납품">납품</option><option value="견적서 납품">견적서 납품</option><option value="무상점검">무상점검</option></select></div>
     <div class="fg"><label>작업 내용 / 증상 *</label>
       <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="woT_symptom" placeholder="작업 지시 내용" style="flex:1" oninput="woState.symptom=this.value">${esc(woState.symptom||'')}</textarea>${micBtn('woT_symptom')}</div>
     </div>
@@ -747,7 +772,7 @@ async function saveDevScan(btn){
   catch(e){ alert('저장 실패: '+(e&&e.message?e.message:e)); if(btn){btn.disabled=false;btn.textContent='저장';} return; }
   // 목록 새로고침
   try{ custDevState.list=await api('GET','/customers/'+custDevState.custId+'/computers')||[]; }catch(e){}
-  alert('장치가 등록되었습니다.');
+  engToast('장치가 등록되었습니다.','#2b8a3e');
   renderCustDevList();
 }
 function renderCustDevDetail(idx){
@@ -773,10 +798,12 @@ async function submitWoTab(){
   const compEl=document.getElementById('woT_comp'); const cid=compEl&&compEl.value?Number(compEl.value):null;
   const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
   try{
-    const rec=await api('POST','/receptions',{customer_id:Number(woState.customerId),computer_id:cid,reception_channel:'direct',symptom});
+    const typeEl=document.getElementById('woT_type'); const wtype=typeEl?typeEl.value:'';
+    const wmemo=wtype?`[${wtype}]`:'';
+    const rec=await api('POST','/receptions',{customer_id:Number(woState.customerId),computer_id:cid,reception_channel:'direct',symptom,initial_memo:wmemo||null,work_type:wtype||null});
     await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${engId}`);
-    woState={customerId:'',customer:null,search:'',results:[],comps:[],symptom:'',searchSeq:(woState.searchSeq||0)}; alert('작업지시 완료'); S.tab='all'; await loadReceptions();
-  }catch(e){ alert('작업지시 전송 실패: '+(e.message||e)); }
+    woState={customerId:'',customer:null,search:'',results:[],comps:[],symptom:'',searchSeq:(woState.searchSeq||0)}; engToast('작업지시 완료','#2b8a3e'); S.tab='all'; await loadReceptions();
+  }catch(e){ engToast('작업지시 전송 실패: '+(e.message||e),'#e03131'); }
   finally{ if(btn) btn.disabled=false; }
 }
 
@@ -1475,15 +1502,20 @@ function showAssignmentBanner(){
 }
 
 // ── SSE ──
+let _sseDebounce=null;
+function sseLoadReceptions(){ clearTimeout(_sseDebounce); _sseDebounce=setTimeout(()=>loadReceptions(),300); }
+let _currentES=null;
 function connectSSE(){
   if(!S.engineer)return;
+  if(_currentES){ try{_currentES.close();}catch(e){} _currentES=null; }
   try{
     const es=new EventSource(`${API}/engineer-stream/${S.engineer.id}?token=${encodeURIComponent(localStorage.getItem('authToken')||'')}`);
-    es.addEventListener('new_assignment',()=>{ loadReceptions(); playEngNotification(); if(navigator.vibrate)navigator.vibrate(400); });
+    _currentES=es;
+    es.addEventListener('new_assignment',()=>{ sseLoadReceptions(); playEngNotification(); if(navigator.vibrate)navigator.vibrate(400); });
     // PC·다른 대표의 접수 생성/배정/상태/삭제 → 목록 실시간 동기화 (편집 중이면 화면 유지)
-    es.addEventListener('reception_new',()=>{ loadReceptions(); });
-    es.addEventListener('reception_update',()=>{ loadReceptions(); });
-    es.addEventListener('reception_deleted',()=>{ loadReceptions(); });
+    es.addEventListener('reception_new',()=>{ sseLoadReceptions(); });
+    es.addEventListener('reception_update',()=>{ sseLoadReceptions(); });
+    es.addEventListener('reception_deleted',()=>{ sseLoadReceptions(); });
     es.addEventListener('new_message',e=>{ let d={}; try{d=JSON.parse(e.data);}catch(x){}
       if(S.chatOpen==d.reception_id){ openChat(d.reception_id); }
       else { S.chatUnread[d.reception_id]=(S.chatUnread[d.reception_id]||0)+1; if(!document.getElementById('ov'))render(); if(navigator.vibrate)navigator.vibrate(200); }

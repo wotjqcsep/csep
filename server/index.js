@@ -405,6 +405,7 @@ async function initDB() {
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS outcome TEXT;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS estimate_id INTEGER;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS work_type TEXT;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered BOOLEAN DEFAULT FALSE;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS field_discount DOUBLE PRECISION DEFAULT 0;
@@ -421,6 +422,8 @@ async function initDB() {
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS router_hub_count TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS bios_version TEXT;
   `);
+  // 기존 initial_memo에서 work_type 역파싱 backfill
+  await pool.query(`UPDATE receptions SET work_type = substring(initial_memo from '^\\[([^\\]]+)\\]') WHERE work_type IS NULL AND initial_memo ~ '^\\[[^\\]]+\\]'`);
   console.log('DB 초기화 완료');
 }
 
@@ -1176,9 +1179,9 @@ app.get('/api/receptions/:id', wrap(async (req, res) => {
 app.post('/api/receptions', wrap(async (req, res) => {
   const b = req.body;
   const { rows } = await pool.query(
-    `INSERT INTO receptions (customer_id, computer_id, reception_channel, reception_phone, symptom, initial_memo, status, received_at)
-     VALUES ($1,$2,$3,$4,$5,$6,'new',NOW()) RETURNING *`,
-    [b.customer_id, b.computer_id || null, b.reception_channel, b.reception_phone, b.symptom, b.initial_memo]
+    `INSERT INTO receptions (customer_id, computer_id, reception_channel, reception_phone, symptom, initial_memo, work_type, status, received_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'new',NOW()) RETURNING *`,
+    [b.customer_id, b.computer_id || null, b.reception_channel, b.reception_phone, b.symptom, b.initial_memo, b.work_type || null]
   );
   broadcastReception('reception_new', rows[0]);
   res.json(rows[0]);

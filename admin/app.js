@@ -366,14 +366,21 @@ async function saveSite(customerId, siteId){
 }
 async function deleteSite(id){ if(!confirm('이 현장을 삭제하시겠습니까?'))return; await api('DELETE','/sites/'+id); await loadAll(); }
 async function deleteVendor(id){ if(!confirm('이 거래처를 삭제하시겠습니까? (현장도 함께 삭제됩니다)'))return; await api('DELETE','/customers/'+id); await loadAll(); }
+let _vhRows=[];
+function vhFilteredHtml(filter){
+  const rows=filter? _vhRows.filter(r=>(r.work_type||'')==filter) : _vhRows;
+  if(!rows.length) return '<div class="empty-state" style="padding:18px">해당 분류의 이력이 없습니다</div>';
+  return `<div class="table-container"><table class="table"><thead><tr><th style="width:90px">일시</th><th style="width:70px">구분</th><th>증상</th><th style="width:60px">상태</th><th style="white-space:nowrap;width:80px">담당</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td style="font-size:12px;white-space:nowrap">${fmtRecTime(r.received_at)}</td><td>${woTypeBadge(r.work_type?'['+r.work_type+']':'')}</td><td>${esc(r.symptom)||'-'}</td><td>${statusLabel(r.status)}</td><td style="white-space:nowrap">${r.assigned_engineer_id?engBadge(r.assigned_engineer_id):'-'}</td></tr>`).join('')}
+    </tbody></table></div>`;
+}
 async function openVendorHistory(customerId){
   const cust=state.customers.find(x=>x.id==customerId)||{};
   modal(`📋 이력 - ${esc(vdName(cust))}`, '<div class="loading">불러오는 중...</div>', true);
-  let rows=[];
-  try{ rows=await api('GET','/customers/'+customerId+'/receptions'); }catch(e){}
-  const body=`${rows.length? `<div class="table-container"><table class="table"><thead><tr><th>일시</th><th>증상</th><th>상태</th><th>담당</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td style="font-size:12px">${fmtRecTime(r.received_at)}</td><td>${esc(r.symptom)||'-'}</td><td>${statusLabel(r.status)}</td><td>${r.assigned_engineer_id?engBadge(r.assigned_engineer_id):'-'}</td></tr>`).join('')}
-    </tbody></table></div>` : '<div class="empty-state">이력이 없습니다</div>'}
+  try{ _vhRows=await api('GET','/customers/'+customerId+'/receptions'); }catch(e){ _vhRows=[]; }
+  const types=[...new Set(_vhRows.map(r=>r.work_type).filter(Boolean))];
+  const tabs=types.length? `<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap"><button class="btn btn-sm" style="background:var(--gray-800);color:#fff" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='var(--gray-800)';this.style.color='#fff';document.getElementById('vh_body').innerHTML=vhFilteredHtml('')">전체</button>${types.map(t=>`<button class="btn btn-sm" style="background:var(--gray-100);color:var(--gray-700)" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='${WO_TYPE_COLOR[t]||'var(--gray-600)'}';this.style.color='#fff';document.getElementById('vh_body').innerHTML=vhFilteredHtml('${esc(t)}')">${esc(t)}</button>`).join('')}</div>` : '';
+  const body=`${tabs}<div id="vh_body">${_vhRows.length? vhFilteredHtml('') : '<div class="empty-state">이력이 없습니다</div>'}</div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">닫기</button></div>`;
   modal(`📋 이력 - ${esc(vdName(cust))}`, body, true);
 }
@@ -449,7 +456,7 @@ async function openWorkorderModal(customerId, siteId){
   const body=`
     <div style="color:var(--warning);font-weight:700;margin-bottom:8px">📁 수리/점검 이력 (${hist.length}건)</div>
     ${hist.length
-      ? `<div style="max-height:150px;overflow-y:auto;margin-bottom:14px;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px">${hist.map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--gray-100)"><span class="badge ${r.status}" style="font-size:10px">${statusLabel(r.status)}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join('')}</div>`
+      ? `<div style="max-height:150px;overflow-y:auto;margin-bottom:14px;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px">${hist.map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--gray-100)">${woTypeBadge(r.work_type?'['+r.work_type+']':r.initial_memo)} <span class="badge ${r.status}" style="font-size:10px">${statusLabel(r.status)}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join('')}</div>`
       : '<div style="text-align:center;color:var(--gray-400);padding:14px 0;margin-bottom:8px">이전 이력이 없습니다</div>'}
     <div style="color:#7048e8;font-weight:700;margin:6px 0 10px">➕ 작업지시 작성</div>
     <div class="form-group"><label>장비 선택 (선택사항)</label><select id="wo_comp"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>
@@ -462,20 +469,20 @@ async function openWorkorderModal(customerId, siteId){
   modal(`📋 ${esc(title)}`, body, true);
 }
 async function submitWorkorder(customerId, siteId){
-  const eng=v('wo_eng'); if(!eng){ alert('담당 기사를 선택하세요'); return; }
+  const eng=v('wo_eng'); if(!eng){ showToast('담당 기사를 선택하세요','#e03131'); return; }
   const comp=v('wo_comp'); const type=v('wo_type');
   const site=siteId? state.sites.find(s=>s.id==siteId):null;
   const isDeliver=(type==='견적서 납품');
   // 견적서 납품: 저장된 견적을 불러와 금액·결제수단까지 지정
   let est=null;
-  if(isDeliver){ const estId=v('wo_est'); if(!estId){ alert('납품할 견적서를 선택하세요'); return; }
-    try{ est=await api('GET','/estimates/'+estId); }catch(e){ alert('견적 불러오기 실패'); return; } }
+  if(isDeliver){ const estId=v('wo_est'); if(!estId){ showToast('납품할 견적서를 선택하세요','#e03131'); return; }
+    try{ est=await api('GET','/estimates/'+estId); }catch(e){ showToast('견적 불러오기 실패','#e03131'); return; } }
   const symptom = isDeliver
     ? '[납품] '+(est.no||'견적')+' — '+((Array.isArray(est.items)?est.items:[]).slice(0,3).map(i=>i.name).join(', ')||'PC 납품')
     : v('wo_symptom');
-  if(!symptom){ alert('증상 또는 작업 내용을 입력하세요'); return; }
+  if(!symptom){ showToast('증상 또는 작업 내용을 입력하세요','#e03131'); return; }
   const memo=[type?`[${type}]`:'', site?`현장:${site.name}`:'', isDeliver?`합계 ${won(est.total)}`:''].filter(Boolean).join(' ');
-  const rec=await api('POST','/receptions',{ customer_id:customerId, computer_id:comp?Number(comp):null, reception_channel:isDeliver?'estimate':'direct', symptom, initial_memo:memo });
+  const rec=await api('POST','/receptions',{ customer_id:customerId, computer_id:comp?Number(comp):null, reception_channel:isDeliver?'estimate':'direct', symptom, initial_memo:memo, work_type:type||null });
   await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
   if(isDeliver){ const pm=(est.opts&&est.opts.payMethod)||'cash';
     await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(est.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(est.total)||0, estimate_id:est.id }); }
