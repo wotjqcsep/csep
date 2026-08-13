@@ -424,6 +424,8 @@ async function initDB() {
   `);
   // 기존 initial_memo에서 work_type 역파싱 backfill
   await pool.query(`UPDATE receptions SET work_type = substring(initial_memo from '^\\[([^\\]]+)\\]') WHERE work_type IS NULL AND initial_memo ~ '^\\[[^\\]]+\\]'`);
+  // 완료된 접수 중 payment_method가 null인 것을 'unpaid'로 통일 (결산 미수금 계산 정합성)
+  await pool.query(`UPDATE receptions SET payment_method = 'unpaid' WHERE status = 'completed' AND payment_method IS NULL`);
   console.log('DB 초기화 완료');
 }
 
@@ -1503,13 +1505,16 @@ app.get('/api/stats', wrap(async (req, res) => {
   const engineers = (await pool.query('SELECT * FROM engineers ORDER BY id')).rows;
   const inventory = (await pool.query('SELECT * FROM inventory')).rows;
   const completed = jobs.filter(j => j.status === 'completed');
-  const repairRev = completed.reduce((s, j) => s + (j.total_cost || 0), 0);
+  const completedRec = receptions.filter(r => r.status === 'completed');
+  const recRev = r => (Number(r.labor_fee)||0) + (Number(r.parts_fee)||0) + (Number(r.visit_fee)||0);
+  const repairRev = completedRec.reduce((s, r) => s + recRev(r), 0);
   const salesRev = sales.filter(s => s.paid).reduce((s, x) => s + (x.total_price || 0), 0);
+  const unpaidAmt = completedRec.filter(r => r.payment_method === 'unpaid').reduce((s, r) => s + recRev(r), 0);
   const channelCounts = {};
   receptions.forEach(r => { const c = r.reception_channel || 'unknown'; channelCounts[c] = (channelCounts[c] || 0) + 1; });
   const engineerStats = engineers.map(e => {
-    const ej = jobs.filter(j => j.engineer_id === e.id);
-    return { id: e.id, name: e.name, total_jobs: ej.length, completed_jobs: ej.filter(j => j.status === 'completed').length, revenue: ej.filter(j => j.status === 'completed').reduce((s, j) => s + (j.total_cost || 0), 0) };
+    const er = completedRec.filter(r => r.assigned_engineer_id === e.id);
+    return { id: e.id, name: e.name, total_jobs: er.length, completed_jobs: er.length, revenue: er.reduce((s, r) => s + recRev(r), 0) };
   });
   res.json({
     total_customers: customers.length,
@@ -1518,7 +1523,7 @@ app.get('/api/stats', wrap(async (req, res) => {
     repair_revenue: repairRev,
     sales_revenue: salesRev,
     total_revenue: repairRev + salesRev,
-    total_outstanding: customers.reduce((s, c) => s + (c.outstanding_amount || 0), 0),
+    total_outstanding: unpaidAmt,
     channel_counts: channelCounts,
     engineer_stats: engineerStats,
     inventory_low_stock: inventory.filter(i => i.quantity <= i.reorder_level),
@@ -1902,7 +1907,8 @@ app.put('/api/engineer/receptions/:id/start', wrap(async (req, res) => {
 app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
   const b = req.body;
   const total = (Number(b.cost_parts) || 0) + (Number(b.cost_labor) || 0);
-  const { rows } = await pool.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2, customer_request=$3, labor_fee=$4, parts_fee=$5, payment_method=$6, tax_invoice=$7, reserved_date=NULL WHERE id=$1 RETURNING *`, [req.params.id, b.work_description || '', b.customer_request || null, Number(b.cost_labor) || 0, Number(b.cost_parts) || 0, b.payment_method || null, !!b.tax_invoice]);
+  const payMethod = b.payment_method || 'unpaid';
+  const { rows } = await pool.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2, customer_request=$3, labor_fee=$4, parts_fee=$5, payment_method=$6, tax_invoice=$7, reserved_date=NULL WHERE id=$1 RETURNING *`, [req.params.id, b.work_description || '', b.customer_request || null, Number(b.cost_labor) || 0, Number(b.cost_parts) || 0, payMethod, !!b.tax_invoice]);
   const jobRes = await pool.query(
     `UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6, next_visit_parts=$7 WHERE reception_id=$1 RETURNING id`,
     [req.params.id, b.work_description || '', b.parts_used || '', Number(b.cost_parts) || 0, Number(b.cost_labor) || 0, total, b.next_visit_parts || null]
@@ -1916,7 +1922,7 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
     const jobId = jobRes.rows[0] && jobRes.rows[0].id;
     const exists = jobId ? (await pool.query('SELECT id FROM payments WHERE job_id=$1', [jobId])).rows[0] : null;
     if (!exists) {
-      const method = b.payment_method || 'unpaid';
+      const method = payMethod;
       const paid = method !== 'unpaid';
       await pool.query(
         `INSERT INTO payments (job_id, amount, payment_method, payment_status, paid_at) VALUES ($1, $2, $3, $4, $5)`,
