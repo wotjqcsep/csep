@@ -444,6 +444,11 @@ function renderWorkorders(){
     <div id="wo_results">${woResultsHtml()}</div>
   </div>`;
 }
+function woHistFilter(type){
+  document.querySelectorAll('#wo_hist_body .wo-hist-row').forEach(el=>{
+    el.style.display=(!type||el.dataset.type===type)?'':'none';
+  });
+}
 async function openWorkorderModal(customerId, siteId){
   const cust=state.customers.find(c=>c.id==customerId)||{};
   const site=siteId? state.sites.find(s=>s.id==siteId):null;
@@ -454,9 +459,9 @@ async function openWorkorderModal(customerId, siteId){
   try{ hist=await api('GET','/customers/'+customerId+'/receptions'); }catch(e){}
   try{ ests=await api('GET','/customers/'+customerId+'/estimates'); }catch(e){}
   const body=`
-    <div style="color:var(--warning);font-weight:700;margin-bottom:8px">📁 수리/점검 이력 (${hist.length}건)</div>
+    <div style="color:var(--warning);font-weight:700;margin-bottom:8px">📁 수리/점검 이력 (${hist.length}건${hist.length>20?' · 최근 20건':''})</div>
     ${hist.length
-      ? `<div style="max-height:150px;overflow-y:auto;margin-bottom:14px;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px">${hist.map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--gray-100)">${woTypeBadge(r.work_type?'['+r.work_type+']':r.initial_memo)} <span class="badge ${r.status}" style="font-size:10px">${statusLabel(r.status)}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join('')}</div>`
+      ? `${(()=>{ const woTypes=[...new Set(hist.map(r=>r.work_type).filter(Boolean))]; return woTypes.length?`<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap"><button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:var(--gray-800);color:#fff" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='var(--gray-800)';this.style.color='#fff';woHistFilter('')">전체</button>${woTypes.map(t=>`<button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:var(--gray-100);color:var(--gray-700)" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='${WO_TYPE_COLOR[t]||'var(--gray-600)'}';this.style.color='#fff';woHistFilter('${esc(t)}')">${esc(t)}</button>`).join('')}</div>`:''; })()}<div id="wo_hist_body" style="max-height:150px;overflow-y:auto;margin-bottom:14px;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px">${hist.slice(0,20).map(r=>`<div class="wo-hist-row" data-type="${esc(r.work_type||'')}" style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--gray-100)">${woTypeBadge(r.work_type?'['+r.work_type+']':r.initial_memo)} <span class="badge ${r.status}" style="font-size:10px">${statusLabel(r.status)}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join('')}</div>`
       : '<div style="text-align:center;color:var(--gray-400);padding:14px 0;margin-bottom:8px">이전 이력이 없습니다</div>'}
     <div style="color:#7048e8;font-weight:700;margin:6px 0 10px">➕ 작업지시 작성</div>
     <div class="form-group"><label>장비 선택 (선택사항)</label><select id="wo_comp"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>
