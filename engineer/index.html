@@ -1565,7 +1565,7 @@ const BIOS_DATA=[
  entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
  entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Samsung 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
  recovery:{노트북:'F4 (Samsung Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9 (BIOS 초기화)',올인원PC:'F9 (BIOS 초기화)'},
- bootMenu:{노트북:'Esc 또는 F10',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+ bootMenu:{노트북:'F10',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -1697,8 +1697,8 @@ const BIOS_DATA=[
  pwSites:['bios-pw.org']
 },
 {maker:'HP',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F10 (또는 Esc → F10)',데스크톱:'F10 (또는 Esc → F10)',미니PC:'F10',올인원PC:'F10'},
- entryTiming:{노트북:'전원 켜자마자 Esc 연타 → 시작 메뉴에서 F10 선택',데스크톱:'부팅 직후 HP 로고에서 F10 연타 (또는 Esc)',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ entry:{노트북:'F10 (또는 Esc → F10)',데스크톱:'F10 (또는 Esc → F10)',미니PC:'F10 (또는 Esc → F10)',올인원PC:'F10 (또는 Esc → F10)'},
+ entryTiming:{노트북:'전원 켜자마자 Esc 연타 → 시작 메뉴에서 F10 선택',데스크톱:'부팅 직후 HP 로고에서 Esc 또는 F10 연타',미니PC:'부팅 직후 Esc 또는 F10 연타',올인원PC:'부팅 직후 Esc 또는 F10 연타'},
  recovery:{노트북:'F11 (HP Recovery)',데스크톱:'F11',미니PC:'F11',올인원PC:'F11'},
  bootMenu:{노트북:'F9 또는 Esc → F9',데스크톱:'F9 또는 Esc',미니PC:'F9',올인원PC:'F9'},
  beeps:[
@@ -1768,8 +1768,8 @@ const BIOS_DATA=[
  pwSites:['bios-pw.org','biosbug.com']
 },
 {maker:'레노버',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F2 (IdeaPad) / F1 (ThinkPad)',데스크톱:'F1',미니PC:'F1',올인원PC:'F1'},
- entryTiming:{노트북:'IdeaPad: F2 연타 또는 Novo 버튼(측면 핀홀) → BIOS Setup / ThinkPad: F1 연타',데스크톱:'부팅 직후 Lenovo 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ entry:{노트북:'F2 (IdeaPad·Yoga·Legion) / F1 (ThinkPad)',데스크톱:'F1 (ThinkCentre) / F2 (IdeaCentre·Legion)',미니PC:'F1 (ThinkCentre Tiny) / F2 (IdeaCentre Mini)',올인원PC:'F1 또는 F2'},
+ entryTiming:{노트북:'IdeaPad: F2 연타 또는 Novo 버튼(측면 핀홀) → BIOS Setup / ThinkPad: F1 연타',데스크톱:'부팅 직후 Lenovo 로고에서 F1 또는 F2 연타',미니PC:'부팅 직후 로고에서 F1 또는 F2 연타',올인원PC:'부팅 직후 로고에서 F1 또는 F2 연타'},
  recovery:{노트북:'Novo 버튼 → System Recovery (IdeaPad) / F11 (ThinkPad)',데스크톱:'F11',미니PC:'F11',올인원PC:'F11'},
  bootMenu:{노트북:'F12 (또는 Fn+F12 / Novo 버튼)',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
@@ -1832,9 +1832,9 @@ const BIOS_DATA=[
  pwSites:['bios-pw.org','biosbug.com']
 },
 {maker:'DELL',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F2',데스크톱:'F2 또는 Delete',미니PC:'F2',올인원PC:'F2'},
+ entry:{노트북:'F2',데스크톱:'F2',미니PC:'F2',올인원PC:'F2'},
  entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Dell 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F12 → SupportAssist OS Recovery',데스크톱:'F12 → 복구',미니PC:'F12',올인원PC:'F12'},
+ recovery:{노트북:'F12 → SupportAssist OS Recovery',데스크톱:'F12 → SupportAssist OS Recovery',미니PC:'F12 → SupportAssist OS Recovery',올인원PC:'F12 → SupportAssist OS Recovery'},
  bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
@@ -1901,7 +1901,7 @@ const BIOS_DATA=[
  entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
  entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 ASUS 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
  recovery:{노트북:'F9 (ASUS Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9',올인원PC:'F9'},
- bootMenu:{노트북:'Esc 또는 F8',데스크톱:'F8',미니PC:'F8',올인원PC:'F8'},
+ bootMenu:{노트북:'Esc',데스크톱:'F8',미니PC:'F8',올인원PC:'F8'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -1967,9 +1967,9 @@ const BIOS_DATA=[
  pwSites:['bios-pw.org']
 },
 {maker:'MSI',types:['노트북','데스크톱','미니PC'],
- entry:{노트북:'Delete 또는 F2',데스크톱:'Delete',미니PC:'Delete'},
- entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 MSI 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F3 (MSI Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
+ entry:{노트북:'Delete',데스크톱:'Delete',미니PC:'Delete'},
+ entryTiming:{노트북:'전원 켜자마자 Delete 즉시 연타',데스크톱:'부팅 직후 MSI 로고에서 Delete 연타',미니PC:'부팅 직후 Delete 연타'},
+ recovery:{노트북:'F3 (MSI BM Recovery — 일부 모델)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
  bootMenu:{노트북:'F11',데스크톱:'F11',미니PC:'F11'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
@@ -2114,9 +2114,9 @@ const BIOS_DATA=[
  pwSites:[]
 },
 {maker:'RAZER',types:['노트북'],
- entry:{노트북:'Delete (또는 F1)'},
- entryTiming:{노트북:'전원 켜자마자 즉시 연타'},
- recovery:{노트북:'F9 또는 Alt+F10'},
+ entry:{노트북:'Delete'},
+ entryTiming:{노트북:'전원 켜자마자 Delete 즉시 연타'},
+ recovery:{노트북:'별도 키 없음 — Windows 복구 환경 사용'},
  bootMenu:{노트북:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
