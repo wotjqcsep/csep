@@ -2074,11 +2074,11 @@ const BIOS_DATA=[
  masterPw:['acer','1234','admin'],
  pwSites:['biosbug.com']
 },
-{maker:'GIGABYTE',types:['데스크톱','미니PC'],
- entry:{데스크톱:'Delete',미니PC:'Delete 또는 F2'},
- entryTiming:{데스크톱:'부팅 직후 Gigabyte 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
- recovery:{데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
- bootMenu:{데스크톱:'F12',미니PC:'F12'},
+{maker:'GIGABYTE',types:['노트북','데스크톱','미니PC'],
+ entry:{노트북:'Delete 또는 F2',데스크톱:'Delete',미니PC:'Delete 또는 F2'},
+ entryTiming:{노트북:'전원 켜자마자 Delete 즉시 연타 (AERO·AORUS 시리즈)',데스크톱:'부팅 직후 Gigabyte 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'별도 키 없음 — Windows 복구 환경 사용',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
+ bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -2093,6 +2093,13 @@ const BIOS_DATA=[
   {pattern:'반복 비프',meaning:'❌ CPU 팬 오류/전원 공급 오류'}
  ],
  biosReset:{
+  노트북:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 충전기 분리','하판 나사 제거 후 분리','내장 배터리 커넥터 분리','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초 방전','재장착 → 조립 → 부팅'],
+    warn:['AERO/AORUS 시리즈는 하판 나사가 많고 구조가 복잡함','일부 모델은 CMOS 배터리가 메인보드 뒷면에 위치'],
+    check:['BIOS 초기화 + 비밀번호 해제'],failNote:''
+   }
+  ],
   데스크톱:[
    {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
     steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
@@ -2140,11 +2147,11 @@ const BIOS_DATA=[
  masterPw:['razer','insyde'],
  pwSites:[]
 },
-{maker:'주연테크',types:['데스크톱','미니PC'],
- entry:{데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2'},
- entryTiming:{데스크톱:'부팅 직후 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
- recovery:{데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
- bootMenu:{데스크톱:'F12',미니PC:'F12'},
+{maker:'주연테크',types:['노트북','데스크톱','미니PC'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2'},
+ entryTiming:{노트북:'전원 켜자마자 F2 즉시 연타',데스크톱:'부팅 직후 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'별도 키 없음 — Windows 복구 환경 사용',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
+ bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -2157,6 +2164,13 @@ const BIOS_DATA=[
   {pattern:'반복 비프',meaning:'❌ CPU 팬 오류 또는 전원 문제'}
  ],
  biosReset:{
+  노트북:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'15~20분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 충전기 분리','하판 나사 제거 후 분리','내장 배터리 커넥터 분리','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초 방전','재장착 → 조립 → 부팅'],
+    warn:['모델별 하판 구조가 다르므로 매뉴얼 참고'],
+    check:['BIOS 초기화 + 비밀번호 해제'],failNote:''
+   }
+  ],
   데스크톱:[
    {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
     steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
