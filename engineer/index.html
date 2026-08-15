@@ -1565,7 +1565,7 @@ const BIOS_DATA=[
  entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
  entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Samsung 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
  recovery:{노트북:'F4 (Samsung Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9 (BIOS 초기화)',올인원PC:'F9 (BIOS 초기화)'},
- bootMenu:{노트북:'F10',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+ bootMenu:{노트북:'Esc 또는 F10',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -1697,8 +1697,8 @@ const BIOS_DATA=[
  pwSites:['bios-pw.org']
 },
 {maker:'HP',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F10',데스크톱:'F10',미니PC:'F10',올인원PC:'F10'},
- entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 HP 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ entry:{노트북:'F10 (또는 Esc → F10)',데스크톱:'F10 (또는 Esc → F10)',미니PC:'F10',올인원PC:'F10'},
+ entryTiming:{노트북:'전원 켜자마자 Esc 연타 → 시작 메뉴에서 F10 선택',데스크톱:'부팅 직후 HP 로고에서 F10 연타 (또는 Esc)',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
  recovery:{노트북:'F11 (HP Recovery)',데스크톱:'F11',미니PC:'F11',올인원PC:'F11'},
  bootMenu:{노트북:'F9 또는 Esc → F9',데스크톱:'F9 또는 Esc',미니PC:'F9',올인원PC:'F9'},
  beeps:[
@@ -1768,10 +1768,10 @@ const BIOS_DATA=[
  pwSites:['bios-pw.org','biosbug.com']
 },
 {maker:'레노버',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F1 또는 Enter → F1',데스크톱:'F1',미니PC:'F1',올인원PC:'F1'},
- entryTiming:{노트북:'부팅 직후 Lenovo 로고 나타날 때',데스크톱:'부팅 직후 Lenovo 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F11 (Lenovo Recovery)',데스크톱:'F11',미니PC:'F11',올인원PC:'F11'},
- bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+ entry:{노트북:'F2 (IdeaPad) / F1 (ThinkPad)',데스크톱:'F1',미니PC:'F1',올인원PC:'F1'},
+ entryTiming:{노트북:'IdeaPad: F2 연타 또는 Novo 버튼(측면 핀홀) → BIOS Setup / ThinkPad: F1 연타',데스크톱:'부팅 직후 Lenovo 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'Novo 버튼 → System Recovery (IdeaPad) / F11 (ThinkPad)',데스크톱:'F11',미니PC:'F11',올인원PC:'F11'},
+ bootMenu:{노트북:'F12 (또는 Fn+F12 / Novo 버튼)',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -1834,7 +1834,7 @@ const BIOS_DATA=[
 {maker:'DELL',types:['노트북','데스크톱','미니PC','올인원PC'],
  entry:{노트북:'F2',데스크톱:'F2 또는 Delete',미니PC:'F2',올인원PC:'F2'},
  entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Dell 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F8 (Safe Mode) 또는 F12 → 복구',데스크톱:'F12 → 복구',미니PC:'F12',올인원PC:'F12'},
+ recovery:{노트북:'F12 → SupportAssist OS Recovery',데스크톱:'F12 → 복구',미니PC:'F12',올인원PC:'F12'},
  bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
@@ -2083,11 +2083,11 @@ const BIOS_DATA=[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
   {pattern:'1-1-2-1 (삑/삑/삑삑/삑)',meaning:'❌ DRAM 새로고침 오류 — 메모리 재장착'},
-  {pattern:'1-1-3-1 (삑/삑/삑삼삑/삑)',meaning:'❌ DRAM 데이터 라인 오류 — 메모리 교체'},
+  {pattern:'1-1-3-1 (삑/삑/삑삑삑/삑)',meaning:'❌ DRAM 데이터 라인 오류 — 메모리 교체'},
   {pattern:'1-2-2-1 (삑/삑삑/삑삑/삑)',meaning:'❌ 칩셋 초기화 오류 — 메인보드 점검'},
-  {pattern:'1-3-1-1 (삑/삑삼삑/삑/삑)',meaning:'❌ DRAM 주소 라인 오류 — 메모리 교체'},
-  {pattern:'1-3-4-1 (삑/삑삼삑/삑삽삑삑/삑)',meaning:'❌ 메모리 부족 — 메모리 미장착'},
-  {pattern:'2-1-2-3 (삑삑/삑/삑삑/삑삽삑)',meaning:'❌ 비디오 메모리 오류 — 그래픽카드 교체'},
+  {pattern:'1-3-1-1 (삑/삑삑삑/삑/삑)',meaning:'❌ DRAM 주소 라인 오류 — 메모리 교체'},
+  {pattern:'1-3-4-1 (삑/삑삑삑/삑삑삑삑/삑)',meaning:'❌ 메모리 부족 — 메모리 미장착'},
+  {pattern:'2-1-2-3 (삑삑/삑/삑삑/삑삑삑)',meaning:'❌ 비디오 메모리 오류 — 그래픽카드 교체'},
   {pattern:'연속 짧은 비프',meaning:'❌ 메모리 미장착 또는 불량'},
   {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
   {pattern:'반복 비프',meaning:'❌ CPU 팬 오류/전원 공급 오류'}
@@ -2114,7 +2114,7 @@ const BIOS_DATA=[
  pwSites:[]
 },
 {maker:'RAZER',types:['노트북'],
- entry:{노트북:'F1 또는 Delete'},
+ entry:{노트북:'Delete (또는 F1)'},
  entryTiming:{노트북:'전원 켜자마자 즉시 연타'},
  recovery:{노트북:'F9 또는 Alt+F10'},
  bootMenu:{노트북:'F12'},
@@ -2123,7 +2123,7 @@ const BIOS_DATA=[
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
   {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — 배터리 교체'},
   {pattern:'1-2-2 (삑/삑삑/삑삑)',meaning:'❌ 메모리 패리티 오류 — 메모리 재장착'},
-  {pattern:'1-3-1 (삑/삑삼삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'1-3-1 (삑/삑삑삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
   {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
   {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
   {pattern:'반복 비프',meaning:'❌ CPU 팬 오류 또는 전원 문제'}
@@ -2144,13 +2144,13 @@ const BIOS_DATA=[
  entry:{데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2'},
  entryTiming:{데스크톱:'부팅 직후 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
  recovery:{데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
- bootMenu:{데스크톱:'F12 또는 F7',미니PC:'F12'},
+ bootMenu:{데스크톱:'F12',미니PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
   {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — 배터리 교체'},
   {pattern:'1-2-1 (삑/삑삑/삑)',meaning:'❌ 타이머 오류 — 메인보드 점검'},
-  {pattern:'1-3-1 (삑/삑삼삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'1-3-1 (삑/삑삑삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
   {pattern:'2-1-1 (삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 손상'},
   {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
   {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
