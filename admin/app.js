@@ -96,7 +96,7 @@ function fmtRecDate(key){
 }
 function fmtRecTime(t){ const d=recDate(t); return d? d.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''; }
 function fmtRecDay(t){ const d=recDate(t); return d? `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : (t? String(t).slice(5,10) : ''); }
-const WO_TYPE_COLOR={출장:'#1971c2',설치:'#2b8a3e',납품:'#e67700','견적서 납품':'#7048e8',무상점검:'#0ca678'};
+const WO_TYPE_COLOR={출장:'#1971c2',납품:'#e67700','견적서 납품':'#7048e8'};
 function woTypeBadge(memo){
   if(!memo) return '';
   const m=memo.match(/^\[([^\]]+)\]/);
@@ -465,7 +465,7 @@ async function openWorkorderModal(customerId, siteId){
       : '<div style="text-align:center;color:var(--gray-400);padding:14px 0;margin-bottom:8px">이전 이력이 없습니다</div>'}
     <div style="color:#7048e8;font-weight:700;margin:6px 0 10px">➕ 작업지시 작성</div>
     <div class="form-group"><label>장비 선택 (선택사항)</label><select id="wo_comp"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>
-    <div class="form-group"><label>작업 구분 (선택사항)</label><select id="wo_type" onchange="document.getElementById('wo_est_box').style.display=this.value==='견적서 납품'?'block':'none'"><option value="출장">출장</option><option value="설치">설치</option><option value="납품">납품</option><option value="견적서 납품">📄 견적서 납품</option><option value="무상점검">무상점검</option></select></div>
+    <div class="form-group"><label>작업 구분 (선택사항)</label><select id="wo_type" onchange="document.getElementById('wo_est_box').style.display=this.value==='견적서 납품'?'block':'none'"><option value="출장">출장</option><option value="납품">납품</option><option value="견적서 납품">📄 견적서 납품</option></select></div>
     <div class="form-group" id="wo_est_box" style="display:none"><label>납품할 견적서 선택 *</label>
       <select id="wo_est">${ests.length?('<option value="">선택하세요</option>'+ests.map(e=>`<option value="${e.id}">${esc(e.no)||('#'+e.id)} · ${won(e.total)} · ${esc(e.est_date)||''}</option>`).join('')):'<option value="">저장된 견적이 없습니다</option>'}</select></div>
     <div class="form-group"><label>담당 기사 *</label><select id="wo_eng"><option value="">선택하세요</option>${state.engineers.map(e=>`<option value="${e.id}" style="color:${engColor(e.id)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}</select></div>
