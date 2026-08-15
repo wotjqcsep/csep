@@ -27,7 +27,6 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 .card.st-in_progress::before{content:'🚗 출동중';position:absolute;top:-11px;right:12px;background:#2f9e44;color:#fff;font-size:11px;font-weight:700;padding:2px 10px;border-radius:10px;letter-spacing:1px;animation:ipBadgePulse 2s ease-in-out infinite}
 @keyframes ipPulse{0%,100%{box-shadow:0 0 12px rgba(47,158,68,.35)}50%{box-shadow:0 0 20px rgba(47,158,68,.55)}}
 @keyframes ipBadgePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.85;transform:scale(1.05)}}
-.has-ip .card:not(.st-in_progress):not(.st-repairing){opacity:.55;transition:opacity .2s}.has-ip .card:not(.st-in_progress):not(.st-repairing):active{opacity:1}
 .card.st-completed{border-left-color:var(--gray-400)}
 .card.st-cancelled{border-left-color:#868e96}
 .card.st-reserved{border-left-color:#f59f00}
@@ -231,7 +230,7 @@ function render(){
       <button class="btn" style="margin:0;background:#2b3140;color:#fff;flex:1" onclick="openSoundPicker()">🔔 알림 소리 선택 (${soundName})</button>
       ${isAdmin && S.tab==='all' ? `<button class="btn" style="margin:0;background:#1971c2;color:#fff;flex:1" onclick="openRouteOptimizer()">🗺️ 배차 경로</button>` : ''}
     </div>
-    <div class="content${S.receptions.some(r=>r.status==='in_progress')?' has-ip':''}">${content}</div>`;
+    <div class="content">${content}</div>`;
   if(S.tab==='wo')renderWoTab();
   if(S.tab==='sched')renderScheduleInline();
 }
