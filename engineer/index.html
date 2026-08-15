@@ -1635,8 +1635,9 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['samsung','admin','1234'],
- pwSites:['bios-pw.org','biosbug.com']
+ biosType:'Phoenix SecureCore',
+ masterPw:['phoenix'],
+ pwSites:['bios-pw.org']
 },
 {maker:'LG전자',types:['노트북','데스크톱','미니PC','올인원PC'],
  entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
@@ -1693,8 +1694,9 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['lg','admin','1234'],
- pwSites:['bios-pw.org']
+ biosType:'Insyde H2O',
+ masterPw:[],
+ pwSites:[]
 },
 {maker:'HP',types:['노트북','데스크톱','미니PC','올인원PC'],
  entry:{노트북:'F10 (또는 Esc → F10)',데스크톱:'F10 (또는 Esc → F10)',미니PC:'F10 (또는 Esc → F10)',올인원PC:'F10 (또는 Esc → F10)'},
@@ -1764,7 +1766,8 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['compaq','hp','hewlett-packard'],
+ biosType:'HP 자체 BIOS (InsydeH2O 기반)',
+ masterPw:[],
  pwSites:['bios-pw.org','biosbug.com']
 },
 {maker:'레노버',types:['노트북','데스크톱','미니PC','올인원PC'],
@@ -1828,7 +1831,8 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['lenovo','thinkpad','admin'],
+ biosType:'Lenovo 자체 BIOS (Insyde 기반)',
+ masterPw:[],
  pwSites:['bios-pw.org','biosbug.com']
 },
 {maker:'DELL',types:['노트북','데스크톱','미니PC','올인원PC'],
@@ -1894,7 +1898,8 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['dell','dell123'],
+ biosType:'Dell 자체 BIOS (Insyde 기반)',
+ masterPw:[],
  pwSites:['bios-pw.org','biosbug.com']
 },
 {maker:'ASUS',types:['노트북','데스크톱','미니PC','올인원PC'],
@@ -1963,7 +1968,8 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['asus','asdf','admin','password'],
+ biosType:'AMI Aptio',
+ masterPw:['AMI_SW','LKWPETER','AMI','A.M.I.'],
  pwSites:['bios-pw.org']
 },
 {maker:'MSI',types:['노트북','데스크톱','미니PC'],
@@ -2015,7 +2021,8 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['msi','lkwpeter','admin'],
+ biosType:'AMI Aptio',
+ masterPw:['LKWPETER','AMI_SW','AMI','A.M.I.'],
  pwSites:[]
 },
 {maker:'ACER',types:['노트북','데스크톱','미니PC','올인원PC'],
@@ -2071,8 +2078,9 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['acer','1234','admin'],
- pwSites:['biosbug.com']
+ biosType:'Insyde H2O',
+ masterPw:[],
+ pwSites:['bios-pw.org','biosbug.com']
 },
 {maker:'GIGABYTE',types:['노트북','데스크톱','미니PC'],
  entry:{노트북:'Delete 또는 F2',데스크톱:'Delete',미니PC:'Delete 또는 F2'},
@@ -2117,7 +2125,8 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['gigabyte','admin'],
+ biosType:'AMI Aptio / Award (구형)',
+ masterPw:['AWARD_SW','LKWPETER','AMI_SW','589589','589721','j262','HLT'],
  pwSites:[]
 },
 {maker:'RAZER',types:['노트북'],
@@ -2144,7 +2153,8 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['razer','insyde'],
+ biosType:'Insyde H2O',
+ masterPw:[],
  pwSites:[]
 },
 {maker:'주연테크',types:['노트북','데스크톱','미니PC'],
@@ -2188,7 +2198,8 @@ const BIOS_DATA=[
    }
   ]
  },
- masterPw:['admin','password'],
+ biosType:'AMI Aptio',
+ masterPw:['LKWPETER','AMI_SW','AMI','A.M.I.'],
  pwSites:[]
 }
 ];
@@ -2210,7 +2221,8 @@ function renderInfoTab(){
         <tr style="border-bottom:1px solid #e9ecef"><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">BIOS 진입 키</td><td style="padding:8px">${esc(sel.entry[t]||'-')}</td></tr>
         <tr style="border-bottom:1px solid #e9ecef"><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">진입 타이밍</td><td style="padding:8px">${esc(sel.entryTiming[t]||'-')}</td></tr>
         <tr style="border-bottom:1px solid #e9ecef"><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">리커버리 키</td><td style="padding:8px">${esc(sel.recovery[t]||'-')}</td></tr>
-        <tr><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">부팅 메뉴 키</td><td style="padding:8px">${esc(sel.bootMenu[t]||'-')}</td></tr>
+        <tr style="border-bottom:1px solid #e9ecef"><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">부팅 메뉴 키</td><td style="padding:8px">${esc(sel.bootMenu[t]||'-')}</td></tr>
+        <tr><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">BIOS 펌웨어</td><td style="padding:8px">${esc(sel.biosType||'-')}</td></tr>
       </table>
     </div>`;
 
@@ -2248,9 +2260,9 @@ function renderInfoTab(){
 
     if(sel.masterPw&&sel.masterPw.length){
       body+=`<div class="card" style="border-left-color:#7048e8">
-        <div style="font-weight:700;font-size:15px;margin-bottom:8px">🔑 마스터 비밀번호 (시도용)</div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px">🔑 BIOS 백도어 비밀번호 (${esc(sel.biosType||'')})</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">${sel.masterPw.map(p=>`<span style="padding:4px 12px;background:#f3f0ff;border:1px solid #d0bfff;border-radius:8px;font-size:13px;font-family:monospace">${esc(p)}</span>`).join('')}</div>
-        <div style="font-size:11px;color:var(--gray-500);margin-top:6px">⚠️ 3회 이상 틀리면 잠길 수 있으니 신중하게 시도</div>
+        <div style="font-size:11px;color:var(--gray-500);margin-top:6px">⚠️ BIOS 펌웨어에 내장된 백도어 — 구형에서 효과적, 최신 UEFI에서는 작동 안 할 수 있음</div>
       </div>`;
     }
 
