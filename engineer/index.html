@@ -1561,11 +1561,11 @@ function setupBackButton(){
 
 // ── 📖 정보 탭 (BIOS 기술 정보) ──
 const BIOS_DATA=[
-{maker:'삼성전자',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
- entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Samsung 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F4 (Samsung Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9 (BIOS 초기화)',올인원PC:'F9 (BIOS 초기화)'},
- bootMenu:{노트북:'F10',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+{maker:'삼성전자',types:['노트북','데스크톱'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Samsung 로고 나타날 때'},
+ recovery:{노트북:'F4 (Samsung Recovery)',데스크톱:'F9 (BIOS 초기화)'},
+ bootMenu:{노트북:'F10',데스크톱:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -1617,33 +1617,17 @@ const BIOS_DATA=[
     check:['BIOS 초기화 + 비밀번호 해제 확인'],
     failNote:''
    }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버, 플라스틱 헤라',
-    steps:['컴퓨터 완전 종료 + 전원 케이블 분리','하판 또는 상판 나사 제거 후 분리','CMOS 배터리 찾기 (공간이 좁으므로 주의)','배터리 제거 후 3~5분 방치','전원 버튼 30초 길게 눌러 방전','배터리 재장착 후 조립','전원 연결 후 부팅'],
-    warn:['미니PC는 내부 공간이 좁으므로 무리하게 힘 주지 않기','일부 모델은 CMOS 배터리가 메인보드 뒷면에 위치'],
-    check:['BIOS 초기화 + 비밀번호 해제 확인'],
-    failNote:''
-   }
-  ],
-  올인원PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라, 흡착컵(일부)',
-    steps:['컴퓨터 완전 종료 + 전원 케이블 분리','후면 커버 또는 스탠드 분리 (모델별 상이)','내부 접근 후 CMOS 배터리 찾기','배터리 제거 후 3~5분 방치','전원 버튼 30초 길게 눌러 방전','배터리 재장착 후 조립','전원 연결 후 부팅'],
-    warn:['올인원PC는 디스플레이 패널 손상 주의','분해 난이도가 높으므로 자신 없으면 서비스센터 권장'],
-    check:['BIOS 초기화 + 비밀번호 해제 확인'],
-    failNote:''
-   }
   ]
  },
  biosType:'Phoenix SecureCore',
  masterPw:['phoenix'],
  pwSites:['bios-pw.org']
 },
-{maker:'LG전자',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
- entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 LG 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F11 (LG Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9 (BIOS 초기화)',올인원PC:'F9 (BIOS 초기화)'},
- bootMenu:{노트북:'F10',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+{maker:'LG전자',types:['노트북','데스크톱'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 LG 로고 나타날 때'},
+ recovery:{노트북:'F11 (LG Recovery)',데스크톱:'F9 (BIOS 초기화)'},
+ bootMenu:{노트북:'F10',데스크톱:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 오류 — CMOS 배터리 교체'},
@@ -1680,29 +1664,17 @@ const BIOS_DATA=[
     steps:['완전 종료 + 전원 분리','CLR_CMOS 점퍼 찾기','점퍼 이동(1-2→2-3) 10초 유지','원위치 후 부팅'],
     warn:['점퍼 위치는 메인보드 매뉴얼 참고'],check:['BIOS 초기화 확인'],failNote:''
    }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
-    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분 방치','방전 후 재장착 → 부팅'],
-    warn:['공간이 좁으므로 주의'],check:['BIOS 초기화 확인'],failNote:''
-   }
-  ],
-  올인원PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
-    steps:['완전 종료 + 전원 분리','후면 커버 분리','CMOS 배터리 제거 후 3~5분 방치','방전 후 재장착 → 조립 → 부팅'],
-    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
-   }
   ]
  },
  biosType:'Insyde H2O',
  masterPw:[],
  pwSites:[]
 },
-{maker:'HP',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F10 (또는 Esc → F10)',데스크톱:'F10 (또는 Esc → F10)',미니PC:'F10 (또는 Esc → F10)',올인원PC:'F10 (또는 Esc → F10)'},
- entryTiming:{노트북:'전원 켜자마자 Esc 연타 → 시작 메뉴에서 F10 선택',데스크톱:'부팅 직후 HP 로고에서 Esc 또는 F10 연타',미니PC:'부팅 직후 Esc 또는 F10 연타',올인원PC:'부팅 직후 Esc 또는 F10 연타'},
- recovery:{노트북:'F11 (HP Recovery)',데스크톱:'F11',미니PC:'F11',올인원PC:'F11'},
- bootMenu:{노트북:'F9 또는 Esc → F9',데스크톱:'F9 또는 Esc',미니PC:'F9',올인원PC:'F9'},
+{maker:'HP',types:['노트북','데스크톱'],
+ entry:{노트북:'F10 (또는 Esc → F10)',데스크톱:'F10 (또는 Esc → F10)'},
+ entryTiming:{노트북:'전원 켜자마자 Esc 연타 → 시작 메뉴에서 F10 선택',데스크톱:'부팅 직후 HP 로고에서 Esc 또는 F10 연타'},
+ recovery:{노트북:'F11 (HP Recovery)',데스크톱:'F11'},
+ bootMenu:{노트북:'F9 또는 Esc → F9',데스크톱:'F9 또는 Esc'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -1752,29 +1724,17 @@ const BIOS_DATA=[
     steps:['완전 종료 + 전원 분리','메인보드 CLR_CMOS 점퍼 찾기','점퍼 이동 10초 → 원위치 → 부팅'],
     warn:['점퍼 위치는 메인보드 매뉴얼 참고'],check:['BIOS 초기화 확인'],failNote:''
    }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
-    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
-    warn:['HP Mini/ProDesk Mini는 공간이 좁음'],check:['BIOS 초기화 확인'],failNote:''
-   }
-  ],
-  올인원PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
-    steps:['완전 종료 + 전원 분리','후면 커버 분리 (HP All-in-One은 스탠드 먼저 분리)','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
-    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
-   }
   ]
  },
  biosType:'HP 자체 BIOS (InsydeH2O 기반)',
  masterPw:[],
  pwSites:['bios-pw.org','biosbug.com']
 },
-{maker:'레노버',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F2 (IdeaPad·Yoga·Legion) / F1 (ThinkPad)',데스크톱:'F1 (ThinkCentre) / F2 (IdeaCentre·Legion)',미니PC:'F1 (ThinkCentre Tiny) / F2 (IdeaCentre Mini)',올인원PC:'F1 또는 F2'},
- entryTiming:{노트북:'IdeaPad: F2 연타 또는 Novo 버튼(측면 핀홀) → BIOS Setup / ThinkPad: F1 연타',데스크톱:'부팅 직후 Lenovo 로고에서 F1 또는 F2 연타',미니PC:'부팅 직후 로고에서 F1 또는 F2 연타',올인원PC:'부팅 직후 로고에서 F1 또는 F2 연타'},
- recovery:{노트북:'Novo 버튼 → System Recovery (IdeaPad) / F11 (ThinkPad)',데스크톱:'F11',미니PC:'F11',올인원PC:'F11'},
- bootMenu:{노트북:'F12 (또는 Fn+F12 / Novo 버튼)',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+{maker:'레노버',types:['노트북','데스크톱'],
+ entry:{노트북:'F2 (IdeaPad·Yoga·Legion) / F1 (ThinkPad)',데스크톱:'F1 (ThinkCentre) / F2 (IdeaCentre·Legion)'},
+ entryTiming:{노트북:'IdeaPad: F2 연타 또는 Novo 버튼(측면 핀홀) → BIOS Setup / ThinkPad: F1 연타',데스크톱:'부팅 직후 Lenovo 로고에서 F1 또는 F2 연타'},
+ recovery:{노트북:'Novo 버튼 → System Recovery (IdeaPad) / F11 (ThinkPad)',데스크톱:'F11'},
+ bootMenu:{노트북:'F12 (또는 Fn+F12 / Novo 버튼)',데스크톱:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -1817,29 +1777,17 @@ const BIOS_DATA=[
     steps:['완전 종료 + 전원 분리','CLR_CMOS 점퍼 이동 10초 → 원위치 → 부팅'],
     warn:['점퍼 위치는 매뉴얼 참고'],check:['BIOS 초기화 확인'],failNote:''
    }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
-    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
-    warn:['ThinkCentre Tiny는 공간이 좁음'],check:['BIOS 초기화 확인'],failNote:''
-   }
-  ],
-  올인원PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
-    steps:['완전 종료 + 전원 분리','후면 커버/스탠드 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
-    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
-   }
   ]
  },
  biosType:'Lenovo 자체 BIOS (Insyde 기반)',
  masterPw:[],
  pwSites:['bios-pw.org','biosbug.com']
 },
-{maker:'DELL',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F2',데스크톱:'F2',미니PC:'F2',올인원PC:'F2'},
- entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Dell 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F12 → SupportAssist OS Recovery',데스크톱:'F12 → SupportAssist OS Recovery',미니PC:'F12 → SupportAssist OS Recovery',올인원PC:'F12 → SupportAssist OS Recovery'},
- bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+{maker:'DELL',types:['노트북','데스크톱'],
+ entry:{노트북:'F2',데스크톱:'F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Dell 로고 나타날 때'},
+ recovery:{노트북:'F12 → SupportAssist OS Recovery',데스크톱:'F12 → SupportAssist OS Recovery'},
+ bootMenu:{노트북:'F12',데스크톱:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -1884,29 +1832,17 @@ const BIOS_DATA=[
     steps:['완전 종료 + 전원 분리','메인보드에서 RTCRST 또는 PSWD 점퍼 찾기','점퍼 제거 후 부팅 → 종료 → 점퍼 재장착 → 부팅'],
     warn:['Dell 데스크톱은 PSWD 점퍼가 별도로 있는 모델이 많음'],check:['BIOS 초기화 + 비밀번호 해제'],failNote:''
    }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
-    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
-    warn:['OptiPlex Micro는 공간 좁음'],check:['BIOS 초기화 확인'],failNote:''
-   }
-  ],
-  올인원PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
-    steps:['완전 종료 + 전원 분리','후면 커버 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
-    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
-   }
   ]
  },
  biosType:'Dell 자체 BIOS (Insyde 기반)',
  masterPw:[],
  pwSites:['bios-pw.org','biosbug.com']
 },
-{maker:'ASUS',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
- entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 ASUS 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F9 (ASUS Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9',올인원PC:'F9'},
- bootMenu:{노트북:'Esc',데스크톱:'F8',미니PC:'F8',올인원PC:'F8'},
+{maker:'ASUS',types:['노트북','데스크톱'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 ASUS 로고 나타날 때'},
+ recovery:{노트북:'F9 (ASUS Recovery)',데스크톱:'F9 (BIOS 초기화)'},
+ bootMenu:{노트북:'Esc',데스크톱:'F8'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -1936,9 +1872,9 @@ const BIOS_DATA=[
     check:['BIOS 초기화 + 비밀번호 해제'],
     failNote:'⚠️ ASUS 일부 모델은 CMOS 제거만으로 비밀번호 초기화 안 됨. 마스터 비밀번호 시도.'
    },
-   {method:'마스터 비밀번호 시도',difficulty:'★☆☆☆☆',time:'2분',tools:'없음',
-    steps:['BIOS 진입 화면에서 비밀번호 입력란에 다음을 시도:','1) 빈칸(Enter만 누르기)','2) asus','3) admin','4) password'],
-    warn:['3회 이상 틀리면 잠길 수 있으니 신중하게'],check:['BIOS 진입 성공 확인'],failNote:''
+   {method:'AMI 백도어 비밀번호 시도',difficulty:'★☆☆☆☆',time:'2분',tools:'없음',
+    steps:['BIOS 진입 화면에서 비밀번호 입력란에 다음 시도:','1) AMI_SW','2) LKWPETER','3) AMI','4) A.M.I.'],
+    warn:['구형 AMI BIOS에서 효과적, 최신 UEFI에서는 작동 안 할 수 있음'],check:['BIOS 진입 성공 확인'],failNote:''
    },
    {method:'서비스센터 의뢰',difficulty:'★☆☆☆☆',time:'1~3일',tools:'없음',
     steps:['ASUS 서비스센터 방문 (1566-6868)','구매 증빙 지참','BIOS 비밀번호 초기화 요청'],
@@ -1954,29 +1890,17 @@ const BIOS_DATA=[
     steps:['완전 종료 + 전원 분리','CLRTC 점퍼 찾기 (CMOS 배터리 근처)','점퍼 이동(1-2→2-3) 10초 유지','원위치 후 부팅'],
     warn:['ASUS 메인보드는 CLRTC 표기'],check:['BIOS 초기화 확인'],failNote:''
    }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
-    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
-    warn:['ASUS PN/NUC 시리즈는 공간 좁음'],check:['BIOS 초기화 확인'],failNote:''
-   }
-  ],
-  올인원PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
-    steps:['완전 종료 + 전원 분리','후면 커버 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
-    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
-   }
   ]
  },
  biosType:'AMI Aptio',
  masterPw:['AMI_SW','LKWPETER','AMI','A.M.I.'],
  pwSites:['bios-pw.org']
 },
-{maker:'MSI',types:['노트북','데스크톱','미니PC'],
- entry:{노트북:'Delete',데스크톱:'Delete',미니PC:'Delete'},
- entryTiming:{노트북:'전원 켜자마자 Delete 즉시 연타',데스크톱:'부팅 직후 MSI 로고에서 Delete 연타',미니PC:'부팅 직후 Delete 연타'},
- recovery:{노트북:'F3 (MSI BM Recovery — 일부 모델)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
- bootMenu:{노트북:'F11',데스크톱:'F11',미니PC:'F11'},
+{maker:'MSI',types:['노트북','데스크톱'],
+ entry:{노트북:'Delete',데스크톱:'Delete'},
+ entryTiming:{노트북:'전원 켜자마자 Delete 즉시 연타',데스크톱:'부팅 직후 MSI 로고에서 Delete 연타'},
+ recovery:{노트북:'F3 (MSI BM Recovery — 일부 모델)',데스크톱:'F9 (BIOS 초기화)'},
+ bootMenu:{노트북:'F11',데스크톱:'F11'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'반복 2회',meaning:'❌ CMOS 오류 — CMOS 배터리 교체'},
@@ -1999,9 +1923,9 @@ const BIOS_DATA=[
     warn:['MSI 게이밍 노트북은 하판 나사가 많음'],
     check:['BIOS 초기화 + 비밀번호 해제'],failNote:''
    },
-   {method:'마스터 비밀번호 시도',difficulty:'★☆☆☆☆',time:'2분',tools:'없음',
-    steps:['BIOS 비밀번호 입력란에 다음 시도:','1) 빈칸(Enter만)','2) msi','3) admin','4) lkwpeter'],
-    warn:['3회 이상 틀리면 잠길 수 있음'],check:['BIOS 진입 성공 확인'],failNote:''
+   {method:'AMI 백도어 비밀번호 시도',difficulty:'★☆☆☆☆',time:'2분',tools:'없음',
+    steps:['BIOS 비밀번호 입력란에 다음 시도:','1) LKWPETER','2) AMI_SW','3) AMI','4) A.M.I.'],
+    warn:['구형 AMI BIOS에서 효과적, 최신 UEFI에서는 작동 안 할 수 있음'],check:['BIOS 진입 성공 확인'],failNote:''
    }
   ],
   데스크톱:[
@@ -2013,23 +1937,17 @@ const BIOS_DATA=[
     steps:['완전 종료 + 전원 분리','JBAT1 점퍼 찾기 (CMOS 배터리 근처)','점퍼 이동(1-2→2-3) 10초 유지','원위치 후 부팅'],
     warn:['MSI 메인보드는 JBAT1 표기'],check:['BIOS 초기화 확인'],failNote:''
    }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
-    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
-    warn:['공간 좁음 주의'],check:['BIOS 초기화 확인'],failNote:''
-   }
   ]
  },
  biosType:'AMI Aptio',
  masterPw:['LKWPETER','AMI_SW','AMI','A.M.I.'],
  pwSites:[]
 },
-{maker:'ACER',types:['노트북','데스크톱','미니PC','올인원PC'],
- entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
- entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Acer 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'Alt+F10 (Acer eRecovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9',올인원PC:'F9'},
- bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+{maker:'ACER',types:['노트북','데스크톱'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Acer 로고 나타날 때'},
+ recovery:{노트북:'Alt+F10 (Acer eRecovery)',데스크톱:'F9 (BIOS 초기화)'},
+ bootMenu:{노트북:'F12',데스크톱:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -2054,9 +1972,9 @@ const BIOS_DATA=[
     warn:['Aspire/Nitro/Swift 시리즈별 하판 구조 다름'],
     check:['BIOS 초기화 + 비밀번호 해제'],failNote:''
    },
-   {method:'마스터 비밀번호 시도',difficulty:'★☆☆☆☆',time:'2분',tools:'없음',
-    steps:['BIOS 비밀번호 입력란에 다음 시도:','1) 빈칸(Enter만)','2) acer','3) admin','4) 1234'],
-    warn:['3회 이상 틀리면 잠길 수 있음'],check:['BIOS 진입 성공 확인'],failNote:''
+   {method:'서비스 태그 기반 비밀번호',difficulty:'★☆☆☆☆',time:'5분',tools:'다른 기기',
+    steps:['BIOS 진입 시도 → 비밀번호 틀리면 코드 표시','코드를 메모','bios-pw.org에서 코드 입력 → 마스터 비밀번호 확인','해당 비밀번호로 BIOS 진입'],
+    warn:['Acer Insyde H2O 기반 모델에서 효과적'],check:['BIOS 진입 성공 확인'],failNote:''
    }
   ],
   데스크톱:[
@@ -2064,29 +1982,17 @@ const BIOS_DATA=[
     steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
     warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
    }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
-    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
-    warn:['공간 좁음 주의'],check:['BIOS 초기화 확인'],failNote:''
-   }
-  ],
-  올인원PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
-    steps:['완전 종료 + 전원 분리','후면 커버 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
-    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
-   }
   ]
  },
  biosType:'Insyde H2O',
  masterPw:[],
  pwSites:['bios-pw.org','biosbug.com']
 },
-{maker:'GIGABYTE',types:['노트북','데스크톱','미니PC'],
- entry:{노트북:'Delete 또는 F2',데스크톱:'Delete',미니PC:'Delete 또는 F2'},
- entryTiming:{노트북:'전원 켜자마자 Delete 즉시 연타 (AERO·AORUS 시리즈)',데스크톱:'부팅 직후 Gigabyte 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F9 (GIGABYTE Smart Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
- bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12'},
+{maker:'GIGABYTE',types:['노트북','데스크톱'],
+ entry:{노트북:'Delete 또는 F2',데스크톱:'Delete'},
+ entryTiming:{노트북:'전원 켜자마자 Delete 즉시 연타 (AERO·AORUS 시리즈)',데스크톱:'부팅 직후 Gigabyte 로고 나타날 때'},
+ recovery:{노트북:'F9 (GIGABYTE Smart Recovery)',데스크톱:'F9 (BIOS 초기화)'},
+ bootMenu:{노트북:'F12',데스크톱:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -2116,12 +2022,6 @@ const BIOS_DATA=[
    {method:'CMOS 점퍼(CLR_CMOS)',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡',
     steps:['완전 종료 + 전원 분리','CLR_CMOS 점퍼 또는 뒷면 CLR_CMOS 버튼 찾기','점퍼 이동 10초 유지 또는 버튼 5초 누르기','원위치 후 부팅'],
     warn:['최신 AORUS 보드는 후면 CLR_CMOS 버튼이 있어 더 편리'],check:['BIOS 초기화 확인'],failNote:''
-   }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
-    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
-    warn:['BRIX 시리즈는 공간 좁음'],check:['BIOS 초기화 확인'],failNote:''
    }
   ]
  },
@@ -2157,11 +2057,11 @@ const BIOS_DATA=[
  masterPw:[],
  pwSites:[]
 },
-{maker:'주연테크',types:['노트북','데스크톱','미니PC'],
- entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2'},
- entryTiming:{노트북:'전원 켜자마자 F2 즉시 연타',데스크톱:'부팅 직후 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
- recovery:{노트북:'F9 (복구 파티션)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
- bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12'},
+{maker:'주연테크',types:['노트북','데스크톱'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2'},
+ entryTiming:{노트북:'전원 켜자마자 F2 즉시 연타',데스크톱:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'F9 (복구 파티션)',데스크톱:'F9 (BIOS 초기화)'},
+ bootMenu:{노트북:'F12',데스크톱:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
@@ -2189,12 +2089,6 @@ const BIOS_DATA=[
    {method:'CMOS 점퍼 초기화',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡',
     steps:['완전 종료 + 전원 분리','CLR_CMOS 점퍼 이동 10초 → 원위치 → 부팅'],
     warn:['점퍼 위치는 매뉴얼 참고'],check:['BIOS 초기화 확인'],failNote:''
-   }
-  ],
-  미니PC:[
-   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
-    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
-    warn:['공간 좁음 주의'],check:['BIOS 초기화 확인'],failNote:''
    }
   ]
  },
