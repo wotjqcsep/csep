@@ -207,11 +207,12 @@ function render(){
   const mineActive=ipFirst(S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r)));
   const done=S.receptions.filter(r=>r.status==='completed');
   const tabs = isAdmin
-    ? [['all','📊 전체현황'],['wo','➕ 작업지시'],['done','📁 완료이력'],['sched','📅 일정관리']]
-    : [['list','📋 작업목록'],['done','📁 완료이력'],['sched','📅 일정']];
+    ? [['all','📊 현황'],['wo','➕ 지시'],['done','📁 이력'],['info','📖 정보'],['sched','📅 일정']]
+    : [['list','📋 작업목록'],['done','📁 이력'],['sched','📅 일정']];
   if(!tabs.some(t=>t[0]===S.tab)) S.tab=tabs[0][0];
   let content='';
   if(S.tab==='wo'){ content=`<div id="woTab"></div>`; }
+  else if(S.tab==='info'){ content=`<div id="infoTab"></div>`; }
   else if(S.tab==='sched'){ content=`<div id="schedInline"></div>`; }
   else if(S.tab==='done'){ const dl=isAdmin?done:done.filter(r=>r.assigned_engineer_id==myId); content=dl.length?dl.map(cardHtml).join(''):'<div class="empty">완료 작업이 없습니다</div>'; }
   else if(isAdmin){
@@ -232,6 +233,7 @@ function render(){
     </div>
     <div class="content">${content}</div>`;
   if(S.tab==='wo')renderWoTab();
+  if(S.tab==='info')renderInfoTab();
   if(S.tab==='sched')renderScheduleInline();
 }
 function setTab(t){ S.tab=t; if(t==='sched'){ schedState={ym:ymStr(new Date()),sel:null}; loadSchedules().then(()=>{render();window.scrollTo(0,0);}); return; } render(); window.scrollTo(0,0); }
@@ -1555,6 +1557,618 @@ function setupBackButton(){
     // 홈에서 백 → 앱 종료가 아니라 백그라운드로 최소화. exitApp은 절대 호출하지 않음.
     try{ if(App.minimizeApp) App.minimizeApp(); }catch(e){}
   });
+}
+
+// ── 📖 정보 탭 (BIOS 기술 정보) ──
+const BIOS_DATA=[
+{maker:'삼성전자',types:['노트북','데스크톱','미니PC','올인원PC'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Samsung 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'F4 (Samsung Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9 (BIOS 초기화)',올인원PC:'F9 (BIOS 초기화)'},
+ bootMenu:{노트북:'F10',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체 필요'},
+  {pattern:'3회',meaning:'❌ 메모리 오류 — 메모리 재장착 또는 교체'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체 필요'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 그래픽카드 재장착'}
+ ],
+ biosReset:{
+  노트북:[
+   {method:'CMOS 배터리(수은전지) 제거',difficulty:'★★★☆☆',time:'15~20분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['컴퓨터 완전 종료 (전원 버튼 5초 길게 누르기)','충전기(AC 어댑터) 분리','노트북 뒤집어서 하판 나사 모두 제거 (나사 크기·위치 메모)','플라스틱 헤라로 하판 분리 (걸쇠 조심)','내장 배터리 커넥터를 메인보드에서 분리','CMOS 배터리(은색 동전 모양 CR2032) 위치 확인','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초간 길게 눌러 잔류 전기 방전','CMOS 배터리 재장착','내장 배터리 커넥터 재연결','하판 조립 후 나사 체결','충전기 연결 후 부팅 → BIOS 초기화 확인'],
+    warn:['정전기 방지: 작업 전 금속 물체 터치','커넥터 분리 시 케이블이 아닌 커넥터 잡고 빼기','나사 크기가 다를 수 있으니 위치별로 분류 보관','강제로 열지 않기 — 숨겨진 나사 확인'],
+    check:['부팅 시 날짜/시간이 초기화됨','BIOS 진입 시 모든 설정이 기본값으로 복원','BIOS 비밀번호 해제됨'],
+    failNote:'⚠️ 일부 삼성 노트북은 CMOS 배터리 제거로 비밀번호가 초기화되지 않을 수 있습니다. 이 경우 아래 방법을 시도하세요.'
+   },
+   {method:'내장 배터리 완전 방전법',difficulty:'★★☆☆☆',time:'24~48시간',tools:'없음',
+    steps:['충전기 분리','노트북 전원 켠 상태로 배터리가 완전히 방전될 때까지 방치','완전 방전 후 추가 24시간 방치 (잔류 전기 제거)','충전기 연결 후 부팅'],
+    warn:['시간이 오래 걸리지만 분해 없이 가능','일부 모델에서는 효과 없을 수 있음'],
+    check:['BIOS 설정 초기화 여부 확인','비밀번호 해제 여부 확인'],
+    failNote:''
+   },
+   {method:'서비스센터 의뢰',difficulty:'★☆☆☆☆',time:'1~3일',tools:'없음',
+    steps:['삼성전자 서비스센터 방문 또는 전화 예약 (1588-3366)','구매 증빙 또는 본인 확인 서류 지참','BIOS 비밀번호 초기화 요청'],
+    warn:['비용 발생 가능 (3~8만원)','본인 소유 확인 필요'],
+    check:['서비스센터에서 초기화 완료 확인'],
+    failNote:''
+   }
+  ],
+  데스크톱:[
+   {method:'CMOS 배터리(수은전지) 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['컴퓨터 완전 종료','전원 케이블 분리','케이스 사이드 패널 열기','메인보드에서 CMOS 배터리(은색 동전 CR2032) 찾기','배터리 제거 후 3~5분 방치','전원 버튼 30초 길게 눌러 잔류 전기 방전','배터리 재장착','케이스 닫고 전원 연결 후 부팅'],
+    warn:['정전기 주의','배터리 방향(+/-) 확인 후 재장착'],
+    check:['날짜/시간 초기화됨','BIOS 비밀번호 해제됨'],
+    failNote:''
+   },
+   {method:'메인보드 CMOS 점퍼(CLRTC/CLR_CMOS)',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡 또는 드라이버',
+    steps:['컴퓨터 완전 종료 + 전원 케이블 분리','메인보드에서 CLRTC 또는 CLR_CMOS 점퍼 찾기 (CMOS 배터리 근처)','점퍼를 1-2핀 → 2-3핀으로 이동 (또는 드라이버로 2-3핀 쇼트)','10~15초 유지','점퍼 원위치(1-2핀)로 복귀','전원 연결 후 부팅'],
+    warn:['점퍼 위치는 메인보드 매뉴얼 참고','쇼트 시 다른 부품 접촉 주의'],
+    check:['BIOS 초기화 + 비밀번호 해제 확인'],
+    failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['컴퓨터 완전 종료 + 전원 케이블 분리','하판 또는 상판 나사 제거 후 분리','CMOS 배터리 찾기 (공간이 좁으므로 주의)','배터리 제거 후 3~5분 방치','전원 버튼 30초 길게 눌러 방전','배터리 재장착 후 조립','전원 연결 후 부팅'],
+    warn:['미니PC는 내부 공간이 좁으므로 무리하게 힘 주지 않기','일부 모델은 CMOS 배터리가 메인보드 뒷면에 위치'],
+    check:['BIOS 초기화 + 비밀번호 해제 확인'],
+    failNote:''
+   }
+  ],
+  올인원PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라, 흡착컵(일부)',
+    steps:['컴퓨터 완전 종료 + 전원 케이블 분리','후면 커버 또는 스탠드 분리 (모델별 상이)','내부 접근 후 CMOS 배터리 찾기','배터리 제거 후 3~5분 방치','전원 버튼 30초 길게 눌러 방전','배터리 재장착 후 조립','전원 연결 후 부팅'],
+    warn:['올인원PC는 디스플레이 패널 손상 주의','분해 난이도가 높으므로 자신 없으면 서비스센터 권장'],
+    check:['BIOS 초기화 + 비밀번호 해제 확인'],
+    failNote:''
+   }
+  ]
+ },
+ masterPw:['samsung','admin','1234'],
+ pwSites:['bios-pw.org','biosbug.com']
+},
+{maker:'LG전자',types:['노트북','데스크톱','미니PC','올인원PC'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 LG 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'F11 (LG Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9 (BIOS 초기화)',올인원PC:'F9 (BIOS 초기화)'},
+ bootMenu:{노트북:'F10',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'2회',meaning:'❌ CMOS 오류 — CMOS 배터리 교체'},
+  {pattern:'1-2 (삑/삑삑)',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 그래픽카드 재장착'}
+ ],
+ biosReset:{
+  노트북:[
+   {method:'CMOS 배터리(수은전지) 제거',difficulty:'★★★☆☆',time:'15~20분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['컴퓨터 완전 종료','충전기 분리','하판 나사 제거 후 분리','내장 배터리 커넥터 분리','CMOS 배터리(CR2032) 제거 후 3~5분 방치','전원 버튼 30초 길게 눌러 방전','CMOS 배터리 재장착','내장 배터리 재연결 → 조립 → 부팅'],
+    warn:['LG 그램 시리즈는 하판 나사가 매우 작으므로 분실 주의','정전기 방지 필수'],
+    check:['날짜/시간 초기화','BIOS 비밀번호 해제'],
+    failNote:'⚠️ 일부 LG 노트북은 CMOS 제거로 초기화 안 될 수 있습니다. 완전 방전법 또는 서비스센터를 이용하세요.'
+   },
+   {method:'서비스센터 의뢰',difficulty:'★☆☆☆☆',time:'1~3일',tools:'없음',
+    steps:['LG전자 서비스센터 방문 (1544-7777)','구매 증빙 지참','BIOS 비밀번호 초기화 요청'],
+    warn:['비용 발생 가능'],check:['서비스센터에서 확인'],failNote:''
+   }
+  ],
+  데스크톱:[
+   {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 케이블 분리','케이스 열기','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초 방전','재장착 후 부팅'],
+    warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
+   },
+   {method:'CMOS 점퍼 초기화',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡',
+    steps:['완전 종료 + 전원 분리','CLR_CMOS 점퍼 찾기','점퍼 이동(1-2→2-3) 10초 유지','원위치 후 부팅'],
+    warn:['점퍼 위치는 메인보드 매뉴얼 참고'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분 방치','방전 후 재장착 → 부팅'],
+    warn:['공간이 좁으므로 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  올인원PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 전원 분리','후면 커버 분리','CMOS 배터리 제거 후 3~5분 방치','방전 후 재장착 → 조립 → 부팅'],
+    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ]
+ },
+ masterPw:['lg','admin','1234'],
+ pwSites:['bios-pw.org']
+},
+{maker:'HP',types:['노트북','데스크톱','미니PC','올인원PC'],
+ entry:{노트북:'F10',데스크톱:'F10',미니PC:'F10',올인원PC:'F10'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 HP 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'F11 (HP Recovery)',데스크톱:'F11',미니PC:'F11',올인원PC:'F11'},
+ bootMenu:{노트북:'F9 또는 Esc → F9',데스크톱:'F9 또는 Esc',미니PC:'F9',올인원PC:'F9'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'반복 비프',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'},
+  {pattern:'반복 비프 (빠르게)',meaning:'❌ CPU 팬 오류 — 팬 청소 또는 교체'}
+ ],
+ biosReset:{
+  노트북:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'15~20분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 충전기 분리','하판 나사 제거 후 분리','내장 배터리 커넥터 분리','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초 방전','재장착 → 조립 → 부팅'],
+    warn:['HP 노트북은 모델별로 하판 분리 방법이 다름','Pavilion/ENVY/Elite 시리즈별 확인'],
+    check:['BIOS 초기화 + 비밀번호 해제'],
+    failNote:'⚠️ HP 최신 모델은 CMOS 제거로 비밀번호 초기화 안 될 수 있음. 서비스 태그 기반 비밀번호(bios-pw.org) 시도 권장.'
+   },
+   {method:'서비스 태그 기반 비밀번호',difficulty:'★☆☆☆☆',time:'5분',tools:'다른 기기(스마트폰 등)',
+    steps:['BIOS 진입 시도 → 비밀번호 틀리면 "System Disabled" 메시지와 코드 표시','표시된 코드를 메모','다른 기기에서 bios-pw.org 접속','코드 입력 → 생성된 마스터 비밀번호 확인','해당 비밀번호로 BIOS 진입'],
+    warn:['HP에서 가장 효과적인 방법','코드를 정확히 메모해야 함'],
+    check:['BIOS 진입 성공 여부 확인'],
+    failNote:''
+   },
+   {method:'서비스센터 의뢰',difficulty:'★☆☆☆☆',time:'1~3일',tools:'없음',
+    steps:['HP 서비스센터 방문 (1588-3003)','구매 증빙 지참','BIOS 비밀번호 초기화 요청'],
+    warn:['비용 발생 가능'],check:['서비스센터에서 확인'],failNote:''
+   }
+  ],
+  데스크톱:[
+   {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
+   },
+   {method:'CMOS 점퍼 초기화',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡',
+    steps:['완전 종료 + 전원 분리','메인보드 CLR_CMOS 점퍼 찾기','점퍼 이동 10초 → 원위치 → 부팅'],
+    warn:['점퍼 위치는 메인보드 매뉴얼 참고'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['HP Mini/ProDesk Mini는 공간이 좁음'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  올인원PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 전원 분리','후면 커버 분리 (HP All-in-One은 스탠드 먼저 분리)','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
+    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ]
+ },
+ masterPw:['compaq','hp','hewlett-packard'],
+ pwSites:['bios-pw.org','biosbug.com']
+},
+{maker:'레노버',types:['노트북','데스크톱','미니PC','올인원PC'],
+ entry:{노트북:'F1 또는 Enter → F1',데스크톱:'F1',미니PC:'F1',올인원PC:'F1'},
+ entryTiming:{노트북:'부팅 직후 Lenovo 로고 나타날 때',데스크톱:'부팅 직후 Lenovo 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'F11 (Lenovo Recovery)',데스크톱:'F11',미니PC:'F11',올인원PC:'F11'},
+ bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'3회',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'1-3 반복',meaning:'❌ CPU 또는 메인보드 오류'},
+  {pattern:'반복 비프',meaning:'❌ 배터리/전원 문제 (노트북)'},
+  {pattern:'연속 긴 비프',meaning:'❌ 팬 오류 또는 과열'}
+ ],
+ biosReset:{
+  노트북:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'15~20분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 충전기 분리','하판 나사 제거 후 분리','내장 배터리 커넥터 분리','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초 방전','재장착 → 조립 → 부팅'],
+    warn:['ThinkPad와 IdeaPad는 하판 구조가 다름','ThinkPad는 나사가 분리되지 않고 풀리기만 하는 모델 있음'],
+    check:['BIOS 초기화 + 비밀번호 해제'],
+    failNote:'⚠️ ThinkPad 일부 모델은 CMOS 제거로 Supervisor Password가 초기화 안 됨. 서비스 태그 기반 방법 시도.'
+   },
+   {method:'서비스 태그 기반 비밀번호',difficulty:'★☆☆☆☆',time:'5분',tools:'다른 기기',
+    steps:['BIOS 진입 시도 → 비밀번호 틀리면 코드 표시','코드를 메모','bios-pw.org에서 코드 입력 → 마스터 비밀번호 확인','해당 비밀번호로 BIOS 진입'],
+    warn:['ThinkPad에서 효과적'],check:['BIOS 진입 성공 확인'],failNote:''
+   },
+   {method:'서비스센터 의뢰',difficulty:'★☆☆☆☆',time:'1~3일',tools:'없음',
+    steps:['레노버 서비스센터 방문 (1588-5801)','구매 증빙 지참','BIOS 비밀번호 초기화 요청'],
+    warn:['비용 발생 가능'],check:['서비스센터에서 확인'],failNote:''
+   }
+  ],
+  데스크톱:[
+   {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
+   },
+   {method:'CMOS 점퍼 초기화',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡',
+    steps:['완전 종료 + 전원 분리','CLR_CMOS 점퍼 이동 10초 → 원위치 → 부팅'],
+    warn:['점퍼 위치는 매뉴얼 참고'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['ThinkCentre Tiny는 공간이 좁음'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  올인원PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 전원 분리','후면 커버/스탠드 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
+    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ]
+ },
+ masterPw:['lenovo','thinkpad','admin'],
+ pwSites:['bios-pw.org','biosbug.com']
+},
+{maker:'DELL',types:['노트북','데스크톱','미니PC','올인원PC'],
+ entry:{노트북:'F2',데스크톱:'F2 또는 Delete',미니PC:'F2',올인원PC:'F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Dell 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'F8 (Safe Mode) 또는 F12 → 복구',데스크톱:'F12 → 복구',미니PC:'F12',올인원PC:'F12'},
+ bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'반복 비프',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'},
+  {pattern:'반복 비프 (빠르게)',meaning:'❌ CPU 팬 오류'}
+ ],
+ biosReset:{
+  노트북:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'15~20분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 충전기 분리','하판 나사 제거 후 분리','내장 배터리 커넥터 분리','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초 방전','재장착 → 조립 → 부팅'],
+    warn:['Dell Latitude/Inspiron/XPS 시리즈별 하판 구조 다름','일부 모델은 CMOS 배터리가 케이블로 연결됨'],
+    check:['BIOS 초기화 + 비밀번호 해제'],
+    failNote:'⚠️ Dell 최신 모델은 CMOS 제거로 비밀번호 초기화 안 될 수 있음. 서비스 태그 기반 방법이 가장 효과적.'
+   },
+   {method:'서비스 태그 기반 비밀번호',difficulty:'★☆☆☆☆',time:'5분',tools:'다른 기기',
+    steps:['BIOS 진입 시도 → 비밀번호 3회 틀리면 "System Disabled" + 코드 표시','코드를 메모','bios-pw.org에서 코드 입력 → 마스터 비밀번호 확인','해당 비밀번호로 BIOS 진입'],
+    warn:['Dell에서 가장 효과적인 방법','서비스 태그 번호는 노트북 하단 스티커에도 있음'],
+    check:['BIOS 진입 성공 확인'],failNote:''
+   },
+   {method:'서비스센터 의뢰',difficulty:'★☆☆☆☆',time:'1~5일',tools:'없음',
+    steps:['Dell 서비스센터 연락 (080-200-3800)','구매 증빙 지참','BIOS 비밀번호 초기화 요청'],
+    warn:['비용 발생 가능'],check:['서비스센터에서 확인'],failNote:''
+   }
+  ],
+  데스크톱:[
+   {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
+   },
+   {method:'CMOS 점퍼(RTCRST/PSWD)',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡',
+    steps:['완전 종료 + 전원 분리','메인보드에서 RTCRST 또는 PSWD 점퍼 찾기','점퍼 제거 후 부팅 → 종료 → 점퍼 재장착 → 부팅'],
+    warn:['Dell 데스크톱은 PSWD 점퍼가 별도로 있는 모델이 많음'],check:['BIOS 초기화 + 비밀번호 해제'],failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['OptiPlex Micro는 공간 좁음'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  올인원PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 전원 분리','후면 커버 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
+    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ]
+ },
+ masterPw:['dell','dell123'],
+ pwSites:['bios-pw.org','biosbug.com']
+},
+{maker:'ASUS',types:['노트북','데스크톱','미니PC','올인원PC'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 ASUS 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'F9 (ASUS Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9',올인원PC:'F9'},
+ bootMenu:{노트북:'Esc 또는 F8',데스크톱:'F8',미니PC:'F8',올인원PC:'F8'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
+  {pattern:'1-3-1-1 (삑/삑삑삑/삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'}
+ ],
+ biosReset:{
+  노트북:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'15~20분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 충전기 분리','하판 나사 제거 후 분리','내장 배터리 커넥터 분리','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초 방전','재장착 → 조립 → 부팅'],
+    warn:['VivoBook/ZenBook/ROG 시리즈별 하판 구조 다름','ZenBook은 나사가 매우 작음'],
+    check:['BIOS 초기화 + 비밀번호 해제'],
+    failNote:'⚠️ ASUS 일부 모델은 CMOS 제거만으로 비밀번호 초기화 안 됨. 마스터 비밀번호 시도.'
+   },
+   {method:'마스터 비밀번호 시도',difficulty:'★☆☆☆☆',time:'2분',tools:'없음',
+    steps:['BIOS 진입 화면에서 비밀번호 입력란에 다음을 시도:','1) 빈칸(Enter만 누르기)','2) asus','3) admin','4) password'],
+    warn:['3회 이상 틀리면 잠길 수 있으니 신중하게'],check:['BIOS 진입 성공 확인'],failNote:''
+   },
+   {method:'서비스센터 의뢰',difficulty:'★☆☆☆☆',time:'1~3일',tools:'없음',
+    steps:['ASUS 서비스센터 방문 (1566-6868)','구매 증빙 지참','BIOS 비밀번호 초기화 요청'],
+    warn:['비용 발생 가능'],check:['서비스센터에서 확인'],failNote:''
+   }
+  ],
+  데스크톱:[
+   {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
+   },
+   {method:'CMOS 점퍼(CLRTC)',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡 또는 드라이버',
+    steps:['완전 종료 + 전원 분리','CLRTC 점퍼 찾기 (CMOS 배터리 근처)','점퍼 이동(1-2→2-3) 10초 유지','원위치 후 부팅'],
+    warn:['ASUS 메인보드는 CLRTC 표기'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['ASUS PN/NUC 시리즈는 공간 좁음'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  올인원PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 전원 분리','후면 커버 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
+    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ]
+ },
+ masterPw:['asus','asdf','admin','password'],
+ pwSites:['bios-pw.org']
+},
+{maker:'MSI',types:['노트북','데스크톱','미니PC'],
+ entry:{노트북:'Delete 또는 F2',데스크톱:'Delete',미니PC:'Delete'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 MSI 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'F3 (MSI Recovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
+ bootMenu:{노트북:'F11',데스크톱:'F11',미니PC:'F11'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'반복 2회',meaning:'❌ CMOS 오류 — CMOS 배터리 교체'},
+  {pattern:'1-3-2-1',meaning:'❌ 메모리 테스트 실패 — 메모리 교체'},
+  {pattern:'3-2-2-1',meaning:'❌ VGA 초기화 오류 — 그래픽카드 재장착'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 불량'}
+ ],
+ biosReset:{
+  노트북:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'15~20분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 충전기 분리','하판 나사 제거 후 분리','내장 배터리 커넥터 분리','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초 방전','재장착 → 조립 → 부팅'],
+    warn:['MSI 게이밍 노트북은 하판 나사가 많음'],
+    check:['BIOS 초기화 + 비밀번호 해제'],failNote:''
+   },
+   {method:'마스터 비밀번호 시도',difficulty:'★☆☆☆☆',time:'2분',tools:'없음',
+    steps:['BIOS 비밀번호 입력란에 다음 시도:','1) 빈칸(Enter만)','2) msi','3) admin','4) lkwpeter'],
+    warn:['3회 이상 틀리면 잠길 수 있음'],check:['BIOS 진입 성공 확인'],failNote:''
+   }
+  ],
+  데스크톱:[
+   {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
+   },
+   {method:'CMOS 점퍼(JBAT1)',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡',
+    steps:['완전 종료 + 전원 분리','JBAT1 점퍼 찾기 (CMOS 배터리 근처)','점퍼 이동(1-2→2-3) 10초 유지','원위치 후 부팅'],
+    warn:['MSI 메인보드는 JBAT1 표기'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['공간 좁음 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ]
+ },
+ masterPw:['msi','lkwpeter','admin'],
+ pwSites:[]
+},
+{maker:'ACER',types:['노트북','데스크톱','미니PC','올인원PC'],
+ entry:{노트북:'F2',데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2',올인원PC:'F2'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타',데스크톱:'부팅 직후 Acer 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때',올인원PC:'부팅 직후 로고 나타날 때'},
+ recovery:{노트북:'Alt+F10 (Acer eRecovery)',데스크톱:'F9 (BIOS 초기화)',미니PC:'F9',올인원PC:'F9'},
+ bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'2회 또는 1-1-3',meaning:'❌ CMOS 오류 — CMOS 배터리 교체'},
+  {pattern:'반복 비프',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'}
+ ],
+ biosReset:{
+  노트북:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'15~20분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 충전기 분리','하판 나사 제거 후 분리','내장 배터리 커넥터 분리','CMOS 배터리 제거 후 3~5분 방치','전원 버튼 30초 방전','재장착 → 조립 → 부팅'],
+    warn:['Aspire/Nitro/Swift 시리즈별 하판 구조 다름'],
+    check:['BIOS 초기화 + 비밀번호 해제'],failNote:''
+   },
+   {method:'마스터 비밀번호 시도',difficulty:'★☆☆☆☆',time:'2분',tools:'없음',
+    steps:['BIOS 비밀번호 입력란에 다음 시도:','1) 빈칸(Enter만)','2) acer','3) admin','4) 1234'],
+    warn:['3회 이상 틀리면 잠길 수 있음'],check:['BIOS 진입 성공 확인'],failNote:''
+   }
+  ],
+  데스크톱:[
+   {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['공간 좁음 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  올인원PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'십자드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 전원 분리','후면 커버 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 조립 → 부팅'],
+    warn:['디스플레이 패널 손상 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ]
+ },
+ masterPw:['acer','1234','admin'],
+ pwSites:['biosbug.com']
+},
+{maker:'GIGABYTE',types:['데스크톱','미니PC'],
+ entry:{데스크톱:'Delete',미니PC:'Delete 또는 F2'},
+ entryTiming:{데스크톱:'부팅 직후 Gigabyte 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
+ recovery:{데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
+ bootMenu:{데스크톱:'F12',미니PC:'F12'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'1-1-2-1',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'연속 짧은 비프',meaning:'❌ 메모리 미장착 또는 불량'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 비프',meaning:'❌ CPU 팬 오류/전원 공급 오류'}
+ ],
+ biosReset:{
+  데스크톱:[
+   {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
+   },
+   {method:'CMOS 점퍼(CLR_CMOS)',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡',
+    steps:['완전 종료 + 전원 분리','CLR_CMOS 점퍼 또는 뒷면 CLR_CMOS 버튼 찾기','점퍼 이동 10초 유지 또는 버튼 5초 누르기','원위치 후 부팅'],
+    warn:['최신 AORUS 보드는 후면 CLR_CMOS 버튼이 있어 더 편리'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['BRIX 시리즈는 공간 좁음'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ]
+ },
+ masterPw:['gigabyte','admin'],
+ pwSites:[]
+},
+{maker:'RAZER',types:['노트북'],
+ entry:{노트북:'F1 또는 Delete'},
+ entryTiming:{노트북:'전원 켜자마자 즉시 연타'},
+ recovery:{노트북:'F9 또는 Alt+F10'},
+ bootMenu:{노트북:'F12'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'}
+ ],
+ biosReset:{
+  노트북:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★★☆',time:'20~30분',tools:'T5 토크스 드라이버, 플라스틱 헤라',
+    steps:['완전 종료 + 충전기 분리','하판 토크스 나사 제거 (T5)','내장 배터리 커넥터 분리','CMOS 배터리 제거 후 3~5분','전원 버튼 30초 방전','재장착 → 조립 → 부팅'],
+    warn:['Razer Blade는 토크스(별) 나사 사용 — 일반 십자드라이버 불가','분해 시 보증 무효 가능'],
+    check:['BIOS 초기화 + 비밀번호 해제'],failNote:''
+   }
+  ]
+ },
+ masterPw:['razer','insyde'],
+ pwSites:[]
+},
+{maker:'주연테크',types:['데스크톱','미니PC'],
+ entry:{데스크톱:'Delete 또는 F2',미니PC:'Delete 또는 F2'},
+ entryTiming:{데스크톱:'부팅 직후 로고 나타날 때',미니PC:'부팅 직후 로고 나타날 때'},
+ recovery:{데스크톱:'F9 (BIOS 초기화)',미니PC:'F9'},
+ bootMenu:{데스크톱:'F12 또는 F7',미니PC:'F12'},
+ beeps:[
+  {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'}
+ ],
+ biosReset:{
+  데스크톱:[
+   {method:'CMOS 배터리 제거',difficulty:'★★☆☆☆',time:'5~10분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 열기','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['정전기 주의'],check:['BIOS 초기화 확인'],failNote:''
+   },
+   {method:'CMOS 점퍼 초기화',difficulty:'★★☆☆☆',time:'5분',tools:'점퍼 캡',
+    steps:['완전 종료 + 전원 분리','CLR_CMOS 점퍼 이동 10초 → 원위치 → 부팅'],
+    warn:['점퍼 위치는 매뉴얼 참고'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ],
+  미니PC:[
+   {method:'CMOS 배터리 제거',difficulty:'★★★☆☆',time:'10~15분',tools:'십자드라이버',
+    steps:['완전 종료 + 전원 분리','케이스 분리','CMOS 배터리 제거 후 3~5분','방전 후 재장착 → 부팅'],
+    warn:['공간 좁음 주의'],check:['BIOS 초기화 확인'],failNote:''
+   }
+  ]
+ },
+ masterPw:['admin','password'],
+ pwSites:[]
+}
+];
+
+let infoState={maker:'',type:''};
+function renderInfoTab(){
+  const el=document.getElementById('infoTab'); if(!el)return;
+  const makers=BIOS_DATA.map(d=>d.maker);
+  const sel=BIOS_DATA.find(d=>d.maker===infoState.maker);
+  const types=sel?sel.types:[];
+  if(sel&&!types.includes(infoState.type)) infoState.type='';
+
+  let body='';
+  if(sel&&infoState.type){
+    const t=infoState.type;
+    body+=`<div class="card" style="border-left-color:#1971c2">
+      <div style="font-weight:700;font-size:16px;margin-bottom:10px">🖥️ ${esc(sel.maker)} — ${esc(t)}</div>
+      <table style="width:100%;font-size:13px;border-collapse:collapse">
+        <tr style="border-bottom:1px solid #e9ecef"><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">BIOS 진입 키</td><td style="padding:8px">${esc(sel.entry[t]||'-')}</td></tr>
+        <tr style="border-bottom:1px solid #e9ecef"><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">진입 타이밍</td><td style="padding:8px">${esc(sel.entryTiming[t]||'-')}</td></tr>
+        <tr style="border-bottom:1px solid #e9ecef"><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">리커버리 키</td><td style="padding:8px">${esc(sel.recovery[t]||'-')}</td></tr>
+        <tr><td style="padding:8px;font-weight:600;white-space:nowrap;color:#1971c2">부팅 메뉴 키</td><td style="padding:8px">${esc(sel.bootMenu[t]||'-')}</td></tr>
+      </table>
+    </div>`;
+
+    body+=`<div class="card" style="border-left-color:#e67700">
+      <div style="font-weight:700;font-size:15px;margin-bottom:8px">🔊 비프음 코드</div>
+      <table style="width:100%;font-size:13px;border-collapse:collapse">
+        <tr style="background:#f8f9fa;font-weight:600"><td style="padding:6px 8px;border-bottom:1px solid #dee2e6">패턴</td><td style="padding:6px 8px;border-bottom:1px solid #dee2e6">의미</td></tr>
+        ${sel.beeps.map(b=>`<tr style="border-bottom:1px solid #f1f3f5"><td style="padding:6px 8px;white-space:nowrap">${esc(b.pattern)}</td><td style="padding:6px 8px">${esc(b.meaning)}</td></tr>`).join('')}
+      </table>
+    </div>`;
+
+    const resets=(sel.biosReset||{})[t]||[];
+    if(resets.length){
+      body+=`<div class="card" style="border-left-color:#e03131">
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px">🔓 BIOS 초기화 (비밀번호 분실 시)</div>`;
+      resets.forEach((r,i)=>{
+        const rid='br_'+i;
+        body+=`<div style="border:1px solid #e9ecef;border-radius:8px;margin-bottom:8px;overflow:hidden">
+          <div onclick="document.getElementById('${rid}').style.display=document.getElementById('${rid}').style.display==='none'?'block':'none'" style="padding:10px 12px;background:#f8f9fa;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:600">▶ 방법${i+1}: ${esc(r.method)}</span>
+            <span style="font-size:11px;color:var(--gray-500)">${esc(r.difficulty)} · ${esc(r.time)}</span>
+          </div>
+          <div id="${rid}" style="display:none;padding:10px 12px;font-size:13px">
+            <div style="color:var(--gray-500);margin-bottom:6px">🛠️ 필요 공구: ${esc(r.tools)}</div>
+            <div style="font-weight:600;margin:8px 0 4px">📋 진행 단계:</div>
+            <ol style="margin:0;padding-left:20px;line-height:1.8">${r.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>
+            ${r.warn.length?`<div style="margin-top:8px;padding:8px;background:#fff3bf;border-radius:6px;font-size:12px"><strong>⚠️ 주의사항:</strong><ul style="margin:4px 0 0;padding-left:16px">${r.warn.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>`:''}
+            <div style="margin-top:8px;padding:8px;background:#d3f9d8;border-radius:6px;font-size:12px"><strong>✅ 리셋 확인:</strong><ul style="margin:4px 0 0;padding-left:16px">${r.check.map(c=>`<li>${esc(c)}</li>`).join('')}</ul></div>
+            ${r.failNote?`<div style="margin-top:8px;padding:8px;background:#ffe3e3;border-radius:6px;font-size:12px">${esc(r.failNote)}</div>`:''}
+          </div>
+        </div>`;
+      });
+      body+=`</div>`;
+    }
+
+    if(sel.masterPw&&sel.masterPw.length){
+      body+=`<div class="card" style="border-left-color:#7048e8">
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px">🔑 마스터 비밀번호 (시도용)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${sel.masterPw.map(p=>`<span style="padding:4px 12px;background:#f3f0ff;border:1px solid #d0bfff;border-radius:8px;font-size:13px;font-family:monospace">${esc(p)}</span>`).join('')}</div>
+        <div style="font-size:11px;color:var(--gray-500);margin-top:6px">⚠️ 3회 이상 틀리면 잠길 수 있으니 신중하게 시도</div>
+      </div>`;
+    }
+
+    if(sel.pwSites&&sel.pwSites.length){
+      body+=`<div class="card" style="border-left-color:#0ca678">
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px">🌐 온라인 비밀번호 복구 사이트</div>
+        ${sel.pwSites.map(s=>`<div style="padding:4px 0;font-size:13px">🔗 ${esc(s)}</div>`).join('')}
+        <div style="font-size:11px;color:var(--gray-500);margin-top:4px">서비스 태그/코드를 입력하면 마스터 비밀번호 생성</div>
+      </div>`;
+    }
+  }
+
+  el.innerHTML=`
+    <div class="card" style="border-left-color:var(--primary)">
+      <div style="font-weight:700;font-size:16px;margin-bottom:12px">📖 BIOS 기술 정보</div>
+      <div class="fg" style="margin-bottom:10px">
+        <label style="font-size:13px;font-weight:600">제조사 선택</label>
+        <select onchange="infoState.maker=this.value;infoState.type='';renderInfoTab()" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px;font-size:14px">
+          <option value="">-- 제조사 선택 --</option>
+          ${makers.map(m=>`<option value="${esc(m)}" ${infoState.maker===m?'selected':''}>${esc(m)}</option>`).join('')}
+        </select>
+      </div>
+      ${types.length?`<div class="fg">
+        <label style="font-size:13px;font-weight:600">제품 형태</label>
+        <select onchange="infoState.type=this.value;renderInfoTab()" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px;font-size:14px">
+          <option value="">-- 형태 선택 --</option>
+          ${types.map(t=>`<option value="${esc(t)}" ${infoState.type===t?'selected':''}>${esc(t)}</option>`).join('')}
+        </select>
+      </div>`:''}
+    </div>
+    ${body}`;
 }
 
 // ── 초기화 ──
