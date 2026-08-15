@@ -234,7 +234,7 @@ function render(){
   if(S.tab==='wo')renderWoTab();
   if(S.tab==='sched')renderScheduleInline();
 }
-function setTab(t){ S.tab=t; if(t==='sched'){ schedState={ym:ymStr(new Date()),sel:null}; loadSchedules().then(render); return; } render(); }
+function setTab(t){ S.tab=t; if(t==='sched'){ schedState={ym:ymStr(new Date()),sel:null}; loadSchedules().then(()=>{render();window.scrollTo(0,0);}); return; } render(); window.scrollTo(0,0); }
 
 function cardHtml(r){
   const isAdmin=S.engineer.is_admin, mine=r.assigned_engineer_id==S.engineer.id;
@@ -343,7 +343,7 @@ async function openProcessing(id){
   try{ S.procExisting=await api('GET',`/receptions/${id}/photos`); }catch(e){}
   render();
 }
-function closeProcessing(){ S.processing=null; render(); }
+function closeProcessing(){ S.processing=null; render(); window.scrollTo(0,0); }
 function renderProcessing(){
   const r=S.receptions.find(x=>x.id==S.processing); if(!r){ closeProcessing(); return; }
   const done=r.status==='completed'||r.status==='cancelled';
