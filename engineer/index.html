@@ -208,7 +208,7 @@ function render(){
   const done=S.receptions.filter(r=>r.status==='completed');
   const tabs = isAdmin
     ? [['all','📊 현황'],['wo','➕ 지시'],['done','📁 이력'],['info','📖 정보'],['sched','📅 일정']]
-    : [['list','📋 작업목록'],['done','📁 이력'],['sched','📅 일정']];
+    : [['list','📋 작업목록'],['done','📁 이력'],['info','📖 정보'],['sched','📅 일정']];
   if(!tabs.some(t=>t[0]===S.tab)) S.tab=tabs[0][0];
   let content='';
   if(S.tab==='wo'){ content=`<div id="woTab"></div>`; }
