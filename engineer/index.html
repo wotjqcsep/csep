@@ -2098,9 +2098,58 @@ const BIOS_DATA=[
 }
 ];
 
-let infoState={maker:'',type:''};
+const ROUTER_DATA=[
+{brand:'ipTIME',ip:'192.168.0.1',id:'admin',pw:'admin',reset:'RST 버튼 10초 길게 누르기'},
+{brand:'KT',ip:'172.30.1.254:8899',id:'ktroot',pw:'nespot 또는 megaap',reset:'공장 초기화 메뉴 또는 RST 버튼'},
+{brand:'SK (BTV)',ip:'192.168.15.1:62207',id:'root',pw:'skb_ipdcp',reset:'공장 초기화 메뉴 또는 RST 버튼'},
+{brand:'LG U+',ip:'192.168.219.1',id:'admin 또는 user',pw:'power',reset:'RST 버튼 10초'},
+{brand:'TP-Link',ip:'192.168.0.1',id:'admin',pw:'admin',reset:'RST 버튼 10초'},
+{brand:'ASUS',ip:'192.168.1.1',id:'admin',pw:'admin',reset:'RST 버튼 5~10초'},
+{brand:'Netgear',ip:'192.168.1.1',id:'admin',pw:'password',reset:'RST 버튼 7초'},
+{brand:'D-Link',ip:'192.168.0.1',id:'admin',pw:'(공백)',reset:'RST 버튼 10초'}
+];
+const CCTV_DATA=[
+{brand:'하이크비전 (Hikvision)',id:'admin',pw:'12345 (구형) / 신형: 첫 부팅 시 설정',reset:'SADP Tool 또는 RESET 버튼'},
+{brand:'다후아 (Dahua)',id:'admin / 888888(로컬)',pw:'admin / 888888',reset:'전면 RESET 버튼 또는 웹 초기화'},
+{brand:'한화비전 (Hanwha)',id:'admin',pw:'첫 부팅 시 설정 (초기값 없음)',reset:'뒷면 RESET 버튼 15초'},
+{brand:'IDIS',id:'admin',pw:'admin 또는 111111',reset:'메뉴 > 시스템 > 초기화'}
+];
+const NAS_DATA=[
+{brand:'Synology',ip:'find.synology.com',id:'admin',pw:'(공백)',reset:'RESET 버튼 4초 → 비프음 후 해제'},
+{brand:'QNAP (QTS 4.4.1 이하)',ip:'qfinder.qnap.com',id:'admin',pw:'admin',reset:'RESET 버튼 3초'},
+{brand:'QNAP (QTS 4.4.2 이상)',ip:'qfinder.qnap.com',id:'admin',pw:'MAC 주소 대문자 (콜론 없이)',reset:'RESET 3초 → admin/admin 복귀'},
+{brand:'ipTIME NAS',ip:'192.168.0.1',id:'admin',pw:'admin',reset:'RST 버튼 10초'},
+{brand:'WD My Cloud',ip:'wdmycloud.local',id:'admin',pw:'초기 설정 시 생성',reset:'RESET 버튼 4초'}
+];
+const IPPHONE_DATA=[
+{brand:'KT',pw:'0000',reset:'KT 고객센터 100번 또는 설정 초기화'},
+{brand:'SK',pw:'0000 또는 1234',reset:'기업용 키폰 관리자: skb_ipp / 고객센터 106번'},
+{brand:'LG-Ericsson iPECS',pw:'147*',reset:'메뉴 > 시스템 > 공장 초기화'},
+{brand:'Yealink',pw:'admin / admin',reset:'OK 버튼 10초 또는 메뉴 > 초기화'},
+{brand:'Grandstream',pw:'admin / admin 또는 456',reset:'메뉴 > Config > Factory Reset'},
+{brand:'코콤 (KOCOM)',pw:'9999',reset:'전화기 초기화 메뉴'}
+];
+
+let infoState={category:'bios',maker:'',type:''};
 function renderInfoTab(){
   const el=document.getElementById('infoTab'); if(!el)return;
+  const cc=infoState.category||'bios';
+  const _cats=[{k:'bios',l:'BIOS'},{k:'router',l:'공유기'},{k:'cctv',l:'CCTV'},{k:'nas',l:'NAS'},{k:'phone',l:'전화'}];
+  const tabBar=`<div style="display:flex;gap:4px;margin-bottom:12px">${_cats.map(c=>`<button onclick="infoState.category='${c.k}';infoState.maker='';infoState.type='';renderInfoTab()" style="flex:1;min-width:0;padding:10px 2px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:${cc===c.k?'var(--primary)':'#f1f3f5'};color:${cc===c.k?'#fff':'var(--gray-700)'}">${c.l}</button>`).join('')}</div>`;
+  if(cc!=='bios'){
+    let ct='';
+    if(cc==='router'){
+      ct=`<div class="card" style="border-left-color:#0ca678"><div style="font-weight:700;font-size:16px;margin-bottom:12px">📶 공유기 초기 접속 정보</div>${ROUTER_DATA.map((r,i)=>`<div style="${i?'border-top:1px solid #e9ecef;padding-top:10px;margin-top:10px':''}"><div style="font-weight:700;font-size:14px;color:#0ca678;margin-bottom:6px">${esc(r.brand)}</div><div style="display:grid;grid-template-columns:70px 1fr;gap:2px 8px;font-size:13px"><span style="font-weight:600;color:var(--gray-500)">주소</span><span style="font-family:monospace;word-break:break-all">${esc(r.ip)}</span><span style="font-weight:600;color:var(--gray-500)">ID / PW</span><span style="font-family:monospace">${esc(r.id)} / ${esc(r.pw)}</span><span style="font-weight:600;color:var(--gray-500)">초기화</span><span>${esc(r.reset)}</span></div></div>`).join('')}</div>`;
+    }else if(cc==='cctv'){
+      ct=`<div class="card" style="border-left-color:#e03131"><div style="font-weight:700;font-size:16px;margin-bottom:12px">📹 CCTV 초기 비밀번호</div>${CCTV_DATA.map((r,i)=>`<div style="${i?'border-top:1px solid #e9ecef;padding-top:10px;margin-top:10px':''}"><div style="font-weight:700;font-size:14px;color:#e03131;margin-bottom:6px">${esc(r.brand)}</div><div style="display:grid;grid-template-columns:70px 1fr;gap:2px 8px;font-size:13px"><span style="font-weight:600;color:var(--gray-500)">ID / PW</span><span style="font-family:monospace">${esc(r.id)} / ${esc(r.pw)}</span><span style="font-weight:600;color:var(--gray-500)">초기화</span><span>${esc(r.reset)}</span></div></div>`).join('')}</div>`;
+    }else if(cc==='nas'){
+      ct=`<div class="card" style="border-left-color:#7048e8"><div style="font-weight:700;font-size:16px;margin-bottom:12px">💾 NAS 초기 접속 정보</div>${NAS_DATA.map((r,i)=>`<div style="${i?'border-top:1px solid #e9ecef;padding-top:10px;margin-top:10px':''}"><div style="font-weight:700;font-size:14px;color:#7048e8;margin-bottom:6px">${esc(r.brand)}</div><div style="display:grid;grid-template-columns:70px 1fr;gap:2px 8px;font-size:13px"><span style="font-weight:600;color:var(--gray-500)">접속</span><span style="font-family:monospace;word-break:break-all">${esc(r.ip)}</span><span style="font-weight:600;color:var(--gray-500)">ID / PW</span><span style="font-family:monospace">${esc(r.id)} / ${esc(r.pw)}</span><span style="font-weight:600;color:var(--gray-500)">초기화</span><span>${esc(r.reset)}</span></div></div>`).join('')}</div>`;
+    }else if(cc==='phone'){
+      ct=`<div class="card" style="border-left-color:#e67700"><div style="font-weight:700;font-size:16px;margin-bottom:12px">📞 인터넷전화 초기 비밀번호</div>${IPPHONE_DATA.map((r,i)=>`<div style="${i?'border-top:1px solid #e9ecef;padding-top:10px;margin-top:10px':''}"><div style="font-weight:700;font-size:14px;color:#e67700;margin-bottom:6px">${esc(r.brand)}</div><div style="display:grid;grid-template-columns:70px 1fr;gap:2px 8px;font-size:13px"><span style="font-weight:600;color:var(--gray-500)">비밀번호</span><span style="font-family:monospace">${esc(r.pw)}</span><span style="font-weight:600;color:var(--gray-500)">초기화</span><span>${esc(r.reset)}</span></div></div>`).join('')}</div>`;
+    }
+    el.innerHTML=tabBar+ct;
+    return;
+  }
   const makers=BIOS_DATA.map(d=>d.maker);
   const sel=BIOS_DATA.find(d=>d.maker===infoState.maker);
   const types=sel?sel.types:[];
@@ -2169,7 +2218,7 @@ function renderInfoTab(){
     }
   }
 
-  el.innerHTML=`
+  el.innerHTML=tabBar+`
     <div class="card" style="border-left-color:var(--primary)">
       <div style="font-weight:700;font-size:16px;margin-bottom:12px">📖 BIOS 기술 정보</div>
       <div class="fg" style="margin-bottom:10px">
