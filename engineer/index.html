@@ -193,7 +193,7 @@ async function loadReceptions(showLoading){
   finally{ _engLoadRunning=false; }
 }
 // 편집 중이면 배경 새로고침이 화면을 다시 그리지 않게
-function isEditing(){ return !!S.processing || S.tab==='wo' || !!document.getElementById('ov') || !!document.getElementById('ov2'); }
+function isEditing(){ return !!S.processing || S.tab==='wo' || S.tab==='info' || !!document.getElementById('ov') || !!document.getElementById('ov2'); }
 function engName(id){ const e=S.engineers.find(x=>x.id==id); return e?e.name:(id?`기사${id}`:'-'); }
 
 // ── 렌더 ──
@@ -2243,7 +2243,7 @@ function renderInfoTab(){
     if(sel.pwSites&&sel.pwSites.length){
       body+=`<div class="card" style="border-left-color:#0ca678">
         <div style="font-weight:700;font-size:15px;margin-bottom:8px">🌐 온라인 비밀번호 복구 사이트</div>
-        ${sel.pwSites.map(s=>`<div style="padding:4px 0;font-size:13px">🔗 ${esc(s)}</div>`).join('')}
+        ${sel.pwSites.map(s=>`<div style="padding:6px 0;font-size:14px"><a href="https://${esc(s)}" target="_blank" rel="noopener" onclick="event.stopPropagation();window.open('https://${esc(s)}','_blank','width=600,height=700');return false;" style="color:#1971c2;text-decoration:underline;font-weight:600">🔗 ${esc(s)}</a></div>`).join('')}
         <div style="font-size:11px;color:var(--gray-500);margin-top:4px">서비스 태그/코드를 입력하면 마스터 비밀번호 생성</div>
       </div>`;
     }
