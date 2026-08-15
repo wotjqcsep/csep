@@ -470,7 +470,8 @@ function ehFilterHtml(filter){
 }
 async function openHistory(custId){
   try{ _ehHist=await api('GET',`/customers/${custId}/receptions`); }catch(e){ _ehHist=[]; }
-  const types=[...new Set(_ehHist.map(r=>r.work_type).filter(Boolean))];
+  const _validTypes=['출장','납품','견적서 납품'];
+  const types=[...new Set(_ehHist.map(r=>r.work_type).filter(t=>t&&_validTypes.includes(t)))];
   const tabs=types.length? `<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap"><button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;background:var(--gray-800);color:#fff;border-radius:14px" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='var(--gray-800)';this.style.color='#fff';document.getElementById('eh_body').innerHTML=ehFilterHtml('')">전체</button>${types.map(t=>`<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;background:var(--gray-100);color:var(--gray-700);border-radius:14px" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='${WO_TYPE_COLOR[t]||'var(--gray-600)'}';this.style.color='#fff';document.getElementById('eh_body').innerHTML=ehFilterHtml('${esc(t)}')">${esc(t)}</button>`).join('')}</div>` : '';
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🕘 거래처 이력 (${_ehHist.length})</h3>
