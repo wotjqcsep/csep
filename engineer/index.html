@@ -1568,10 +1568,20 @@ const BIOS_DATA=[
  bootMenu:{노트북:'F10',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
-  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체 필요'},
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
   {pattern:'3회',meaning:'❌ 메모리 오류 — 메모리 재장착 또는 교체'},
-  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체 필요'},
-  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 그래픽카드 재장착'}
+  {pattern:'4회',meaning:'❌ 메모리 주소 라인 오류 — 메모리 교체'},
+  {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — CMOS 배터리 교체'},
+  {pattern:'1-1-3 (삑/삑/삑삑삑)',meaning:'❌ CMOS 배터리 오류 — 배터리 교체'},
+  {pattern:'1-2-1 (삑/삑삑/삑)',meaning:'❌ 메인보드 타이머 오류 — 메인보드 점검'},
+  {pattern:'1-2-2 (삑/삑삑/삑삑)',meaning:'❌ 메모리 패리티 오류 — 메모리 재장착'},
+  {pattern:'1-3-1 (삑/삑삑삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'1-3-3 (삑/삑삑삑/삑삑삑)',meaning:'❌ 메모리 검사 실패 — 메모리 뱅크1 오류'},
+  {pattern:'2-1-1 (삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 모듈 손상'},
+  {pattern:'3-1-1 (삑삑삑/삑/삑)',meaning:'❌ 메모리 검사 실패 — 메모리 뱅크2 오류'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 비프',meaning:'❌ CPU 팬 오류 또는 전원 공급 문제'}
  ],
  biosReset:{
   노트북:[
@@ -1636,9 +1646,16 @@ const BIOS_DATA=[
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 오류 — CMOS 배터리 교체'},
+  {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — 배터리 교체'},
+  {pattern:'1-1-3 (삑/삑/삑삑삑)',meaning:'❌ CMOS 메모리 오류 — 배터리 교체'},
   {pattern:'1-2 (삑/삑삑)',meaning:'❌ 메모리 오류 — 메모리 재장착'},
-  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체'},
-  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 그래픽카드 재장착'}
+  {pattern:'1-2-1 (삑/삑삑/삑)',meaning:'❌ 타이머 오류 — 메인보드 칩셋 점검'},
+  {pattern:'1-3-1 (삑/삑삑삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'2-1-1 (삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 모듈 손상'},
+  {pattern:'3-1-1 (삑삑삑/삑/삑)',meaning:'❌ 메모리 검사 실패 — 메모리 교체'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 비프',meaning:'❌ CPU 팬 오류 또는 전원 문제'}
  ],
  biosReset:{
   노트북:[
@@ -1686,10 +1703,24 @@ const BIOS_DATA=[
  bootMenu:{노트북:'F9 또는 Esc → F9',데스크톱:'F9 또는 Esc',미니PC:'F9',올인원PC:'F9'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
+  {pattern:'1-1-1-1 (삑/삑/삑/삑)',meaning:'❌ CPU 오류 — CPU 손상 또는 미장착'},
+  {pattern:'1-1-1-3 (삑/삑/삑/삑삑삑)',meaning:'❌ 메모리 읽기/쓰기 오류 — 메모리 교체'},
+  {pattern:'1-1-2-1 (삑/삑/삑삑/삑)',meaning:'❌ 메인보드 타이머 오류 — 칩셋 점검'},
+  {pattern:'1-1-3-1 (삑/삑/삑삑삑/삑)',meaning:'❌ DMA 초기화 오류 — 메인보드 점검'},
+  {pattern:'1-1-4-1 (삑/삑/삑삑삑삑/삑)',meaning:'❌ ROM BIOS 체크섬 오류 — BIOS 손상'},
+  {pattern:'1-2-1-1 (삑/삑삑/삑/삑)',meaning:'❌ 시스템 타이머 오류 — 칩셋 점검'},
+  {pattern:'1-2-2-1 (삑/삑삑/삑삑/삑)',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'1-2-2-3 (삑/삑삑/삑삑/삑삑삑)',meaning:'❌ 그래픽카드 메모리 오류 — 그래픽카드 교체'},
+  {pattern:'1-3-1-1 (삑/삑삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 교체'},
+  {pattern:'1-3-4-1 (삑/삑삑삑/삑삑삑삑/삑)',meaning:'❌ 메모리 부족 — 메모리 미장착'},
+  {pattern:'2-1-1-1 (삑삑/삑/삑/삑)',meaning:'❌ 비디오 초기화 오류 — 그래픽카드 점검'},
+  {pattern:'2-1-2-3 (삑삑/삑/삑삑/삑삑삑)',meaning:'❌ 비디오 메모리 오류 — 그래픽카드 교체'},
   {pattern:'반복 비프',meaning:'❌ 메모리 오류 — 메모리 재장착'},
-  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체'},
-  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'},
-  {pattern:'반복 비프 (빠르게)',meaning:'❌ CPU 팬 오류 — 팬 청소 또는 교체'}
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 비프 (빠르게)',meaning:'❌ CPU 팬 오류 — 팬 청소 또는 교체'},
+  {pattern:'급속 비프 (노트북)',meaning:'❌ 배터리/전원 공급 오류'}
  ],
  biosReset:{
   노트북:[
@@ -1743,10 +1774,19 @@ const BIOS_DATA=[
  bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
-  {pattern:'3회',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
+  {pattern:'3회',meaning:'❌ 메모리 오류 — 메모리 재장착 또는 교체'},
+  {pattern:'1-1-3 (삑/삑/삑삑삑)',meaning:'❌ CMOS 메모리 오류 — 배터리 교체'},
+  {pattern:'1-2-1 (삑/삑삑/삑)',meaning:'❌ 시스템 타이머 오류 — 메인보드 점검'},
+  {pattern:'1-3-1-1 (삑/삑삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 교체'},
   {pattern:'1-3 반복',meaning:'❌ CPU 또는 메인보드 오류'},
+  {pattern:'2-2-3 (삑삑/삑삑/삑삑삑)',meaning:'❌ ROM BIOS 오류 — BIOS 업데이트 필요'},
+  {pattern:'3-1-4 (삑삑삑/삑/삑삑삑삑)',meaning:'❌ 메모리 부족 — 메모리 미장착'},
   {pattern:'반복 비프',meaning:'❌ 배터리/전원 문제 (노트북)'},
-  {pattern:'연속 긴 비프',meaning:'❌ 팬 오류 또는 과열'}
+  {pattern:'연속 긴 비프',meaning:'❌ 팬 오류 또는 과열 — 팬 청소'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 3회 비프 (노트북)',meaning:'❌ 배터리 문제 — 배터리 교체'}
  ],
  biosReset:{
   노트북:[
@@ -1798,10 +1838,20 @@ const BIOS_DATA=[
  bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
+  {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — 배터리 교체'},
+  {pattern:'1-1-3 (삑/삑/삑삑삑)',meaning:'❌ CMOS 메모리 오류'},
+  {pattern:'1-2-1 (삑/삑삑/삑)',meaning:'❌ 타이머 오류 — 메인보드 점검'},
+  {pattern:'1-2-2 (삑/삑삑/삑삑)',meaning:'❌ 메모리 패리티 오류 — 메모리 재장착'},
+  {pattern:'1-3-1 (삑/삑삑삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'1-3-4 (삑/삑삑삑/삑삑삑삑)',meaning:'❌ 메모리 부족 — 메모리 미장착'},
+  {pattern:'2-1-1 (삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 모듈 손상'},
+  {pattern:'3-1-1 (삑삑삑/삑/삑)',meaning:'❌ 메모리 검사 실패 — 메모리 교체'},
   {pattern:'반복 비프',meaning:'❌ 메모리 오류 — 메모리 재장착'},
-  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체'},
-  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'},
-  {pattern:'반복 비프 (빠르게)',meaning:'❌ CPU 팬 오류'}
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 비프 (빠르게)',meaning:'❌ CPU 팬 오류 — 팬 청소 또는 교체'},
+  {pattern:'짧은 비프 1회 + 긴 비프',meaning:'❌ 그래픽카드 오류 — 재장착'}
  ],
  biosReset:{
   노트북:[
@@ -1855,9 +1905,23 @@ const BIOS_DATA=[
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
-  {pattern:'1-3-1-1 (삑/삑삑삑/삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — 배터리 교체'},
+  {pattern:'1-1-3 (삑/삑/삑삑삑)',meaning:'❌ CMOS 배터리 오류 — 배터리 교체'},
+  {pattern:'1-2 (삑/삑삑)',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'1-2-1 (삑/삑삑/삑)',meaning:'❌ 타이머 오류 — 메인보드 점검'},
+  {pattern:'1-2-2 (삑/삑삑/삑삑)',meaning:'❌ 메모리 패리티 오류 — 메모리 재장착'},
+  {pattern:'1-3-1 (삑/삑삑삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'1-3-1-1 (삑/삑삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 교체'},
+  {pattern:'1-3-3 (삑/삑삑삑/삑삑삑)',meaning:'❌ 메모리 검사 실패 — 메모리 뱅크 오류'},
+  {pattern:'1-3-4 (삑/삑삑삑/삑삑삑삑)',meaning:'❌ 메모리 부족 — 메모리 미장착'},
+  {pattern:'2-1-1 (삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 모듈 손상'},
+  {pattern:'2-2-1 (삑삑/삑삑/삑)',meaning:'❌ 메모리 검사 실패 — 메모리 교체'},
+  {pattern:'3-1-1 (삑삑삑/삑/삑)',meaning:'❌ 메모리 검사 실패 — 메모리 뱅크2 오류'},
+  {pattern:'4-2-1 (삑삑삑삑/삑삑/삑)',meaning:'❌ 타이머 오류 — 칩셋 오류'},
+  {pattern:'4-3-1 (삑삑삑삑/삑삑삑/삑)',meaning:'❌ RAM 일괄 테스트 실패 — 메모리 교체'},
   {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
-  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'}
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 비프',meaning:'❌ 메모리 슬롯 감지 오류 — 메모리 재장착'}
  ],
  biosReset:{
   노트북:[
@@ -1910,9 +1974,17 @@ const BIOS_DATA=[
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
   {pattern:'반복 2회',meaning:'❌ CMOS 오류 — CMOS 배터리 교체'},
-  {pattern:'1-3-2-1',meaning:'❌ 메모리 테스트 실패 — 메모리 교체'},
-  {pattern:'3-2-2-1',meaning:'❌ VGA 초기화 오류 — 그래픽카드 재장착'},
-  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 불량'}
+  {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — 배터리 교체'},
+  {pattern:'1-2-1 (삑/삑삑/삑)',meaning:'❌ 타이머 오류 — 메인보드 칩셋 점검'},
+  {pattern:'1-2-2 (삑/삑삑/삑삑)',meaning:'❌ 메모리 패리티 오류 — 메모리 재장착'},
+  {pattern:'1-3-1 (삑/삑삑삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'1-3-2-1 (삑/삑삑삑/삑삑/삑)',meaning:'❌ 메모리 테스트 실패 — 메모리 교체'},
+  {pattern:'2-1-1 (삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 모듈 손상'},
+  {pattern:'3-1-1 (삑삑삑/삑/삑)',meaning:'❌ 메모리 검사 실패 — 메모리 교체'},
+  {pattern:'3-2-2-1 (삑삑삑/삑삑/삑삑/삑)',meaning:'❌ VGA 초기화 오류 — 그래픽카드 재장착'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 불량'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 비프',meaning:'❌ CPU 팬 오류 또는 전원 문제'}
  ],
  biosReset:{
   노트북:[
@@ -1953,10 +2025,20 @@ const BIOS_DATA=[
  bootMenu:{노트북:'F12',데스크톱:'F12',미니PC:'F12',올인원PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
-  {pattern:'2회 또는 1-1-3',meaning:'❌ CMOS 오류 — CMOS 배터리 교체'},
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
+  {pattern:'1-1-3 (삑/삑/삑삑삑)',meaning:'❌ CMOS 오류 — 배터리 교체'},
+  {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — 배터리 교체'},
+  {pattern:'1-2-1 (삑/삑삑/삑)',meaning:'❌ 타이머 오류 — 메인보드 점검'},
+  {pattern:'1-2-2 (삑/삑삑/삑삑)',meaning:'❌ 메모리 패리티 오류 — 메모리 재장착'},
+  {pattern:'1-3-1 (삑/삑삑삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'1-3-4 (삑/삑삑삑/삑삑삑삑)',meaning:'❌ 메모리 부족 — 메모리 미장착'},
+  {pattern:'2-1-1 (삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 모듈 손상'},
+  {pattern:'3-1-1 (삑삑삑/삑/삑)',meaning:'❌ 메모리 검사 실패 — 메모리 교체'},
   {pattern:'반복 비프',meaning:'❌ 메모리 오류 — 메모리 재장착'},
-  {pattern:'연속 비프',meaning:'❌ 메모리 심각 오류 — 메모리 교체'},
-  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'}
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'급속 비프 (노트북)',meaning:'❌ 배터리/전원 공급 오류'},
+  {pattern:'반복 비프 (빠르게)',meaning:'❌ CPU 팬 오류 — 팬 청소'}
  ],
  biosReset:{
   노트북:[
@@ -1999,7 +2081,13 @@ const BIOS_DATA=[
  bootMenu:{데스크톱:'F12',미니PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
-  {pattern:'1-1-2-1',meaning:'❌ 메모리 오류 — 메모리 재장착'},
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
+  {pattern:'1-1-2-1 (삑/삑/삑삑/삑)',meaning:'❌ DRAM 새로고침 오류 — 메모리 재장착'},
+  {pattern:'1-1-3-1 (삑/삑/삑삼삑/삑)',meaning:'❌ DRAM 데이터 라인 오류 — 메모리 교체'},
+  {pattern:'1-2-2-1 (삑/삑삑/삑삑/삑)',meaning:'❌ 칩셋 초기화 오류 — 메인보드 점검'},
+  {pattern:'1-3-1-1 (삑/삑삼삑/삑/삑)',meaning:'❌ DRAM 주소 라인 오류 — 메모리 교체'},
+  {pattern:'1-3-4-1 (삑/삑삼삑/삑삽삑삑/삑)',meaning:'❌ 메모리 부족 — 메모리 미장착'},
+  {pattern:'2-1-2-3 (삑삑/삑/삑삑/삑삽삑)',meaning:'❌ 비디오 메모리 오류 — 그래픽카드 교체'},
   {pattern:'연속 짧은 비프',meaning:'❌ 메모리 미장착 또는 불량'},
   {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
   {pattern:'반복 비프',meaning:'❌ CPU 팬 오류/전원 공급 오류'}
@@ -2032,8 +2120,13 @@ const BIOS_DATA=[
  bootMenu:{노트북:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
-  {pattern:'연속 비프',meaning:'❌ 메모리 오류 — 메모리 재장착'},
-  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'}
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
+  {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — 배터리 교체'},
+  {pattern:'1-2-2 (삑/삑삑/삑삑)',meaning:'❌ 메모리 패리티 오류 — 메모리 재장착'},
+  {pattern:'1-3-1 (삑/삑삼삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 비프',meaning:'❌ CPU 팬 오류 또는 전원 문제'}
  ],
  biosReset:{
   노트북:[
@@ -2054,8 +2147,14 @@ const BIOS_DATA=[
  bootMenu:{데스크톱:'F12 또는 F7',미니PC:'F12'},
  beeps:[
   {pattern:'1회 짧은 비프',meaning:'✅ 정상 부팅'},
-  {pattern:'연속 비프',meaning:'❌ 메모리 오류'},
-  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류'}
+  {pattern:'2회',meaning:'❌ CMOS 설정 오류 — CMOS 배터리 교체'},
+  {pattern:'1-1-2 (삑/삑/삑삑)',meaning:'❌ CMOS 체크섬 오류 — 배터리 교체'},
+  {pattern:'1-2-1 (삑/삑삑/삑)',meaning:'❌ 타이머 오류 — 메인보드 점검'},
+  {pattern:'1-3-1 (삑/삑삼삑/삑)',meaning:'❌ 메모리 주소 오류 — 메모리 교체'},
+  {pattern:'2-1-1 (삑삑/삑/삑)',meaning:'❌ 메모리 주소 라인 오류 — 메모리 손상'},
+  {pattern:'연속 비프',meaning:'❌ 메모리 미장착 또는 심각 오류'},
+  {pattern:'1회 긴 비프 + 2회 짧은 비프',meaning:'❌ 그래픽카드 오류 — 재장착'},
+  {pattern:'반복 비프',meaning:'❌ CPU 팬 오류 또는 전원 문제'}
  ],
  biosReset:{
   데스크톱:[
