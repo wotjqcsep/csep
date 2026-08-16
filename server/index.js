@@ -1803,10 +1803,22 @@ app.post('/api/push-subscribe', wrap(async (req, res) => {
 }));
 
 // ============================================================
-//  작업 사진 (수리 전/후) — base64, 20일 후 자동정리
+//  작업 사진 (수리 전/후) — base64→바이너리 변환, 브라우저 캐시 30일
+//  목록에는 URL만 내려보내 Render 대역폭 절감 (필드서비스 방식)
 // ============================================================
 app.get('/api/receptions/:id/photos', wrap(async (req, res) => {
-  res.json((await pool.query('SELECT id, photo, created_at FROM work_photos WHERE reception_id=$1 ORDER BY id', [req.params.id])).rows);
+  const { rows } = await pool.query('SELECT id, created_at FROM work_photos WHERE reception_id=$1 ORDER BY id', [req.params.id]);
+  res.json(rows.map(r => ({ id: r.id, photo: `/api/work-photos/${r.id}/image`, created_at: r.created_at })));
+}));
+app.get('/api/work-photos/:id/image', wrap(async (req, res) => {
+  const { rows } = await pool.query('SELECT photo FROM work_photos WHERE id=$1', [req.params.id]);
+  if (!rows[0] || !rows[0].photo) return res.status(404).end();
+  const m = /^data:(image\/[\w+.-]+);base64,(.*)$/s.exec(rows[0].photo);
+  const mime = m ? m[1] : 'image/jpeg';
+  const buf = Buffer.from(m ? m[2] : rows[0].photo.replace(/^data:image\/[\w+.-]+;base64,/, ''), 'base64');
+  res.set('Content-Type', mime);
+  res.set('Cache-Control', 'public, max-age=2592000, immutable');
+  res.end(buf);
 }));
 app.post('/api/receptions/:id/photos', wrap(async (req, res) => {
   const { rows } = await pool.query('INSERT INTO work_photos (reception_id, photo) VALUES ($1,$2) RETURNING id', [req.params.id, req.body.photo]);
@@ -1867,7 +1879,18 @@ app.put('/api/leave-requests/:id/status', wrap(async (req, res) => {
 //  작업별 채팅 (기사 ↔ 관리자)
 // ============================================================
 app.get('/api/receptions/:id/messages', wrap(async (req, res) => {
-  res.json((await pool.query('SELECT * FROM order_messages WHERE reception_id=$1 ORDER BY id', [req.params.id])).rows);
+  const { rows } = await pool.query('SELECT id, reception_id, sender, text, read_admin, read_engineer, created_at, CASE WHEN photo IS NOT NULL AND photo<>\'\' THEN TRUE ELSE FALSE END AS has_photo FROM order_messages WHERE reception_id=$1 ORDER BY id', [req.params.id]);
+  res.json(rows.map(r => ({ ...r, photo: r.has_photo ? `/api/messages/${r.id}/image` : null, has_photo: undefined })));
+}));
+app.get('/api/messages/:id/image', wrap(async (req, res) => {
+  const { rows } = await pool.query('SELECT photo FROM order_messages WHERE id=$1', [req.params.id]);
+  if (!rows[0] || !rows[0].photo) return res.status(404).end();
+  const m = /^data:(image\/[\w+.-]+);base64,(.*)$/s.exec(rows[0].photo);
+  const mime = m ? m[1] : 'image/jpeg';
+  const buf = Buffer.from(m ? m[2] : rows[0].photo.replace(/^data:image\/[\w+.-]+;base64,/, ''), 'base64');
+  res.set('Content-Type', mime);
+  res.set('Cache-Control', 'public, max-age=2592000, immutable');
+  res.end(buf);
 }));
 app.post('/api/receptions/:id/messages', wrap(async (req, res) => {
   const { sender, text, photo } = req.body;
