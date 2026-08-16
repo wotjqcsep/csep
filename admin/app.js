@@ -1423,11 +1423,11 @@ function estDocInner(target, copyLabel){
   const dp=String(date||'').split('-'), fmtDate=dp.length===3?`${dp[0]}.${dp[1]}.${dp[2]}`:(date||'');
   const B='border:1px solid #aaa;padding:4px 6px;font-size:12px';
   const L='border:1px solid #aaa;padding:4px 6px;font-size:12px;background:#f2f4f8';
-  const estBox=(lbl,color,d)=>`<table class="est-biz"><tbody>
-    <tr><td colspan="4" style="text-align:center;font-weight:700;font-size:13px;background:${color};${B}">${lbl}${lbl==='공급자'?stampImg(46):''}</td></tr>
+  const estBox=(lbl,color,d,isSup)=>`<table class="est-biz"><tbody>
+    <tr><td colspan="4" style="text-align:center;font-weight:700;font-size:13px;background:${color};${B}">${lbl}</td></tr>
     <tr><td style="${L}">견적번호</td><td style="${B}">${no}</td><td style="${L}">견적일자</td><td style="${B}">${fmtDate}</td></tr>
     <tr><td style="${L}">사업자번호</td><td colspan="3" style="${B}">${d.bizno}</td></tr>
-    <tr><td style="${L}">상호명</td><td style="${B}">${d.nm}</td><td style="${L}">대표</td><td style="${B}">${d.ceo}</td></tr>
+    <tr><td style="${L}">상호명</td><td style="${B}">${d.nm}</td><td style="${L}">대표</td><td style="${B}">${d.ceo}${isSup?' (인)'+stampImg(40):''}</td></tr>
     <tr><td style="${L}">주소</td><td colspan="3" style="${B}">${d.addr}</td></tr>
     <tr><td style="${L}">업태</td><td style="${B}">${d.bt}</td><td style="${L}">종목</td><td style="${B}">${d.bi}</td></tr>
     <tr><td style="${L}">대표전화</td><td colspan="3" style="${B}">${d.tel}</td></tr>
@@ -1435,7 +1435,7 @@ function estDocInner(target, copyLabel){
   const sup={bizno:esc(S.biz_no||''),nm:esc(S.brand_name||company||''),ceo:esc(S.biz_ceo||''),addr:esc(S.biz_addr||''),bt:esc(S.biz_type||''),bi:esc(S.biz_item||''),tel:supTel};
   const buy={bizno:esc(estState.buyerBizno||''),nm:esc(estState.customer||''),ceo:esc(estState.buyerCeo||''),addr:esc(estState.buyerAddr||''),bt:esc(estState.buyerType||''),bi:esc(estState.buyerItem||''),tel:buyTel};
   return `<h1>${title}</h1>
-    <div class="est-header">${estBox('공급받는자','#fef3c7',buy)}${estBox('공급자','#dbeafe',sup)}</div>
+    <div class="est-header">${estBox('공급받는자','#fef3c7',buy,false)}${estBox('공급자','#dbeafe',sup,true)}</div>
     <table class="items"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
     <table class="sum">${sumRows}</table>
     ${receiptNote}${taxNote}
