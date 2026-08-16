@@ -1282,19 +1282,28 @@ function estUpdateFee(){
   let html='';
   if(useOutsource){
     html+=`💳 <b>${estPayLabel(estState.payMethod)}</b> (외주업체 대행)`;
-    html+=`<div style="margin-top:6px;border-top:1px dashed var(--gray-300);padding-top:6px">`;
-    html+=`<div>실수령액 = 합계(${won(total)}) - 외주업체 결제 수수료${pct}%(<span style="color:#e03131">${won(cut)}</span>) = <b style="color:#1971c2">${won(net)}</b></div>`;
-    if(refund>0) html+=`<div style="margin-top:4px">매입 부가세 환급 = <b style="color:#0ca678">+${won(refund)}</b></div>`;
+    html+=`<div style="margin-top:8px;border-top:1px dashed var(--gray-300);padding-top:8px;line-height:1.9">`;
+    html+=`<div>· 실수령액 = 합계(<b>${won(total)}</b>) - 외주업체 결제 수수료 ${pct}%(<span style="color:#e03131">${won(cut)}</span>) = <b style="color:#1971c2">${won(net)}</b></div>`;
+    if(refund>0) html+=`<div>· 매입 부가세 환급 = <b style="color:#0ca678">+${won(refund)}</b></div>`;
     html+=`</div>`;
-    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 실수령(실제 받는 금액) <b style="color:#1971c2;font-size:15px">${won(finalNet)}</b></div>`;
-    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 순이익 <b style="color:#2b8a3e;font-size:15px">${won(finalProfit)}</b> <span style="font-weight:400;color:var(--gray-400)">(${won(finalNet)} - ${won(realCost)})</span></div>`;
+    html+=`<div style="margin-top:8px;padding:8px 0;border-top:2px solid var(--gray-300)">`;
+    html+=`<div style="font-weight:800;font-size:14px">· 최종 실수령(외주업체로부터 받는 총액) = <b style="color:#1971c2;font-size:16px">${won(finalNet)}</b></div>`;
+    html+=`<div style="color:var(--gray-400);font-size:12px;margin:2px 0 0 12px">실수령액(${won(net)})${refund>0?` + 매입부가세환급(${won(refund)})`:''}</div>`;
+    html+=`</div>`;
+    html+=`<div style="margin-top:6px;padding:8px 0;border-top:2px solid var(--gray-300)">`;
+    html+=`<div style="font-weight:800;font-size:14px">· 최종 순이익 = <b style="color:#2b8a3e;font-size:16px">${won(finalProfit)}</b></div>`;
+    html+=`<div style="color:var(--gray-400);font-size:12px;margin:2px 0 0 12px">최종 실수령(${won(finalNet)}) - 매입비(${won(realCost)})</div>`;
+    html+=`</div>`;
   } else {
     html+=`💵 <b>${estPayLabel(estState.payMethod)}</b> (고객 직접 지급)`;
-    html+=`<div style="margin-top:6px;border-top:1px dashed var(--gray-300);padding-top:6px">`;
-    html+=`<div>실수령액 = <b style="color:#1971c2">${won(total)}</b> <span style="color:var(--gray-400)">(수수료 없음)</span></div>`;
+    html+=`<div style="margin-top:8px;border-top:1px dashed var(--gray-300);padding-top:8px;line-height:1.9">`;
+    html+=`<div>· 실수령액 = <b style="color:#1971c2">${won(total)}</b> <span style="color:var(--gray-400)">(수수료 없음)</span></div>`;
     html+=`</div>`;
     const profit=realCost>0?(total-realCost):0;
-    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 순이익 <b style="color:#2b8a3e;font-size:15px">${won(profit)}</b> <span style="font-weight:400;color:var(--gray-400)">${realCost>0?`(${won(total)} - ${won(realCost)})`:'(매입비 미입력)'}</span></div>`;
+    html+=`<div style="margin-top:6px;padding:8px 0;border-top:2px solid var(--gray-300)">`;
+    html+=`<div style="font-weight:800;font-size:14px">· 최종 순이익 = <b style="color:#2b8a3e;font-size:16px">${won(profit)}</b></div>`;
+    html+=`<div style="color:var(--gray-400);font-size:12px;margin:2px 0 0 12px">${realCost>0?`실수령(${won(total)}) - 매입비(${won(realCost)})`:'매입비 미입력'}</div>`;
+    html+=`</div>`;
   }
   el.innerHTML=html;
 }
