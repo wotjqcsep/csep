@@ -1485,8 +1485,8 @@ function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
     ${isTax?'<div style="font-size:11px;color:#c00;margin-top:6px">※ 정식 발행은 국세청 전자세금계산서를 권장합니다. 본 양식은 출력용입니다.</div>':''}`;
 }
 function stdReceiptOne(sup,items,total,ctx,memo,copyLabel){
-  const B='border:1px solid #333;padding:2px 4px;font-size:10px';
-  const L='border:1px solid #333;padding:2px 4px;font-size:10px;text-align:center';
+  const B='border:1px solid #333;padding:1px 2px;font-size:8px';
+  const L='border:1px solid #333;padding:1px 2px;font-size:8px;text-align:center';
   const dp=String(ctx.date||'').split('-'), yy=dp[0]||'', mm=dp[1]||'', dd=dp[2]||'';
   const cust=esc(estState.customer||'');
   const itemRows=items.map(r=>`<tr>
@@ -1495,34 +1495,34 @@ function stdReceiptOne(sup,items,total,ctx,memo,copyLabel){
     <td style="text-align:center;${B}">${r.qty}</td>
     <td style="text-align:right;${B}">${nfmt(r.price)}</td>
     <td colspan="3" style="text-align:right;${B}">${nfmt(r.amt)}</td></tr>`).join('');
-  const BLANK_ROWS=15;
+  const BLANK_ROWS=10;
   const emptyCount=Math.max(0,BLANK_ROWS-items.length);
   const blanks=Array(emptyCount).fill(`<tr>
     <td style="${B}">&nbsp;</td><td colspan="5" style="${B}"></td>
     <td style="${B}"></td><td style="${B}"></td><td colspan="3" style="${B}"></td></tr>`).join('');
-  return `<div style="text-align:center;font-size:16px;font-weight:800;letter-spacing:10px;padding:8px 0 2px">영 수 증</div>
-    <div style="text-align:center;font-size:9px;color:#555;margin-bottom:4px">(${esc(copyLabel)})</div>
-    <table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:10px;border:2px solid #333">
+  return `<div style="text-align:center;font-size:13px;font-weight:800;letter-spacing:8px;padding:4px 0 1px">영 수 증</div>
+    <div style="text-align:center;font-size:7px;color:#555;margin-bottom:2px">(${esc(copyLabel)})</div>
+    <table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:8px;border:2px solid #333">
     <colgroup><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"></colgroup>
     <tr><td colspan="3" style="${B}">No. ${esc(ctx.no)}</td>
         <td colspan="6" style="${B}"></td>
         <td colspan="2" style="${B}">${cust} 귀하</td></tr>
-    <tr><td rowspan="4" style="text-align:center;font-weight:700;${B};writing-mode:vertical-lr;letter-spacing:3px">공급자</td>
+    <tr><td rowspan="4" style="text-align:center;font-weight:700;${B};writing-mode:vertical-lr;letter-spacing:2px">공급자</td>
         <td colspan="2" style="${L}">등록번호</td><td colspan="8" style="${B}">${sup.bizno}</td></tr>
-    <tr><td colspan="2" style="${L}">상　호</td><td colspan="4" style="${B}">${sup.nm}</td>
-        <td style="${L}">성명</td><td colspan="3" style="${B}">${sup.ceo}${stampImg(24)}</td></tr>
+    <tr><td colspan="2" style="${L}">상호</td><td colspan="4" style="${B}">${sup.nm}</td>
+        <td style="${L}">성명</td><td colspan="3" style="${B}">${sup.ceo}${stampImg(18)}</td></tr>
     <tr><td colspan="2" style="${L}">사업장<br>소재지</td><td colspan="8" style="${B}">${sup.addr}</td></tr>
-    <tr><td colspan="2" style="${L}">업　태</td><td colspan="3" style="${B}">${sup.bt}</td>
+    <tr><td colspan="2" style="${L}">업태</td><td colspan="3" style="${B}">${sup.bt}</td>
         <td style="${L}">종목</td><td colspan="4" style="${B}">${sup.bi}</td></tr>
-    <tr><td colspan="3" style="${L}">작성년월일</td><td colspan="5" style="${L}">금　액</td><td colspan="3" style="${L}">비　고</td></tr>
-    <tr><td colspan="3" style="text-align:center;padding:6px 4px;${B}">${yy}. ${mm}. ${dd}</td>
-        <td colspan="5" style="text-align:center;font-weight:800;font-size:12px;padding:6px 4px;${B}">${nfmt(total)}</td>
-        <td colspan="3" style="padding:6px 4px;${B}">${memo||''}</td></tr>
-    <tr><td colspan="11" style="text-align:center;font-weight:700;font-size:11px;padding:4px 0;${B}">위 금액을 영수(청구)함</td></tr>
+    <tr><td colspan="3" style="${L}">작성년월일</td><td colspan="5" style="${L}">금　액</td><td colspan="3" style="${L}">비고</td></tr>
+    <tr><td colspan="3" style="text-align:center;padding:3px 2px;${B}">${yy}.${mm}.${dd}</td>
+        <td colspan="5" style="text-align:center;font-weight:800;font-size:10px;padding:3px 2px;${B}">${nfmt(total)}</td>
+        <td colspan="3" style="padding:3px 2px;${B}">${memo||''}</td></tr>
+    <tr><td colspan="11" style="text-align:center;font-weight:700;font-size:9px;padding:2px 0;${B}">위 금액을 영수(청구)함</td></tr>
     <tr><td style="${L}">월일</td><td colspan="5" style="${L}">품　목</td>
         <td style="${L}">수량</td><td style="${L}">단가</td><td colspan="3" style="${L}">금　액</td></tr>
     ${itemRows}${blanks}
-    <tr><td style="padding:6px 4px;${B}"></td><td colspan="10" style="text-align:right;padding:6px 4px;${B}"></td></tr>
+    <tr><td style="padding:3px 2px;${B}"></td><td colspan="10" style="text-align:right;padding:3px 2px;${B}"></td></tr>
   </table>`;
 }
 function stdReceipt(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
@@ -1552,21 +1552,25 @@ function estPrint(target){
       <div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>
       <div class="copy">${estDocInner(target,'공급자 보관용')}</div>`;
   } else if(dt==='receipt'){
-    pageCss='@page{size:A4 landscape;margin:8mm}';
-    bodyHtml=`<div style="display:flex;gap:24px;align-items:flex-start">
-      <div style="flex:1">${estDocInner(target,'공급받는자 보관용')}</div>
-      <div style="flex:1">${estDocInner(target,'공급자 보관용')}</div>
-    </div>`;
+    pageCss='@page{size:86mm 190mm;margin:3mm}';
+    bodyHtml=`<div class="rcpt-page">${estDocInner(target,'공급받는자 보관용')}</div>
+      <div class="rcpt-page">${estDocInner(target,'공급자 보관용')}</div>`;
   } else {
     pageCss='@page{size:A4 portrait;margin:12mm}';
     bodyHtml=estDocInner(target);
   }
+  const isReceipt=dt==='receipt';
+  const bodyMax=isReceipt?'max-width:86mm':'max-width:820px';
+  const bodyPad=isReceipt?'padding:4px':'padding:16px';
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc((estState.doctype||'견적서'))} ${no}</title>
-    <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;padding:16px;max-width:820px;margin:auto}
+    <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;${bodyPad};${bodyMax};margin:auto}
     ${EST_DOC_CSS}
     ${pageCss}
     .copy{}
     .rcpt{font-size:11px}
+    .rcpt-page{page-break-after:always;margin-bottom:12px}
+    .rcpt-page:last-child{page-break-after:auto}
+    .rcpt-page table td{word-break:break-all;overflow-wrap:break-word}
     .cut{color:#999;text-align:center;font-size:11px;margin:6mm 0;letter-spacing:1px}
     .pb{page-break-after:always}
     @media print{ button{display:none} .copy{page-break-inside:avoid} }</style></head><body>
