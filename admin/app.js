@@ -1568,8 +1568,9 @@ function estPrint(target){
     ${pageCss}
     .copy{}
     .rcpt{font-size:11px}
-    .rcpt-page{page-break-after:always;margin-bottom:12px}
+    .rcpt-page{page-break-after:always;margin-bottom:12px;width:80mm;height:184mm;overflow:hidden;box-sizing:border-box}
     .rcpt-page:last-child{page-break-after:auto}
+    .rcpt-page table{width:100%;height:100%}
     .rcpt-page table td{word-break:break-all;overflow-wrap:break-word}
     .cut{color:#999;text-align:center;font-size:11px;margin:6mm 0;letter-spacing:1px}
     .pb{page-break-after:always}
