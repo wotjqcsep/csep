@@ -1126,10 +1126,11 @@ async function estSave(btn){
   const rows=estRows().filter(r=>r.name||r.amt);
   if(!rows.length){ if(st){st.style.color='#e03131';st.textContent='품목을 입력하세요';} return; }
   if(!(estState.customer||'').trim() && !(estState.phone||'').trim()){ if(st){st.style.color='#e03131';st.textContent='고객/거래처 또는 연락처를 입력하세요';} return; }
-  const sub=rows.reduce((t,r)=>t+r.amt,0), vat=Math.round(sub*0.1);
+  const sub=rows.reduce((t,r)=>t+r.amt,0), vat=estState.noVat?0:Math.round(sub*0.1);
   const body={ no:estState.no, customer_id:estState.customerId||null, customer_name:estState.customer, phone:estState.phone,
     company:estState.company, contact:estState.contact, est_date:estState.date, memo:estState.memo,
     items:rows, opts:{doctype:estState.doctype,payMethod:estState.payMethod,realCost:estState.realCost,noVat:estState.noVat,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,bulk:estState.bulk,
+      refundManual:estState.refundManual!=null?estState.refundManual:null,
       buyerBizno:estState.buyerBizno,buyerCeo:estState.buyerCeo,buyerAddr:estState.buyerAddr,buyerType:estState.buyerType,buyerItem:estState.buyerItem},
     subtotal:sub, vat, total:sub+vat, no_vat:estState.noVat||false };
   if(btn) btn.disabled=true; if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
@@ -1165,7 +1166,7 @@ async function estLoadOne(id){
     buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:(o.bulk===''||o.bulk==null)?0:(Number(o.bulk)||0), savedId:e.id,
     delivered:e.delivered||false, fieldDiscount:Number(e.field_discount)||0, finalAmount:e.final_amount,
-    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', noVat:o.noVat||e.no_vat||false, pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
+    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', refundManual:o.refundManual!=null?o.refundManual:null, noVat:o.noVat||e.no_vat||false, pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
   go('estimates');   // 견적서 화면으로 이동 + estState 반영
@@ -1284,7 +1285,6 @@ function estUpdateFee(){
   const useOutsource=rate>0;         // 외주업체 경유 여부
   const autoRefund=useOutsource&&realCost>0?(realCost-Math.round(realCost/1.1)):0;
   const refund=(estState.refundManual!=null)?estState.refundManual:autoRefund;
-  const pureMargin=realCost>0?(total-realCost):(sub-totCost);
   const finalNet=net+refund;         // 최종 실수령 = 실수령액 + 매입환급
   const finalProfit=finalNet-realCost; // 최종 순이익 = 최종 실수령 - 매입비
   let html='';

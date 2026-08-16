@@ -1149,13 +1149,13 @@ app.put('/api/engineers/:id', wrap(async (req, res) => {
 
 app.put('/api/engineers/:id/status', wrap(async (req, res) => {
   const { rows } = await pool.query('UPDATE engineers SET status=$1 WHERE id=$2 RETURNING *', [req.query.status || req.body.status, req.params.id]);
-  broadcastAdmin('engineer_update', rows[0]);
-  res.json(rows[0]);
+  broadcastAdmin('engineer_update', maskEngineer(rows[0]));
+  res.json(maskEngineer(rows[0]));
 }));
 
 app.put('/api/engineers/:id/location', wrap(async (req, res) => {
   const { rows } = await pool.query('UPDATE engineers SET location=$1 WHERE id=$2 RETURNING *', [req.query.location || req.body.location, req.params.id]);
-  res.json(rows[0]);
+  res.json(maskEngineer(rows[0]));
 }));
 
 app.delete('/api/engineers/:id', wrap(async (req, res) => {
