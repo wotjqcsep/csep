@@ -227,10 +227,10 @@ function render(){
   document.getElementById('app').innerHTML=`
     <div class="topbar"><h1>🔧 현장 기사 앱</h1><span class="who"><span style="color:${isAdmin?'#ff6b6b':'#74c0fc'};font-weight:700">${esc(S.engineer.name)} ${isAdmin?'대표':'기사'}</span> · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
     <div class="tabs">${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}</div>
-    <div style="padding:12px 14px 0;display:flex;gap:6px">
+    ${S.tab==='all'||S.tab==='mine' ? `<div style="padding:12px 14px 0;display:flex;gap:6px">
       <button class="btn" style="margin:0;background:#2b3140;color:#fff;flex:1" onclick="openSoundPicker()">🔔 알림 소리 선택 (${soundName})</button>
       ${isAdmin && S.tab==='all' ? `<button class="btn" style="margin:0;background:#1971c2;color:#fff;flex:1" onclick="openRouteOptimizer()">🗺️ 배차 경로</button>` : ''}
-    </div>
+    </div>` : ''}
     <div class="content">${content}</div>`;
   if(S.tab==='wo')renderWoTab();
   if(S.tab==='info')renderInfoTab();

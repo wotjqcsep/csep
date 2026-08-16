@@ -30,8 +30,9 @@ public class MainActivity extends BridgeActivity {
     private static final String EFG_HIDE_CSS = "<style>"
             + ".header-wrap,.page-header-wrap,.page-title-wrap,.ebs-shop020-tb-wrap,.top-header{display:none!important}"
             + "header,.footer,footer,#ft,.ft_wrap,.eb-backtotop,.navbar-mobile-toggler{display:none!important}"
-            + ".wr_name,.td_name,.sv_member,.bo_sch_wrap,.bo_cate_list,.board-info{display:none!important}"
-            + ".wr_date,.td_datetime{display:none!important}"
+            + ".bl-author,.bl-name-in,.bl-mobile{display:none!important}"
+            + ".bo_sch_wrap,.bo_cate_list,.board-info{display:none!important}"
+            + ".bl-list>.bl-item.text-gray{display:none!important}"
             + "body,.wrapper{padding-top:0!important;margin:0!important}"
             + ".page-body{padding-top:0!important;margin-top:0!important}"
             + "</style>";
@@ -45,23 +46,27 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void setupEfgIntercept() {
-        try {
-            Bridge bridge = getBridge();
-            WebView wv = bridge.getWebView();
-            wv.setWebViewClient(new BridgeWebViewClient(bridge) {
-                @Override
-                public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                    String url = request.getUrl().toString();
-                    if (url.contains("efglobal.co.kr")
-                            && (url.contains("/kim") || url.contains("bo_table=kim"))
-                            && "GET".equalsIgnoreCase(request.getMethod())) {
-                        WebResourceResponse r = fetchEfg(url);
-                        if (r != null) return r;
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                Bridge bridge = getBridge();
+                if (bridge == null) return;
+                WebView wv = bridge.getWebView();
+                if (wv == null) return;
+                wv.setWebViewClient(new BridgeWebViewClient(bridge) {
+                    @Override
+                    public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                        String url = request.getUrl().toString();
+                        if (url.contains("efglobal.co.kr")
+                                && (url.contains("/kim") || url.contains("bo_table=kim"))
+                                && "GET".equalsIgnoreCase(request.getMethod())) {
+                            WebResourceResponse r = fetchEfg(url);
+                            if (r != null) return r;
+                        }
+                        return super.shouldInterceptRequest(view, request);
                     }
-                    return super.shouldInterceptRequest(view, request);
-                }
-            });
-        } catch (Exception e) { /* ignore */ }
+                });
+            } catch (Exception e) { /* ignore */ }
+        }, 500);
     }
 
     private WebResourceResponse fetchEfg(String url) {
