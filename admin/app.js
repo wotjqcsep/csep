@@ -1090,7 +1090,11 @@ function renderEstimates(){ estInit(); const s=estState;
         </label>
         <label>실제 매입가(수동)
           <input id="est_realcost" value="${won(Number(String(s.realCost||'').replace(/[^\d]/g,''))||0)}" oninput="estFmtCost(this)" placeholder="예: 1,400,000" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
-          <span style="font-size:11px;color:var(--gray-400)">외주업체 부가세 환급 계산용(부가세 포함)</span>
+          <span style="font-size:11px;color:var(--gray-400)">부가세 포함 금액</span>
+        </label>
+        <label>매입 부가세 환급
+          <input id="est_refund" value="${s.refundManual!=null?won(Number(String(s.refundManual).replace(/[^\d]/g,''))||0):''}" oninput="estFmtRefund(this)" placeholder="자동 계산" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:110px;text-align:right">
+          <span style="font-size:11px;color:var(--gray-400)">비워두면 자동(중고/자체보유 시 0 입력)</span>
         </label>
       </div>
       <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:#f8f9fb;border:1px solid var(--gray-200)"></div>
@@ -1107,6 +1111,7 @@ function renderEstimates(){ estInit(); const s=estState;
 function estToggle(id){ const b=document.getElementById(id); if(b) b.style.display=(b.style.display==='none'?'block':'none'); }
 // 매입가 입력 실시간 천단위 콤마
 function estFmtCost(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
+function estFmtRefund(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
 // 거래처 자동완성 선택 → 연락처 자동 채움 + customer_id 연결 (자유입력이면 신규로 간주)
 function estCustPick(){
   const name=(v('est_customer')||'').trim();
@@ -1227,6 +1232,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
   estState.payMethod=g('est_paymethod')||estState.payMethod||'cash';
   { const e=document.getElementById('est_realcost'); if(e) estState.realCost=String(e.value||'').replace(/[^\d]/g,''); }
+  { const e=document.getElementById('est_refund'); if(e){ const v=String(e.value||'').replace(/[^\d]/g,''); estState.refundManual=(v==='')?null:Number(v); } }
   { const e=document.getElementById('est_novat'); if(e) estState.noVat=e.checked; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
     const cost=Number(String(q('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(q('.est-margin').value)||0;
@@ -1275,7 +1281,8 @@ function estUpdateFee(){
   const net=total-cut;               // 실수령액 = 합계 - 외주업체 결제 수수료
   const realCost=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
   const useOutsource=rate>0;         // 외주업체 경유 여부
-  const refund=useOutsource&&realCost>0?(realCost-Math.round(realCost/1.1)):0;
+  const autoRefund=useOutsource&&realCost>0?(realCost-Math.round(realCost/1.1)):0;
+  const refund=(estState.refundManual!=null)?estState.refundManual:autoRefund;
   const pureMargin=realCost>0?(total-realCost):(sub-totCost);
   const finalNet=net+refund;         // 최종 실수령 = 실수령액 + 매입환급
   const finalProfit=finalNet-realCost; // 최종 순이익 = 최종 실수령 - 매입비
@@ -1387,7 +1394,8 @@ function estDocInner(target, copyLabel){
     + (internal ? (function(){
       const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
       const useOut=feeRt>0;
-      const rf=useOut&&rc>0?(rc-Math.round(rc/1.1)):0;
+      const autoRf=useOut&&rc>0?(rc-Math.round(rc/1.1)):0;
+      const rf=(estState.refundManual!=null)?estState.refundManual:autoRf;
       const net=total-feeCut;          // 실수령액
       const finalNet=net+rf;           // 최종 실수령 = 실수령액 + 매입환급
       const finalProfit=rc>0?(finalNet-rc):profit;  // 최종 순이익
