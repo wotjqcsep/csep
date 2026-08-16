@@ -9,6 +9,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -41,6 +42,28 @@ public class MainActivity extends BridgeActivity {
         requestNeededPermissions();
         startMonitor();
         setupEfgIntercept();
+        setupBackButton();
+    }
+
+    private void setupBackButton() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                try {
+                    Bridge bridge = getBridge();
+                    if (bridge != null) {
+                        WebView wv = bridge.getWebView();
+                        if (wv != null && wv.canGoBack()) {
+                            wv.goBack();
+                            return;
+                        }
+                    }
+                } catch (Exception e) { /* ignore */ }
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
+                setEnabled(true);
+            }
+        });
     }
 
     private void setupEfgIntercept() {
