@@ -1418,31 +1418,36 @@ function estDocInner(target, copyLabel){
   const taxNote = DT.tax ? `<div style="font-size:11px;color:#c00;margin-top:6px">※ 세금계산서는 사업자정보·서명 등 정식 항목 추가 예정(현재 임시 양식)</div>` : '';
   const receiptNote = DT.receipt ? `<div style="margin-top:14px;text-align:center;font-size:15px;font-weight:700">위 금액을 정히 영수함</div>` : '';
   const S=state.settings||{};
-  const supBiz={ bizno:esc(S.biz_no||''), nm:esc(S.brand_name||company||'(상호)'), ceo:esc(S.biz_ceo||''), addr:esc(S.biz_addr||''), bt:esc(S.biz_type||''), bi:esc(S.biz_item||'') };
-  const B='border:1px solid #333;padding:4px 6px;font-size:11px';
-  const L='border:1px solid #333;padding:4px 6px;font-size:11px;background:#f2f4f8;text-align:center';
-  const supHeader=`<table class="biz-tbl"><tbody>
-    <tr><td rowspan="4" style="width:20px;text-align:center;background:#dbeafe;font-weight:700;padding:2px;${B}">공<br>급<br>자</td>
-        <td style="width:60px;${L}">등록번호</td><td colspan="3" style="${B}">${supBiz.bizno}</td></tr>
-    <tr><td style="${L}">상호</td><td style="${B}">${supBiz.nm}</td><td style="width:40px;${L}">성명</td><td style="${B}">${supBiz.ceo} (인)${stampImg(36)}</td></tr>
-    <tr><td style="${L}">주소</td><td colspan="3" style="${B}">${supBiz.addr}</td></tr>
-    <tr><td style="${L}">업태</td><td style="${B}">${supBiz.bt}</td><td style="${L}">종목</td><td style="${B}">${supBiz.bi}</td></tr>
+  const supTel=esc(S.biz_tel||contact||'');
+  const dp=String(date||'').split('-'), fmtDate=dp.length===3?`${dp[0]}.${dp[1]}.${dp[2]}`:(date||'');
+  const validDays=esc(estState.validDays||'7');
+  const B='border:1px solid #aaa;padding:4px 6px;font-size:12px';
+  const L='border:1px solid #aaa;padding:4px 6px;font-size:12px;background:#f2f4f8';
+  const leftInfo=`<table class="est-info"><tbody>
+    <tr><td style="${L}">견적번호</td><td style="${B}">${no}</td></tr>
+    <tr><td style="${L}">주 문 자</td><td style="${B}">${customer} 고객님</td></tr>
+    <tr><td style="${L}">견적일자</td><td style="${B}">${fmtDate}</td></tr>
+    <tr><td style="${L}">견적유효</td><td style="${B}">발행일로부터 ${validDays}일간</td></tr>
   </tbody></table>`;
-  const custLine = customer ? `<div class="est-cust"><b>${customer}</b> 귀하</div>` : '';
+  const rightSup=`<table class="est-sup"><tbody>
+    <tr><td colspan="4" style="text-align:center;font-weight:700;font-size:13px;background:#f2f4f8;${B}">공급자${stampImg(46)}</td></tr>
+    <tr><td style="${L}">사업자번호</td><td colspan="3" style="${B}">${esc(S.biz_no||'')}</td></tr>
+    <tr><td style="${L}">상호명</td><td style="${B}">${esc(S.brand_name||company||'')}</td><td style="${L}">대표</td><td style="${B}">${esc(S.biz_ceo||'')}</td></tr>
+    <tr><td style="${L}">주소</td><td colspan="3" style="${B}">${esc(S.biz_addr||'')}</td></tr>
+    <tr><td style="${L}">업태</td><td style="${B}">${esc(S.biz_type||'')}</td><td style="${L}">종목</td><td style="${B}">${esc(S.biz_item||'')}</td></tr>
+    <tr><td style="${L}">대표전화</td><td colspan="3" style="${B}">${supTel}</td></tr>
+  </tbody></table>`;
   return `<h1>${title}</h1>
-    <div class="est-meta">${esc(DT.dl)}: ${date}　　문서번호: ${no}</div>
-    ${custLine}
-    ${supHeader}
+    <div class="est-header">${leftInfo}${rightSup}</div>
     <table class="items"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
     <table class="sum">${sumRows}</table>
     ${receiptNote}${taxNote}
     ${(clean(memo))?`<div class="memo">비고: ${clean(memo)}</div>`:''}`;
 }
 const EST_DOC_CSS = `h1{text-align:center;letter-spacing:8px;border-bottom:3px solid #333;padding-bottom:10px}
-    .est-meta{text-align:right;font-size:12px;color:#555;margin:8px 0 10px}
-    .est-cust{font-size:18px;margin:10px 0 14px;text-align:right}
-    .biz-tbl{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:10px}
-    .biz-tbl td{border:1px solid #333;padding:4px 6px;font-size:11px}
+    .est-header{display:flex;gap:14px;margin:12px 0 10px;align-items:flex-start}
+    .est-info{width:45%;border-collapse:collapse}.est-info td{border:1px solid #aaa;padding:5px 8px;font-size:12px}
+    .est-sup{width:55%;border-collapse:collapse}.est-sup td{border:1px solid #aaa;padding:4px 6px;font-size:12px}
     table.items{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
     table.items th,table.items td{border:1px solid #ccc;padding:7px 8px}
     table.items th{background:#f2f4f8}
