@@ -1286,14 +1286,15 @@ function estUpdateFee(){
     html+=`<div>실수령액 = 합계(${won(total)}) - 외주업체 결제 수수료${pct}%(<span style="color:#e03131">${won(cut)}</span>) = <b style="color:#1971c2">${won(net)}</b></div>`;
     if(refund>0) html+=`<div style="margin-top:4px">매입 부가세 환급 = <b style="color:#0ca678">+${won(refund)}</b></div>`;
     html+=`</div>`;
-    html+=`<div style="margin-top:6px;font-weight:700;border-top:1px dashed var(--gray-300);padding-top:6px">= 최종 실수령 <b style="color:#1971c2;font-size:15px">${won(finalNet)}</b> <span style="font-weight:400;color:var(--gray-400)">(실수령액${refund>0?' + 매입부가세환급':''})</span></div>`;
-    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 순이익 <b style="color:#2b8a3e;font-size:15px">${won(finalProfit)}</b> <span style="font-weight:400;color:var(--gray-400)">(최종실수령 - 매입비${won(realCost)})</span></div>`;
+    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 실수령(실제 받는 금액) <b style="color:#1971c2;font-size:15px">${won(finalNet)}</b></div>`;
+    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 순이익 <b style="color:#2b8a3e;font-size:15px">${won(finalProfit)}</b> <span style="font-weight:400;color:var(--gray-400)">(${won(finalNet)} - ${won(realCost)})</span></div>`;
   } else {
     html+=`💵 <b>${estPayLabel(estState.payMethod)}</b> (고객 직접 지급)`;
     html+=`<div style="margin-top:6px;border-top:1px dashed var(--gray-300);padding-top:6px">`;
     html+=`<div>실수령액 = <b style="color:#1971c2">${won(total)}</b> <span style="color:var(--gray-400)">(수수료 없음)</span></div>`;
     html+=`</div>`;
-    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 순이익 <b style="color:#2b8a3e;font-size:15px">${won(realCost>0?(total-realCost):0)}</b> <span style="font-weight:400;color:var(--gray-400)">(실수령 - 매입비${realCost>0?won(realCost):'미입력'})</span></div>`;
+    const profit=realCost>0?(total-realCost):0;
+    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 순이익 <b style="color:#2b8a3e;font-size:15px">${won(profit)}</b> <span style="font-weight:400;color:var(--gray-400)">${realCost>0?`(${won(total)} - ${won(realCost)})`:'(매입비 미입력)'}</span></div>`;
   }
   el.innerHTML=html;
 }
@@ -1385,7 +1386,7 @@ function estDocInner(target, copyLabel){
       ${useOut?`<tr style="color:#e03131"><td>외주업체 결제 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>
       <tr style="color:#1971c2"><td>실수령액</td><td style="text-align:right">${won(net)}</td></tr>`:''}
       ${rf>0?`<tr style="color:#0ca678"><td>매입 부가세 환급</td><td style="text-align:right">+${won(rf)}</td></tr>`:''}
-      ${useOut?`<tr style="color:#1971c2;font-weight:700;border-top:1px dashed #ccc"><td>최종 실수령</td><td style="text-align:right">${won(finalNet)}</td></tr>`:''}
+      ${useOut?`<tr style="color:#1971c2;font-weight:700;border-top:1px dashed #ccc"><td>최종 실수령(실제 수금액)</td><td style="text-align:right">${won(finalNet)}</td></tr>`:''}
       <tr style="color:#2b8a3e;font-weight:800;border-top:2px solid #ccc"><td>최종 순이익</td><td style="text-align:right">${won(finalProfit)}</td></tr>`;
     })() : '');
   // 문서 종류별 제목·라벨·문구
