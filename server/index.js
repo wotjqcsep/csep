@@ -7,7 +7,6 @@ const { Pool, types } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
-const https = require('https');
 let webpush = null, admin = null;
 try { webpush = require('web-push'); } catch (e) {}
 try { admin = require('firebase-admin'); } catch (e) {}
@@ -69,68 +68,6 @@ app.use('/engineer', express.static(path.join(__dirname, '../engineer'), {
 app.get('/health', (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('text/plain').send('ok');
-});
-
-// ── efglobal 프록시 (프린터 수리자료 iframe용) ──
-let _efgCookie = '';
-function efgGet(url, cookie) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    https.get({
-      hostname: u.hostname, path: u.pathname + u.search,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.3',
-        'Referer': 'https://efglobal.co.kr/',
-        ...(cookie ? { Cookie: cookie } : {})
-      }
-    }, (r) => {
-      if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
-        const loc = r.headers.location.startsWith('/') ? 'https://efglobal.co.kr' + r.headers.location : r.headers.location;
-        const sc = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
-        return efgGet(loc, sc || cookie).then(resolve, reject);
-      }
-      const sc = (r.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
-      const chunks = [];
-      r.on('data', c => chunks.push(c));
-      r.on('end', () => resolve({ body: Buffer.concat(chunks).toString('utf8'), cookie: sc || cookie || '', status: r.statusCode }));
-      r.on('error', reject);
-    }).on('error', reject);
-  });
-}
-app.get('/api/efg', async (req, res) => {
-  try {
-    const sfl = req.query.sfl, stx = req.query.stx, sca = req.query.sca;
-    let url = sfl && stx
-      ? `https://efglobal.co.kr/bbs/board.php?bo_table=kim&sfl=${encodeURIComponent(sfl)}&stx=${encodeURIComponent(stx)}`
-      : `https://efglobal.co.kr/kim${sca ? '?sca=' + sca : ''}`;
-    if (req.query.page) url += (url.includes('?') ? '&' : '?') + `page=${req.query.page}`;
-    let r = await efgGet(url, _efgCookie);
-    if (r.body.includes('slowAES')) {
-      const m = r.body.match(/toNumbers\("([a-f0-9]+)"\).*?toNumbers\("([a-f0-9]+)"\).*?toNumbers\("([a-f0-9]+)"\)/s);
-      if (m) {
-        const dec = crypto.createDecipheriv('aes-128-cbc', Buffer.from(m[1],'hex'), Buffer.from(m[2],'hex'));
-        dec.setAutoPadding(false);
-        const cv = Buffer.concat([dec.update(Buffer.from(m[3],'hex')), dec.final()]).toString('hex');
-        _efgCookie = 'CUPID=' + cv;
-        r = await efgGet(url + (url.includes('?') ? '&' : '?') + 'ckattempt=1', _efgCookie);
-      }
-    }
-    if (r.cookie) _efgCookie = r.cookie;
-    if (r.status === 403) return res.status(502).send('blocked');
-    let html = r.body;
-    html = html.replace(/(?:src|href|action)=(["'])\/(?!\/)/gi, (m, q) => m.replace(q + '/', q + 'https://efglobal.co.kr/'));
-    html = html.replace(/<\/body>/i, `<style>
-      .header-wrap,.page-header-wrap,.page-title-wrap,.ebs-shop020-tb-wrap,.top-header{display:none!important}
-      header,.footer,footer,#ft,.ft_wrap,.eb-backtotop,.navbar-mobile-toggler{display:none!important}
-      .wr_name,.td_name,.sv_member,.bo_sch_wrap,.bo_cate_list,.board-info{display:none!important}
-      .wr_date,.td_datetime{display:none!important}
-      body,.wrapper{padding-top:0!important;margin:0!important}
-      .page-body{padding-top:0!important;margin-top:0!important}
-    </style></body>`);
-    res.type('text/html').send(html);
-  } catch (e) { res.status(500).send('error'); }
 });
 
 const pool = new Pool({
