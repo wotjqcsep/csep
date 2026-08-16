@@ -28,14 +28,10 @@ import java.util.List;
 public class MainActivity extends BridgeActivity {
 
     private static final String EFG_HIDE_CSS = "<style>"
-            + ".header-wrap,.page-header-wrap,.page-title-wrap,.ebs-shop020-tb-wrap,.top-header{display:none!important}"
-            + "header,.footer,footer,#ft,.ft_wrap,.eb-backtotop,.navbar-mobile-toggler{display:none!important}"
+            + ".footer,footer,.eb-backtotop{display:none!important}"
             + ".bl-author,.bl-name-in,.bl-mobile{display:none!important}"
-            + ".bo_sch_wrap,.bo_cate_list,.board-info{display:none!important}"
             + ".bl-list>.bl-item.text-gray{display:none!important}"
             + ".bl-list{border-bottom:1px solid #e0e0e0!important;padding:12px 0!important}"
-            + "body,.wrapper{padding-top:0!important;margin:0!important}"
-            + ".page-body{padding-top:0!important;margin-top:0!important}"
             + "</style>";
 
     @Override
