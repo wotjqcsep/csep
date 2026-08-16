@@ -1089,7 +1089,7 @@ function renderEstimates(){ estInit(); const s=estState;
           </select>
         </label>
         <label>실제 매입가(수동)
-          <input id="est_realcost" value="${won(Number(String(s.realCost||'').replace(/[^\d]/g,''))||0)}" oninput="estFmtCost(this)" placeholder="예: 1,400,000" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
+          <input id="est_realcost" value="${(()=>{const v=Number(String(s.realCost||'').replace(/[^\d]/g,''))||0; return v?won(v):'';})()}" oninput="estFmtCost(this)" placeholder="예: 1,400,000" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
           <span style="font-size:11px;color:var(--gray-400)">부가세 포함 금액</span>
         </label>
         <label>매입 부가세 환급
@@ -1419,24 +1419,20 @@ function estDocInner(target, copyLabel){
   const receiptNote = DT.receipt ? `<div style="margin-top:14px;text-align:center;font-size:15px;font-weight:700">위 금액을 정히 영수함</div>` : '';
   const S=state.settings||{};
   const supBiz={ bizno:esc(S.biz_no||''), nm:esc(S.brand_name||company||'(상호)'), ceo:esc(S.biz_ceo||''), addr:esc(S.biz_addr||''), bt:esc(S.biz_type||''), bi:esc(S.biz_item||'') };
-  const buyBiz={ bizno:esc(estState.buyerBizno||''), nm:esc(estState.customer||'(고객)'), ceo:esc(estState.buyerCeo||''), addr:esc(estState.buyerAddr||''), bt:esc(estState.buyerType||''), bi:esc(estState.buyerItem||'') };
   const B='border:1px solid #333;padding:4px 6px;font-size:11px';
   const L='border:1px solid #333;padding:4px 6px;font-size:11px;background:#f2f4f8;text-align:center';
-  const bizHeader=`<table class="biz-tbl"><tbody>
+  const supHeader=`<table class="biz-tbl"><tbody>
     <tr><td rowspan="4" style="width:20px;text-align:center;background:#dbeafe;font-weight:700;padding:2px;${B}">공<br>급<br>자</td>
-        <td style="width:60px;${L}">등록번호</td><td colspan="3" style="${B}">${supBiz.bizno}</td>
-        <td rowspan="4" style="width:20px;text-align:center;background:#fef3c7;font-weight:700;padding:2px;${B}">공<br>급<br>받<br>는<br>자</td>
-        <td style="width:60px;${L}">등록번호</td><td colspan="3" style="${B}">${buyBiz.bizno}</td></tr>
-    <tr><td style="${L}">상호</td><td style="${B}">${supBiz.nm}</td><td style="width:40px;${L}">성명</td><td style="${B}">${supBiz.ceo} (인)${stampImg(36)}</td>
-        <td style="${L}">상호</td><td style="${B}">${buyBiz.nm}</td><td style="width:40px;${L}">성명</td><td style="${B}">${buyBiz.ceo}</td></tr>
-    <tr><td style="${L}">주소</td><td colspan="3" style="${B}">${supBiz.addr}</td>
-        <td style="${L}">주소</td><td colspan="3" style="${B}">${buyBiz.addr}</td></tr>
-    <tr><td style="${L}">업태</td><td style="${B}">${supBiz.bt}</td><td style="${L}">종목</td><td style="${B}">${supBiz.bi}</td>
-        <td style="${L}">업태</td><td style="${B}">${buyBiz.bt}</td><td style="${L}">종목</td><td style="${B}">${buyBiz.bi}</td></tr>
+        <td style="width:60px;${L}">등록번호</td><td colspan="3" style="${B}">${supBiz.bizno}</td></tr>
+    <tr><td style="${L}">상호</td><td style="${B}">${supBiz.nm}</td><td style="width:40px;${L}">성명</td><td style="${B}">${supBiz.ceo} (인)${stampImg(36)}</td></tr>
+    <tr><td style="${L}">주소</td><td colspan="3" style="${B}">${supBiz.addr}</td></tr>
+    <tr><td style="${L}">업태</td><td style="${B}">${supBiz.bt}</td><td style="${L}">종목</td><td style="${B}">${supBiz.bi}</td></tr>
   </tbody></table>`;
+  const custLine = customer ? `<div class="est-cust"><b>${customer}</b> 귀하</div>` : '';
   return `<h1>${title}</h1>
     <div class="est-meta">${esc(DT.dl)}: ${date}　　문서번호: ${no}</div>
-    ${bizHeader}
+    ${custLine}
+    ${supHeader}
     <table class="items"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
     <table class="sum">${sumRows}</table>
     ${receiptNote}${taxNote}
@@ -1444,6 +1440,7 @@ function estDocInner(target, copyLabel){
 }
 const EST_DOC_CSS = `h1{text-align:center;letter-spacing:8px;border-bottom:3px solid #333;padding-bottom:10px}
     .est-meta{text-align:right;font-size:12px;color:#555;margin:8px 0 10px}
+    .est-cust{font-size:18px;margin:10px 0 14px;text-align:right}
     .biz-tbl{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:10px}
     .biz-tbl td{border:1px solid #333;padding:4px 6px;font-size:11px}
     table.items{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
