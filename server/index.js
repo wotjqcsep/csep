@@ -7,6 +7,7 @@ const { Pool, types } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
+const https = require('https');
 let webpush = null, admin = null;
 try { webpush = require('web-push'); } catch (e) {}
 try { admin = require('firebase-admin'); } catch (e) {}
@@ -71,6 +72,19 @@ app.get('/health', (req, res) => {
 });
 
 // ── efglobal 프록시 (프린터 수리자료 iframe용) ──
+function efgFetch(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (resp) => {
+      if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
+        return efgFetch(resp.headers.location).then(resolve, reject);
+      }
+      const chunks = [];
+      resp.on('data', c => chunks.push(c));
+      resp.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      resp.on('error', reject);
+    }).on('error', reject);
+  });
+}
 app.get('/api/efg', async (req, res) => {
   try {
     const qs = req.query.sca ? `?sca=${req.query.sca}` : '';
@@ -80,24 +94,19 @@ app.get('/api/efg', async (req, res) => {
       ? `https://efglobal.co.kr/bbs/board.php?bo_table=kim&sfl=${encodeURIComponent(sfl)}&stx=${encodeURIComponent(stx)}`
       : `https://efglobal.co.kr/kim${qs}`;
     if (req.query.page) url += (url.includes('?') ? '&' : '?') + `page=${req.query.page}`;
-    const r = await fetch(url);
-    let html = await r.text();
+    let html = await efgFetch(url);
     html = html.replace(/<head>/i, '<head><base href="https://efglobal.co.kr/">');
-    html = html.replace(/<header[\s\S]*?<\/header>/gi, '');
-    html = html.replace(/<div[^>]*class="[^"]*board-info[^"]*"[\s\S]*?<\/div>/i, '');
-    html = html.replace(/<ul[^>]*id="bo_cate"[\s\S]*?<\/ul>/gi, '');
-    html = html.replace(/<div[^>]*class="[^"]*bo_sch[^"]*"[\s\S]*?<\/div>/gi, '');
-    html = html.replace(/<footer[\s\S]*?<\/footer>/gi, '');
-    html = html.replace(/<div[^>]*id="ft"[\s\S]*?<\/div>/gi, '');
     const hideStyle = `<style>
       .wr_name,.td_name,.sv_member,td:nth-child(3),.wr_date,.td_datetime,td:nth-child(5){display:none!important}
       .navbar,.top-bar,.banner,#hd,.bo_sch_wrap,.bo_cate_list,#bo_cate,.board-info{display:none!important}
+      header,.top_banner,#top_banner,.hd_pop{display:none!important}
+      footer,#ft,.ft_wrap{display:none!important}
       body{padding-top:0!important;margin:0!important}
       #container{padding-top:0!important;margin-top:0!important}
     </style>`;
     html = html.replace('</head>', hideStyle + '</head>');
     res.type('text/html').send(html);
-  } catch (e) { res.status(500).send('proxy error'); }
+  } catch (e) { res.status(500).send('proxy error: ' + e.message); }
 });
 
 const pool = new Pool({
