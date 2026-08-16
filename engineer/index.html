@@ -257,7 +257,7 @@ function cardHtml(r){
     <div class="info-line" style="color:var(--gray-400);font-size:12px">${(r.received_at||'').slice(0,16).replace('T',' ')}</div>
     ${r.status==='new'&&isAdmin?`<button class="btn btn-primary" onclick="openAssign(${r.id})">기사 배정</button>`:''}
     ${r.status!=='new'&&(mine||isAdmin)?`<button class="btn btn-primary" onclick="openProcessing(${r.id})">${r.status==='completed'?'상세보기 →':'상세보기 / 처리하기 →'}</button>`:''}
-    ${r.status!=='new'?`<button class="btn" style="background:#7048e8;color:#fff" onclick="openChat(${r.id})">💬 대화${S.chatUnread[r.id]?` (${S.chatUnread[r.id]})`:''}</button>`:''}
+    ${r.status!=='new'&&r.status!=='completed'&&r.status!=='cancelled'?`<button class="btn" style="background:#7048e8;color:#fff" onclick="openChat(${r.id})">💬 대화${S.chatUnread[r.id]?` (${S.chatUnread[r.id]})`:''}</button>`:''}
     ${(mine||isAdmin)&&r.status!=='completed'&&r.status!=='cancelled'&&r.status!=='repairing'?`<button class="btn" style="background:#5f3dc4;color:#fff" onclick="submitCollect(${r.id})">🔧 장비수거</button>`:''}
     ${isAdmin&&r.status!=='completed'&&r.status!=='cancelled'&&r.assigned_engineer_id?`<button class="btn btn-ghost" onclick="openAssign(${r.id})">🔁 기사 재배정</button>`:''}
   </div>`;
