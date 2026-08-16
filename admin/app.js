@@ -746,7 +746,49 @@ function renderEngineers(){
       <td>${e.is_admin?'<span class="badge assigned">대표</span>':'기사'}</td>
       <td>${e.locked?'<span style="color:var(--danger);font-weight:700">🔒 잠김</span>':(e.has_password?'🔑 비번 설정됨':'<span style="color:var(--gray-400)">비번 없음</span>')}</td>
       <td><span style="display:flex;gap:6px">${e.locked?`<button class="btn btn-sm btn-success" onclick="unlockEngineer(${e.id})">잠금해제</button>`:''}<button class="btn btn-sm btn-secondary" onclick="openEngineerModal(${e.id})">편집</button><button class="btn btn-sm btn-danger" onclick="deleteEngineer(${e.id})">삭제</button></span></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">기사가 없습니다</td></tr>'}
-    </tbody></table></div>`;
+    </tbody></table></div>
+  <div class="vd-card" style="margin-top:24px;border:2px solid var(--danger)">
+    <div style="font-weight:800;margin-bottom:8px;color:var(--danger)">🗑️ 데이터 초기화</div>
+    <div style="font-size:13px;color:var(--gray-500);margin-bottom:12px">선택한 데이터를 모두 삭제합니다. 삭제 후 복구할 수 없습니다.<br>결산·통계는 남은 데이터 기준으로 자동 재계산됩니다.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px 20px;margin-bottom:14px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="rst_receptions"> 📋 작업현황·작업지시</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="rst_customers"> 🏢 거래처</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="rst_sales"> 🛒 매장판매</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="rst_estimates"> 📄 견적·명세·계산서</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px"><input type="checkbox" id="rst_schedules"> 📅 일정</label>
+    </div>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px;line-height:1.6">
+      <strong>연관 데이터 안내:</strong><br>
+      · 작업현황·작업지시 — 접수·작업·대화·사진·관련 결제 내역 삭제, 기사 실적 초기화<br>
+      · 거래처 — 거래처·장비(PC)·현장 정보 삭제 (작업이력은 유지, 고객정보만 해제)<br>
+      · 매장판매 — 매장 판매 내역·관련 결제 삭제<br>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>확인 문구 입력</label><input id="rst_confirm" type="text" placeholder="정말 초기화 하겠습니다" autocomplete="off"></div>
+      <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn btn-danger" onclick="resetSystem()">초기화 실행</button></div>
+    </div>
+    <div style="font-size:12px;color:var(--danger)">위 입력란에 <strong>"정말 초기화 하겠습니다"</strong>를 정확히 입력해야 초기화가 실행됩니다.</div>
+  </div>`;
+}
+async function resetSystem(){
+  const targets=[];
+  if(document.getElementById('rst_receptions')?.checked) targets.push('receptions');
+  if(document.getElementById('rst_customers')?.checked) targets.push('customers');
+  if(document.getElementById('rst_sales')?.checked) targets.push('sales');
+  if(document.getElementById('rst_estimates')?.checked) targets.push('estimates');
+  if(document.getElementById('rst_schedules')?.checked) targets.push('schedules');
+  if(!targets.length) return alert('초기화할 대상을 선택해주세요.');
+  const ct=(document.getElementById('rst_confirm')?.value||'').trim();
+  if(ct!=='정말 초기화 하겠습니다') return alert('"정말 초기화 하겠습니다"를 정확히 입력해주세요.');
+  const labels={receptions:'작업현황·작업지시',customers:'거래처',sales:'매장판매',estimates:'견적·명세·계산서',schedules:'일정'};
+  if(!confirm('⚠️ 다음 데이터를 초기화합니다:\n\n'+targets.map(t=>'  · '+labels[t]).join('\n')+'\n\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?')) return;
+  try{
+    await api('POST','/admin/reset',{targets,confirmText:ct});
+    alert('✅ 초기화가 완료되었습니다.');
+    document.getElementById('rst_confirm').value='';
+    document.querySelectorAll('[id^="rst_"]').forEach(el=>{if(el.type==='checkbox')el.checked=false;});
+    await loadAll(); render();
+  }catch(e){ alert('초기화 실패: '+(e.message||e)); }
 }
 async function saveAdminPassword(){
   const oldPw = v('set_oldpw') || '';

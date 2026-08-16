@@ -1531,6 +1531,56 @@ app.get('/api/stats', wrap(async (req, res) => {
 }));
 
 // ============================================================
+//  데이터 초기화
+// ============================================================
+app.post('/api/admin/reset', wrap(async (req, res) => {
+  const { targets, confirmText } = req.body;
+  if (confirmText !== '정말 초기화 하겠습니다') return res.status(400).json({ error: '확인 문구가 일치하지 않습니다' });
+  if (!Array.isArray(targets) || targets.length === 0) return res.status(400).json({ error: '초기화 대상을 선택해주세요' });
+  const valid = ['receptions', 'customers', 'sales', 'estimates', 'schedules'];
+  for (const t of targets) { if (!valid.includes(t)) return res.status(400).json({ error: '잘못된 대상: ' + t }); }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    if (targets.includes('receptions')) {
+      await client.query('DELETE FROM payments WHERE job_id IS NOT NULL');
+      await client.query('DELETE FROM receptions');
+      await client.query('UPDATE engineers SET total_jobs=0, total_revenue=0');
+      await client.query('UPDATE customers SET outstanding_amount=0');
+    }
+
+    if (targets.includes('customers')) {
+      await client.query('DELETE FROM customers');
+    }
+
+    if (targets.includes('sales')) {
+      await client.query('DELETE FROM payments WHERE sale_id IS NOT NULL');
+      await client.query('DELETE FROM sales');
+    }
+
+    if (targets.includes('estimates')) {
+      await client.query('DELETE FROM estimates');
+    }
+
+    if (targets.includes('schedules')) {
+      await client.query('DELETE FROM leave_requests');
+      await client.query('DELETE FROM schedules');
+    }
+
+    await client.query('DELETE FROM payments WHERE job_id IS NULL AND sale_id IS NULL');
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}));
+
+// ============================================================
 //  전화 수신 (CTI) — 메모리 임시 저장
 // ============================================================
 const incomingCalls = [];
