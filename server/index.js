@@ -72,29 +72,58 @@ app.get('/health', (req, res) => {
 });
 
 // ── efglobal 프록시 (프린터 수리자료 iframe용) ──
-function efgFetch(url) {
+let _efgCookie = '';
+function efgFetch(url, cookie) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (resp) => {
-      if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
-        return efgFetch(resp.headers.location).then(resolve, reject);
+    const opts = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0',
+        ...(cookie ? { Cookie: cookie } : {})
       }
+    };
+    https.get(url, opts, (resp) => {
+      if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
+        let loc = resp.headers.location;
+        if (loc.startsWith('/')) loc = 'https://efglobal.co.kr' + loc;
+        const sc = (resp.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+        return efgFetch(loc, sc || cookie).then(resolve, reject);
+      }
+      const sc = (resp.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
       const chunks = [];
       resp.on('data', c => chunks.push(c));
-      resp.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      resp.on('end', () => resolve({ body: Buffer.concat(chunks).toString('utf8'), cookie: sc || cookie || '' }));
       resp.on('error', reject);
     }).on('error', reject);
   });
 }
+function solveCupid(html) {
+  const m = html.match(/toNumbers\("([a-f0-9]+)"\).*?toNumbers\("([a-f0-9]+)"\).*?toNumbers\("([a-f0-9]+)"\)/s);
+  if (!m) return null;
+  const key = Buffer.from(m[1], 'hex'), iv = Buffer.from(m[2], 'hex'), enc = Buffer.from(m[3], 'hex');
+  try {
+    const dec = crypto.createDecipheriv('aes-128-cbc', key, iv);
+    dec.setAutoPadding(false);
+    return Buffer.concat([dec.update(enc), dec.final()]).toString('hex');
+  } catch { return null; }
+}
 app.get('/api/efg', async (req, res) => {
   try {
-    const qs = req.query.sca ? `?sca=${req.query.sca}` : '';
-    const sfl = req.query.sfl;
-    const stx = req.query.stx;
+    const sfl = req.query.sfl, stx = req.query.stx, sca = req.query.sca;
     let url = sfl && stx
       ? `https://efglobal.co.kr/bbs/board.php?bo_table=kim&sfl=${encodeURIComponent(sfl)}&stx=${encodeURIComponent(stx)}`
-      : `https://efglobal.co.kr/kim${qs}`;
+      : `https://efglobal.co.kr/kim${sca ? '?sca=' + sca : ''}`;
     if (req.query.page) url += (url.includes('?') ? '&' : '?') + `page=${req.query.page}`;
-    let html = await efgFetch(url);
+    let r = await efgFetch(url, _efgCookie);
+    if (r.body.includes('slowAES')) {
+      const cv = solveCupid(r.body);
+      if (cv) {
+        _efgCookie = 'CUPID=' + cv;
+        const retry = url + (url.includes('?') ? '&' : '?') + 'ckattempt=1';
+        r = await efgFetch(retry, _efgCookie);
+      }
+    }
+    let html = r.body;
+    if (r.cookie) _efgCookie = r.cookie;
     html = html.replace(/(?:src|href|action)=(["'])\/(?!\/)/gi, (m, q) => m.replace(q + '/', q + 'https://efglobal.co.kr/'));
     const hideStyle = `<style>
       .header-wrap,.page-header-wrap,.page-title-wrap,.ebs-shop020-tb-wrap,.top-header{display:none!important}
@@ -104,7 +133,7 @@ app.get('/api/efg', async (req, res) => {
       body,.wrapper{padding-top:0!important;margin-top:0!important}
       .page-body{padding-top:0!important;margin-top:0!important}
     </style>`;
-    html += hideStyle;
+    html = html.replace(/<\/body>/i, hideStyle + '</body>');
     res.type('text/html').send(html);
   } catch (e) { res.status(500).send('proxy error: ' + e.message); }
 });
