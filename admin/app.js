@@ -1269,18 +1269,19 @@ function estUpdateFee(){
   const rows=estRows(); const sub=rows.reduce((t,r)=>t+r.amt,0), vat=estState.noVat?0:Math.round(sub*0.1);
   const total=sub+vat;
   const totCost=rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0);
-  const pureMargin=sub-totCost;      // 순수 마진 = 공급가액 - 총매입가
   const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.round(total*rate);
   const net=total-cut;               // 실수령 = 합계 - 외주업체 수수료
   const realCost=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
   const refund=realCost>0?(realCost-Math.round(realCost/1.1)):0;
+  // 순수 마진: 실제매입가(수동) 있으면 합계-실매입가, 없으면 공급가액-개별매입가합계
+  const pureMargin=realCost>0?(total-realCost):(sub-totCost);
   const totalMargin=pureMargin-cut+refund; // 예정 총 마진 = 순수마진 - 수수료 + 부가세환급
   el.innerHTML = (rate>0
     ? `💳 <b>${estPayLabel(estState.payMethod)}</b> · 외주업체 수수료(${pct}%) <span style="color:#e03131">-${won(cut)}</span> → 실수령 <b style="color:#1971c2">${won(net)}</b> <span style="color:var(--gray-400)">(합계 ${won(total)})</span>`
     : `💳 <b>${estPayLabel(estState.payMethod)}</b> · 수수료 없음 → 실수령 <b style="color:#1971c2">${won(net)}</b>`)
     + `<div style="margin-top:6px;border-top:1px dashed var(--gray-300);padding-top:6px;display:flex;flex-wrap:wrap;gap:12px">`
-    + `<span>순수 마진 <b style="color:#2b8a3e">${won(pureMargin)}</b></span>`
-    + (refund>0?`<span>외주업체 부가세 환급 예정 <b style="color:#0ca678">+${won(refund)}</b></span>`:'')
+    + `<span>순수 마진 <b style="color:#2b8a3e">${won(pureMargin)}</b> <span style="color:var(--gray-400);font-size:11px">(${realCost>0?'합계-실매입가':'공급가액-매입가'})</span></span>`
+    + (refund>0?`<span>부가세 환급 예정 <b style="color:#0ca678">+${won(refund)}</b></span>`:'')
     + `</div>`
     + `<div style="margin-top:4px;font-weight:700">= 예정 총 마진 <b style="color:#1971c2;font-size:15px">${won(totalMargin)}</b> <span style="font-weight:400;color:var(--gray-400)">(순수마진${cut>0?' - 수수료':''}${refund>0?' + 부가세환급':''})</span></div>`;
 }
@@ -1364,13 +1365,13 @@ function estDocInner(target, copyLabel){
     + (internal ? (function(){
       const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
       const rf=rc>0?(rc-Math.round(rc/1.1)):0;
-      const pureMargin=profit;           // 순수 마진 = 공급가액 - 총매입가
-      const totalMargin=pureMargin-feeCut+rf; // 예정 총 마진
-      return `<tr style="color:#888"><td>총매입가</td><td style="text-align:right">${won(totCost)}</td></tr>
+      const pureMargin=rc>0?(total-rc):profit; // 실매입가 있으면 합계-실매입가, 없으면 공급가액-개별매입가
+      const totalMargin=pureMargin-feeCut+rf;
+      return `<tr style="color:#888"><td>${rc>0?'실제 매입가(수동)':'총매입가'}</td><td style="text-align:right">${won(rc>0?rc:totCost)}</td></tr>
       <tr style="color:#2b8a3e;font-weight:700"><td>순수 마진</td><td style="text-align:right">${won(pureMargin)}</td></tr>
       ${feeRt>0?`<tr style="color:#e03131"><td>외주업체 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
       ${feeRt>0?`<tr style="color:#1971c2"><td>실수령</td><td style="text-align:right">${won(total-feeCut)}</td></tr>`:''}
-      ${rf>0?`<tr style="color:#0ca678"><td>실매입가 ${won(rc)} · 부가세 환급 예정</td><td style="text-align:right">+${won(rf)}</td></tr>`:''}
+      ${rf>0?`<tr style="color:#0ca678"><td>부가세 환급 예정</td><td style="text-align:right">+${won(rf)}</td></tr>`:''}
       <tr style="color:#1971c2;font-weight:800;border-top:2px solid #ccc"><td>예정 총 마진</td><td style="text-align:right">${won(totalMargin)}</td></tr>`;
     })() : '');
   // 문서 종류별 제목·라벨·문구
