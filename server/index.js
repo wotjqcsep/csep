@@ -95,7 +95,7 @@ app.get('/api/efg', async (req, res) => {
       : `https://efglobal.co.kr/kim${qs}`;
     if (req.query.page) url += (url.includes('?') ? '&' : '?') + `page=${req.query.page}`;
     let html = await efgFetch(url);
-    html = html.replace(/<head>/i, '<head><base href="https://efglobal.co.kr/">');
+    html = html.replace(/(?:src|href|action)=(["'])\/(?!\/)/gi, (m, q) => m.replace(q + '/', q + 'https://efglobal.co.kr/'));
     const hideStyle = `<style>
       .wr_name,.td_name,.sv_member,td:nth-child(3),.wr_date,.td_datetime,td:nth-child(5){display:none!important}
       .navbar,.top-bar,.banner,#hd,.bo_sch_wrap,.bo_cate_list,#bo_cate,.board-info{display:none!important}
