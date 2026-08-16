@@ -29,6 +29,7 @@ public class MainActivity extends BridgeActivity {
 
     private static final String EFG_HIDE_CSS = "<style>"
             + ".footer,footer,.eb-backtotop{display:none!important}"
+            + ".category-list,.board-info{display:none!important}"
             + ".bl-author,.bl-name-in,.bl-mobile{display:none!important}"
             + ".bl-list>.bl-item.text-gray{display:none!important}"
             + ".bl-list{border-bottom:1px solid #e0e0e0!important;padding:12px 0!important}"
