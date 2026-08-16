@@ -1500,10 +1500,10 @@ function stdReceiptOne(sup,items,total,ctx,memo,copyLabel){
   const blanks=Array(emptyCount).fill(`<tr>
     <td style="${B}">&nbsp;</td><td colspan="5" style="${B}"></td>
     <td style="${B}"></td><td style="${B}"></td><td colspan="3" style="${B}"></td></tr>`).join('');
-  return `<table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:10px">
+  return `<div style="text-align:center;font-size:16px;font-weight:800;letter-spacing:10px;padding:8px 0 2px">영 수 증</div>
+    <div style="text-align:center;font-size:9px;color:#555;margin-bottom:4px">(${esc(copyLabel)})</div>
+    <table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:10px;border:2px solid #333">
     <colgroup><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"></colgroup>
-    <tr><td colspan="11" style="text-align:center;font-size:16px;font-weight:800;letter-spacing:10px;padding:8px 0 2px;border:none">영 수 증</td></tr>
-    <tr><td colspan="11" style="text-align:center;font-size:9px;color:#555;padding:0 0 4px;border:none">(${esc(copyLabel)})</td></tr>
     <tr><td colspan="3" style="${B}">No. ${esc(ctx.no)}</td>
         <td colspan="6" style="${B}"></td>
         <td colspan="2" style="${B}">${cust} 귀하</td></tr>
@@ -1515,16 +1515,14 @@ function stdReceiptOne(sup,items,total,ctx,memo,copyLabel){
     <tr><td colspan="2" style="${L}">업　태</td><td colspan="3" style="${B}">${sup.bt}</td>
         <td style="${L}">종목</td><td colspan="4" style="${B}">${sup.bi}</td></tr>
     <tr><td colspan="3" style="${L}">작성년월일</td><td colspan="5" style="${L}">금　액</td><td colspan="3" style="${L}">비　고</td></tr>
-    <tr><td colspan="3" rowspan="2" style="text-align:center;${B}">${yy}. ${mm}. ${dd}</td>
-        <td colspan="5" rowspan="2" style="text-align:center;font-weight:800;font-size:12px;${B}">${nfmt(total)}</td>
-        <td colspan="3" rowspan="2" style="${B}">${memo||''}</td></tr>
-    <tr></tr>
-    <tr><td colspan="11" style="text-align:center;font-weight:700;font-size:11px;padding:4px 0;border:none">위 금액을 영수(청구)함</td></tr>
+    <tr><td colspan="3" style="text-align:center;padding:6px 4px;${B}">${yy}. ${mm}. ${dd}</td>
+        <td colspan="5" style="text-align:center;font-weight:800;font-size:12px;padding:6px 4px;${B}">${nfmt(total)}</td>
+        <td colspan="3" style="padding:6px 4px;${B}">${memo||''}</td></tr>
+    <tr><td colspan="11" style="text-align:center;font-weight:700;font-size:11px;padding:4px 0;${B}">위 금액을 영수(청구)함</td></tr>
     <tr><td style="${L}">월일</td><td colspan="5" style="${L}">품　목</td>
         <td style="${L}">수량</td><td style="${L}">단가</td><td colspan="3" style="${L}">금　액</td></tr>
     ${itemRows}${blanks}
-    <tr><td rowspan="2" style="${B}"></td><td colspan="10" rowspan="2" style="text-align:right;${B}"></td></tr>
-    <tr></tr>
+    <tr><td style="padding:6px 4px;${B}"></td><td colspan="10" style="text-align:right;padding:6px 4px;${B}"></td></tr>
   </table>`;
 }
 function stdReceipt(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
