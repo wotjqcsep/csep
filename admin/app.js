@@ -988,23 +988,23 @@ function renderEstimates(){ estInit(); const s=estState;
     }).join('')}
   </div>
   <div class="vd-card" style="margin-bottom:14px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px">공급받는자 <span style="font-size:11px;color:var(--gray-400);font-weight:400">— 고객/거래처 정보</span></div>
     <div class="form-row">
-      <div class="form-group" style="flex:2"><label>공급자 (회사명) <span style="font-size:11px;color:var(--gray-400)">— 기사관리 상호/브랜드명 자동연동, 수정가능</span></label><input id="est_company" value="${esc(s.company)}" placeholder="예: CSEP 컴퓨터"></div>
-      <div class="form-group"><label>담당 · 연락처</label><input id="est_contact" value="${esc(s.contact)}" placeholder="담당자 / 전화"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group" style="flex:2"><label>고객 / 거래처 <span style="font-size:11px;color:var(--gray-400)">— 기존 거래처 선택 또는 새로 입력</span></label>
+      <div class="form-group" style="flex:2"><label>상호명 <span style="font-size:11px;color:var(--gray-400)">— 기존 거래처 선택 또는 새로 입력</span></label>
         <input id="est_customer" list="est_cust_list" value="${esc(s.customer)}" oninput="estCustPick()" placeholder="고객명 또는 거래처명 (검색·자동완성)">
         <datalist id="est_cust_list">${(state.customers||[]).map(c=>`<option value="${esc(vdName(c))}" data-id="${c.id}" data-phone="${esc(c.phone||'')}">${esc(c.phone||'')}</option>`).join('')}</datalist>
       </div>
-      <div class="form-group"><label>고객 연락처</label><input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처 (검색·자동등록용)"></div>
+      <div class="form-group">${field('est_buyer_ceo','대표자',s.buyerCeo||'')}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2">${field('est_buyer_addr','주소',s.buyerAddr||'')}</div>
+      <div class="form-group"><label>연락처</label><input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처"></div>
     </div>
     <div style="margin-top:2px">
-      <div style="font-size:12px;color:#1971c2;cursor:pointer;font-weight:600" onclick="estToggle('est_buyer_box')">▸ 공급받는자 사업자정보 (거래명세서·세금계산서용, 선택)</div>
+      <div style="font-size:12px;color:#1971c2;cursor:pointer;font-weight:600" onclick="estToggle('est_buyer_box')">▸ 사업자정보 추가 (거래명세서·세금계산서용, 선택)</div>
       <div id="est_buyer_box" style="display:none;margin-top:8px">
-        <div class="form-row">${field('est_buyer_bizno','등록번호',s.buyerBizno||'')}${field('est_buyer_ceo','대표자',s.buyerCeo||'')}</div>
+        <div class="form-row">${field('est_buyer_bizno','사업자번호',s.buyerBizno||'')}</div>
         <div class="form-row">${field('est_buyer_type','업태',s.buyerType||'')}${field('est_buyer_item','종목',s.buyerItem||'')}</div>
-        <div class="form-row">${field('est_buyer_addr','사업장주소',s.buyerAddr||'')}</div>
       </div>
     </div>
     <div class="form-row">
@@ -1225,7 +1225,8 @@ async function estDeleteSaved(id){
 }
 // DOM → estState (모든 입력에 반영, 화면 재렌더돼도 값 보존)
 function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
-  estState.company=g('est_company'); estState.contact=g('est_contact'); estState.customer=g('est_customer'); estState.phone=g('est_phone');
+  const S_=state.settings||{}; estState.company=S_.brand_name||estState.company||''; estState.contact=S_.biz_tel||estState.contact||'';
+  estState.customer=g('est_customer'); estState.phone=g('est_phone');
   estState.buyerBizno=g('est_buyer_bizno'); estState.buyerCeo=g('est_buyer_ceo'); estState.buyerAddr=g('est_buyer_addr'); estState.buyerType=g('est_buyer_type'); estState.buyerItem=g('est_buyer_item');
   estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=(g('est_bulk')==='')?0:(Number(g('est_bulk'))||0);
   estState.pname=g('est_pname')||estState.pname||'short'; estState.pprice=g('est_pprice')||estState.pprice||'total';
