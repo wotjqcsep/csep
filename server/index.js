@@ -97,14 +97,14 @@ app.get('/api/efg', async (req, res) => {
     let html = await efgFetch(url);
     html = html.replace(/(?:src|href|action)=(["'])\/(?!\/)/gi, (m, q) => m.replace(q + '/', q + 'https://efglobal.co.kr/'));
     const hideStyle = `<style>
-      .wr_name,.td_name,.sv_member,td:nth-child(3),.wr_date,.td_datetime,td:nth-child(5){display:none!important}
-      .navbar,.top-bar,.banner,#hd,.bo_sch_wrap,.bo_cate_list,#bo_cate,.board-info{display:none!important}
-      header,.top_banner,#top_banner,.hd_pop{display:none!important}
-      footer,#ft,.ft_wrap{display:none!important}
-      body{padding-top:0!important;margin:0!important}
-      #container{padding-top:0!important;margin-top:0!important}
+      .header-wrap,.page-header-wrap,.page-title-wrap,.ebs-shop020-tb-wrap,.top-header{display:none!important}
+      header,.footer,footer,#ft,.ft_wrap,.eb-backtotop{display:none!important}
+      .wr_name,.td_name,.sv_member,.bo_sch_wrap,.bo_cate_list,.board-info{display:none!important}
+      .wr_date,.td_datetime{display:none!important}
+      body,.wrapper{padding-top:0!important;margin-top:0!important}
+      .page-body{padding-top:0!important;margin-top:0!important}
     </style>`;
-    html = html.replace('</head>', hideStyle + '</head>');
+    html += hideStyle;
     res.type('text/html').send(html);
   } catch (e) { res.status(500).send('proxy error: ' + e.message); }
 });
