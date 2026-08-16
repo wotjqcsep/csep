@@ -70,6 +70,36 @@ app.get('/health', (req, res) => {
   res.type('text/plain').send('ok');
 });
 
+// ── efglobal 프록시 (프린터 수리자료 iframe용) ──
+app.get('/api/efg', async (req, res) => {
+  try {
+    const qs = req.query.sca ? `?sca=${req.query.sca}` : '';
+    const sfl = req.query.sfl;
+    const stx = req.query.stx;
+    let url = sfl && stx
+      ? `https://efglobal.co.kr/bbs/board.php?bo_table=kim&sfl=${encodeURIComponent(sfl)}&stx=${encodeURIComponent(stx)}`
+      : `https://efglobal.co.kr/kim${qs}`;
+    if (req.query.page) url += (url.includes('?') ? '&' : '?') + `page=${req.query.page}`;
+    const r = await fetch(url);
+    let html = await r.text();
+    html = html.replace(/<head>/i, '<head><base href="https://efglobal.co.kr/">');
+    html = html.replace(/<header[\s\S]*?<\/header>/gi, '');
+    html = html.replace(/<div[^>]*class="[^"]*board-info[^"]*"[\s\S]*?<\/div>/i, '');
+    html = html.replace(/<ul[^>]*id="bo_cate"[\s\S]*?<\/ul>/gi, '');
+    html = html.replace(/<div[^>]*class="[^"]*bo_sch[^"]*"[\s\S]*?<\/div>/gi, '');
+    html = html.replace(/<footer[\s\S]*?<\/footer>/gi, '');
+    html = html.replace(/<div[^>]*id="ft"[\s\S]*?<\/div>/gi, '');
+    const hideStyle = `<style>
+      .wr_name,.td_name,.sv_member,td:nth-child(3),.wr_date,.td_datetime,td:nth-child(5){display:none!important}
+      .navbar,.top-bar,.banner,#hd,.bo_sch_wrap,.bo_cate_list,#bo_cate,.board-info{display:none!important}
+      body{padding-top:0!important;margin:0!important}
+      #container{padding-top:0!important;margin-top:0!important}
+    </style>`;
+    html = html.replace('</head>', hideStyle + '</head>');
+    res.type('text/html').send(html);
+  } catch (e) { res.status(500).send('proxy error'); }
+});
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
