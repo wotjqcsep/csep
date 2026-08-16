@@ -1089,8 +1089,8 @@ function renderEstimates(){ estInit(); const s=estState;
           </select>
         </label>
         <label>실제 매입가(수동)
-          <input id="est_realcost" value="${esc(s.realCost||'')}" oninput="estFmtCost(this)" placeholder="예: 547640" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
-          <span style="font-size:11px;color:var(--gray-400)">외주업체 부가세 환급 계산용(컴퓨존 실결제액, 부가세 포함)</span>
+          <input id="est_realcost" value="${won(Number(String(s.realCost||'').replace(/[^\d]/g,''))||0)}" oninput="estFmtCost(this)" placeholder="예: 1,400,000" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
+          <span style="font-size:11px;color:var(--gray-400)">외주업체 부가세 환급 계산용(부가세 포함)</span>
         </label>
       </div>
       <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:#f8f9fb;border:1px solid var(--gray-200)"></div>
@@ -1272,28 +1272,28 @@ function estUpdateFee(){
   const total=sub+vat;
   const totCost=rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0);
   const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.round(total*rate);
-  const net=total-cut;               // 실수령 = 합계 - 외주업체 수수료
+  const net=total-cut;               // 실수령액 = 합계 - 외주업체 결제 수수료
   const realCost=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
   const useOutsource=rate>0;         // 외주업체 경유 여부
-  const refund=useOutsource&&realCost>0?(realCost-Math.round(realCost/1.1)):0; // 매입부가세 환급(외주업체 경유 시만)
+  const refund=useOutsource&&realCost>0?(realCost-Math.round(realCost/1.1)):0;
   const pureMargin=realCost>0?(total-realCost):(sub-totCost);
-  const totalMargin=pureMargin-cut+refund;
+  const finalNet=net+refund;         // 최종 실수령 = 실수령액 + 매입환급
+  const finalProfit=finalNet-realCost; // 최종 순이익 = 최종 실수령 - 매입비
   let html='';
   if(useOutsource){
     html+=`💳 <b>${estPayLabel(estState.payMethod)}</b> (외주업체 대행)`;
     html+=`<div style="margin-top:6px;border-top:1px dashed var(--gray-300);padding-top:6px">`;
-    html+=`<div>실수령 = 합계(${won(total)}) - 수수료${pct}%(<span style="color:#e03131">${won(cut)}</span>) = <b style="color:#1971c2">${won(net)}</b></div>`;
-    html+=`<div style="margin-top:4px">순수 마진 = ${realCost>0?`합계 - 실매입가(${won(realCost)})`:`공급가액 - 매입가(${won(totCost)})`} = <b style="color:#2b8a3e">${won(pureMargin)}</b></div>`;
+    html+=`<div>실수령액 = 합계(${won(total)}) - 외주업체 결제 수수료${pct}%(<span style="color:#e03131">${won(cut)}</span>) = <b style="color:#1971c2">${won(net)}</b></div>`;
     if(refund>0) html+=`<div style="margin-top:4px">매입 부가세 환급 = <b style="color:#0ca678">+${won(refund)}</b></div>`;
     html+=`</div>`;
-    html+=`<div style="margin-top:6px;font-weight:700;border-top:1px dashed var(--gray-300);padding-top:6px">= 예정 총 마진 <b style="color:#1971c2;font-size:15px">${won(totalMargin)}</b> <span style="font-weight:400;color:var(--gray-400)">(순수마진 - 수수료${refund>0?' + 매입부가세환급':''})</span></div>`;
+    html+=`<div style="margin-top:6px;font-weight:700;border-top:1px dashed var(--gray-300);padding-top:6px">= 최종 실수령 <b style="color:#1971c2;font-size:15px">${won(finalNet)}</b> <span style="font-weight:400;color:var(--gray-400)">(실수령액${refund>0?' + 매입부가세환급':''})</span></div>`;
+    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 순이익 <b style="color:#2b8a3e;font-size:15px">${won(finalProfit)}</b> <span style="font-weight:400;color:var(--gray-400)">(최종실수령 - 매입비${won(realCost)})</span></div>`;
   } else {
     html+=`💵 <b>${estPayLabel(estState.payMethod)}</b> (고객 직접 지급)`;
     html+=`<div style="margin-top:6px;border-top:1px dashed var(--gray-300);padding-top:6px">`;
-    html+=`<div>실수령 = <b style="color:#1971c2">${won(total)}</b> <span style="color:var(--gray-400)">(수수료 없음)</span></div>`;
-    html+=`<div style="margin-top:4px">순수 마진 = ${realCost>0?`합계 - 실매입가(${won(realCost)})`:`공급가액 - 매입가(${won(totCost)})`} = <b style="color:#2b8a3e">${won(pureMargin)}</b></div>`;
+    html+=`<div>실수령액 = <b style="color:#1971c2">${won(total)}</b> <span style="color:var(--gray-400)">(수수료 없음)</span></div>`;
     html+=`</div>`;
-    html+=`<div style="margin-top:6px;font-weight:700;border-top:1px dashed var(--gray-300);padding-top:6px">= 예정 총 마진 <b style="color:#1971c2;font-size:15px">${won(pureMargin)}</b> <span style="font-weight:400;color:var(--gray-400)">(= 순수 마진)</span></div>`;
+    html+=`<div style="margin-top:6px;font-weight:800;border-top:2px solid #ccc;padding-top:6px">= 최종 순이익 <b style="color:#2b8a3e;font-size:15px">${won(realCost>0?(total-realCost):0)}</b> <span style="font-weight:400;color:var(--gray-400)">(실수령 - 매입비${realCost>0?won(realCost):'미입력'})</span></div>`;
   }
   el.innerHTML=html;
 }
@@ -1377,15 +1377,16 @@ function estDocInner(target, copyLabel){
     + (internal ? (function(){
       const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
       const useOut=feeRt>0;
-      const rf=useOut&&rc>0?(rc-Math.round(rc/1.1)):0; // 매입부가세 환급(외주업체 경유 시만)
-      const pureMargin=rc>0?(total-rc):profit;
-      const totalMargin=useOut?(pureMargin-feeCut+rf):pureMargin;
+      const rf=useOut&&rc>0?(rc-Math.round(rc/1.1)):0;
+      const net=total-feeCut;          // 실수령액
+      const finalNet=net+rf;           // 최종 실수령 = 실수령액 + 매입환급
+      const finalProfit=rc>0?(finalNet-rc):profit;  // 최종 순이익
       return `<tr style="color:#888"><td>${rc>0?'실제 매입가':'총매입가'}</td><td style="text-align:right">${won(rc>0?rc:totCost)}</td></tr>
-      <tr style="color:#2b8a3e;font-weight:700"><td>순수 마진</td><td style="text-align:right">${won(pureMargin)}</td></tr>
-      ${useOut?`<tr style="color:#e03131"><td>외주업체 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>`:''}
-      ${useOut?`<tr style="color:#1971c2"><td>실수령</td><td style="text-align:right">${won(total-feeCut)}</td></tr>`:''}
+      ${useOut?`<tr style="color:#e03131"><td>외주업체 결제 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>
+      <tr style="color:#1971c2"><td>실수령액</td><td style="text-align:right">${won(net)}</td></tr>`:''}
       ${rf>0?`<tr style="color:#0ca678"><td>매입 부가세 환급</td><td style="text-align:right">+${won(rf)}</td></tr>`:''}
-      <tr style="color:#1971c2;font-weight:800;border-top:2px solid #ccc"><td>예정 총 마진</td><td style="text-align:right">${won(totalMargin)}</td></tr>`;
+      ${useOut?`<tr style="color:#1971c2;font-weight:700;border-top:1px dashed #ccc"><td>최종 실수령</td><td style="text-align:right">${won(finalNet)}</td></tr>`:''}
+      <tr style="color:#2b8a3e;font-weight:800;border-top:2px solid #ccc"><td>최종 순이익</td><td style="text-align:right">${won(finalProfit)}</td></tr>`;
     })() : '');
   // 문서 종류별 제목·라벨·문구
   const dt = estState.doctype||'estimate';
