@@ -1552,25 +1552,24 @@ function estPrint(target){
       <div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>
       <div class="copy">${estDocInner(target,'공급자 보관용')}</div>`;
   } else if(dt==='receipt'){
-    pageCss='@page{size:86mm 190mm;margin:3mm}';
-    bodyHtml=`<div class="rcpt-page">${estDocInner(target,'공급받는자 보관용')}</div>
-      <div class="rcpt-page">${estDocInner(target,'공급자 보관용')}</div>`;
+    pageCss='@page{size:A4 landscape;margin:8mm}';
+    bodyHtml=`<div style="display:flex;gap:20px;justify-content:center;align-items:flex-start">
+      <div class="rcpt-page">${estDocInner(target,'공급받는자 보관용')}</div>
+      <div class="rcpt-page">${estDocInner(target,'공급자 보관용')}</div>
+    </div>`;
   } else {
     pageCss='@page{size:A4 portrait;margin:12mm}';
     bodyHtml=estDocInner(target);
   }
   const isReceipt=dt==='receipt';
-  const bodyMax=isReceipt?'max-width:86mm':'max-width:820px';
-  const bodyPad=isReceipt?'padding:4px':'padding:16px';
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc((estState.doctype||'견적서'))} ${no}</title>
-    <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;${bodyPad};${bodyMax};margin:auto}
+    <style>body{font-family:'Malgun Gothic',sans-serif;color:#222;padding:${isReceipt?'4px':'16px'};${isReceipt?'':'max-width:820px;'}margin:auto}
     ${EST_DOC_CSS}
     ${pageCss}
     .copy{}
     .rcpt{font-size:11px}
-    .rcpt-page{page-break-after:always;margin-bottom:12px;width:80mm;height:184mm;overflow:hidden;box-sizing:border-box}
-    .rcpt-page:last-child{page-break-after:auto}
-    .rcpt-page table{width:100%;height:100%}
+    .rcpt-page{width:86mm;min-height:190mm;max-height:190mm;box-sizing:border-box}
+    .rcpt-page table{width:100%}
     .rcpt-page table td{word-break:break-all;overflow-wrap:break-word}
     .cut{color:#999;text-align:center;font-size:11px;margin:6mm 0;letter-spacing:1px}
     .pb{page-break-after:always}
