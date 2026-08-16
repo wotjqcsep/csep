@@ -10,7 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=d51112f1641c58ced9ecc03bd942b08f&libraries=services&autoload=false"></script>
 <style>
-:root{--primary:#3b5bdb;--success:#2f9e44;--warning:#f08c00;--danger:#e03131;--bg:#f1f3f5;--gray-400:#adb5bd;--gray-500:#868e96;--gray-600:#495057}
+:root{--primary:#3b5bdb;--success:#2f9e44;--warning:#f08c00;--danger:#e03131;--bg:#f1f3f5;--gray-100:#f1f3f5;--gray-200:#e9ecef;--gray-300:#dee2e6;--gray-400:#adb5bd;--gray-500:#868e96;--gray-600:#495057;--gray-700:#343a40;--gray-800:#212529}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);color:#343a40;font-size:15px;max-width:520px;margin:0 auto;min-height:100vh}
 .topbar{background:#1a1f2b;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
@@ -81,10 +81,10 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'active', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], processing:null, statusFilter:'pending', procPhotos:[], procExisting:[], incomingCalls:[], modalRec:null, settings:{} };
+const S={ engineer:null, tab:'list', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], processing:null, statusFilter:'pending', procPhotos:[], procExisting:[], incomingCalls:[], modalRec:null, settings:{} };
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
-const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const won=n=>'₩'+(Number(n)||0).toLocaleString();
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const won=n=>'₩'+(Number(n)||0).toLocaleString('ko-KR');
 const WO_TYPE_COLOR={출장:'#1971c2',납품:'#e67700','견적서 납품':'#7048e8'};
 function woTypeBadge(memo){
   if(!memo) return '';
@@ -94,7 +94,7 @@ function woTypeBadge(memo){
   return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff;background:${c}">${esc(t)}</span>`;
 }
 // 금액 입력: 앞자리 0 제거 + 3자리마다 콤마. 저장 시엔 moneyVal()로 숫자만 추출
-function fmtMoney(el){ let v=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,''); el.value=v?Number(v).toLocaleString('en-US'):''; }
+function fmtMoney(el){ let v=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,''); el.value=v?Number(v).toLocaleString('ko-KR'):''; }
 const moneyVal=id=>{ const el=document.getElementById(id); return el?Number((el.value||'').replace(/[^0-9]/g,''))||0:0; };
 // 결제수단 칩 선택 UI (select 대신). 값은 hidden input(id)에 저장 → 기존 코드 그대로 읽음
 const PAY_METHODS_UI=[['cash','💵 현금'],['transfer','🏦 계좌이체'],['cashreceipt','🧾 현금영수증'],['card','💳 카드'],['tax','📑 세금계산서'],['unpaid','📌 미수']];
@@ -420,7 +420,7 @@ function renderProcDone(r){
     <div style="font-weight:700;margin-bottom:6px">✅ 처리 완료</div>
     ${r.work_description?`<div class="info-line">내용: ${esc(r.work_description)}</div>`:''}
     ${r.parts_used?`<div class="info-line">부품: ${esc(r.parts_used)}</div>`:''}
-    <div class="info-line">비용: ${won(r.total_cost)}</div>
+    <div class="info-line">비용: ${won((Number(r.total_cost)||0)||(Number(r.labor_fee)||0)+(Number(r.parts_fee)||0)+(Number(r.visit_fee)||0))}</div>
     <button class="btn btn-ghost" onclick="openPhotos(${r.id})">📷 작업 사진 보기</button>
   </div>`;
 }
@@ -1369,8 +1369,8 @@ function initRouteMap(currentLoc, optimized){
     marker.setImage(createMarkerImage(col,String(idx+1)));
     routeState.markers.push(marker);
     // 마커 클릭 → 팝업(겹침 대비). 팝업 안에서 상세보기 진입
-    const name=(r.customer_name||r.customer_phone||'고객').replace(/'/g,'');
-    const addr=(r.customer_address||'').replace(/'/g,'');
+    const name=esc(r.customer_name||r.customer_phone||'고객');
+    const addr=esc(r.customer_address||'');
     kakao.maps.event.addListener(marker,'click',()=>{
       const content=`<div style="padding:8px 10px;min-width:150px;font-size:12px;font-family:'Malgun Gothic',sans-serif">
         <div style="font-weight:700;margin-bottom:2px"><span style="color:${col}">●</span> ${idx+1}. ${name}</div>

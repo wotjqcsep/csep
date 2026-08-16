@@ -599,7 +599,7 @@ app.post('/api/estimates', wrap(async (req, res) => {
   let customerId = b.customer_id || null, customerCreated = false;
   if (!customerId && (cname || phone)) {
     let match = null;
-    if (phone) match = (await pool.query('SELECT id FROM customers WHERE phone=$1 LIMIT 1', [phone])).rows[0];
+    if (phone) match = (await pool.query("SELECT id FROM customers WHERE REGEXP_REPLACE(phone,'[^0-9]','','g')=REGEXP_REPLACE($1,'[^0-9]','','g') LIMIT 1", [phone])).rows[0];
     if (!match && cname) match = (await pool.query('SELECT id FROM customers WHERE name=$1 LIMIT 1', [cname])).rows[0];
     if (match) customerId = match.id;
     else { const ins = await pool.query('INSERT INTO customers (name, phone) VALUES ($1,$2) RETURNING id', [cname || phone, phone]); customerId = ins.rows[0].id; customerCreated = true; }
@@ -1149,12 +1149,14 @@ app.put('/api/engineers/:id', wrap(async (req, res) => {
 
 app.put('/api/engineers/:id/status', wrap(async (req, res) => {
   const { rows } = await pool.query('UPDATE engineers SET status=$1 WHERE id=$2 RETURNING *', [req.query.status || req.body.status, req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '기사 없음' });
   broadcastAdmin('engineer_update', maskEngineer(rows[0]));
   res.json(maskEngineer(rows[0]));
 }));
 
 app.put('/api/engineers/:id/location', wrap(async (req, res) => {
   const { rows } = await pool.query('UPDATE engineers SET location=$1 WHERE id=$2 RETURNING *', [req.query.location || req.body.location, req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '기사 없음' });
   res.json(maskEngineer(rows[0]));
 }));
 
@@ -1191,6 +1193,9 @@ app.post('/api/receptions', wrap(async (req, res) => {
 
 app.put('/api/receptions/:id/assign', wrap(async (req, res) => {
   const engineerId = req.query.engineer_id || req.body.engineer_id;
+  const prev = (await pool.query('SELECT status FROM receptions WHERE id=$1', [req.params.id])).rows[0];
+  if (!prev) return res.status(404).json({ error: 'Not found' });
+  if (prev.status === 'completed' || prev.status === 'cancelled') return res.status(400).json({ error: '완료/취소된 접수는 배정할 수 없습니다' });
   const { rows } = await pool.query(
     `UPDATE receptions SET assigned_engineer_id=$1, status='assigned', assigned_at=NOW() WHERE id=$2 RETURNING *`,
     [engineerId, req.params.id]
@@ -1211,8 +1216,8 @@ app.put('/api/receptions/:id/assign', wrap(async (req, res) => {
 
 app.put('/api/receptions/:id/status', wrap(async (req, res) => {
   const status = req.query.status || req.body.status;
-  const extra = status === 'completed' ? ', completed_at=NOW()' : '';
-  const { rows } = await pool.query(`UPDATE receptions SET status=$1${extra} WHERE id=$2 RETURNING *`, [status, req.params.id]);
+  if (status === 'completed') return res.status(400).json({ error: '완료 처리는 결제/처리완료 API를 사용해주세요' });
+  const { rows } = await pool.query(`UPDATE receptions SET status=$1 WHERE id=$2 RETURNING *`, [status, req.params.id]);
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
@@ -1229,6 +1234,9 @@ app.put('/api/receptions/:id/reserve', wrap(async (req, res) => {
 
 // 콜 취소 — 삭제하지 않고 '취소됨' 상태로 기록 보존
 app.put('/api/receptions/:id/cancel', wrap(async (req, res) => {
+  const prev = (await pool.query('SELECT status FROM receptions WHERE id=$1', [req.params.id])).rows[0];
+  if (!prev) return res.status(404).json({ error: '접수 없음' });
+  if (prev.status === 'completed') return res.status(400).json({ error: '완료된 접수는 취소할 수 없습니다' });
   const reason = req.body.reason || '';
   const { rows } = await pool.query(
     `UPDATE receptions SET status='cancelled', outcome='cancelled', solution=CASE WHEN $2<>'' THEN $2 ELSE solution END WHERE id=$1 RETURNING *`,
@@ -1242,9 +1250,22 @@ app.put('/api/receptions/:id/cancel', wrap(async (req, res) => {
 // 처리 내용 기록 (+선택적 완료) — 관리자 PC
 app.put('/api/receptions/:id/solution', wrap(async (req, res) => {
   const b = req.body;
+  let wasCompleted = false;
+  if (b.complete) {
+    const prev = (await pool.query('SELECT status FROM receptions WHERE id=$1', [req.params.id])).rows[0];
+    wasCompleted = prev && prev.status === 'completed';
+  }
   const extra = b.complete ? ", status='completed', completed_at=NOW()" : '';
   const { rows } = await pool.query(`UPDATE receptions SET solution=$1${extra} WHERE id=$2 RETURNING *`, [b.solution || null, req.params.id]);
   if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+  if (b.complete && !wasCompleted) {
+    const jobRow = (await pool.query('SELECT id FROM jobs WHERE reception_id=$1', [req.params.id])).rows[0];
+    if (jobRow) {
+      const recTotal = (Number(rows[0].labor_fee) || 0) + (Number(rows[0].parts_fee) || 0) + (Number(rows[0].visit_fee) || 0);
+      await pool.query('UPDATE jobs SET status=$2, completed_at=COALESCE(completed_at,NOW()), total_cost=$3 WHERE id=$1', [jobRow.id, 'completed', recTotal]);
+    }
+    await processCompletionAccounting(pool.query.bind(pool), req.params.id);
+  }
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
@@ -1257,10 +1278,34 @@ app.put('/api/receptions/:id/payment', wrap(async (req, res) => {
   fields.forEach(f => { if (b[f] !== undefined) { vals.push(b[f]); sets.push(`${f}=$${vals.length}`); } });
   if (b.complete) sets.push("status='completed'", 'completed_at=NOW()');
   if (!sets.length) { const { rows } = await pool.query('SELECT * FROM receptions WHERE id=$1',[req.params.id]); return res.json(rows[0]); }
+  const prev = (await pool.query('SELECT status, payment_method, customer_id, labor_fee, parts_fee, visit_fee FROM receptions WHERE id=$1', [req.params.id])).rows[0];
+  if (!prev) return res.status(404).json({ error: '접수 없음' });
+  const wasCompleted = prev.status === 'completed';
   vals.push(req.params.id);
   const { rows } = await pool.query(`UPDATE receptions SET ${sets.join(',')} WHERE id=$${vals.length} RETURNING *`, vals);
   if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
-  if (rows[0].status === 'completed') await syncEstimateFromReception(rows[0]);   // 견적 납품 완료 → 견적서에 현장할인·납품완료 기록
+  if (rows[0].status === 'completed') await syncEstimateFromReception(rows[0]);
+  // 최초 완료: 작업·결제·기사실적·미수금 처리
+  if (b.complete && !wasCompleted) {
+    const jobRow = (await pool.query('SELECT id FROM jobs WHERE reception_id=$1', [req.params.id])).rows[0];
+    if (jobRow) {
+      const recTotal = (Number(rows[0].labor_fee) || 0) + (Number(rows[0].parts_fee) || 0) + (Number(rows[0].visit_fee) || 0);
+      await pool.query('UPDATE jobs SET status=$2, completed_at=COALESCE(completed_at,NOW()), total_cost=$3 WHERE id=$1', [jobRow.id, 'completed', recTotal]);
+    }
+    await processCompletionAccounting(pool.query.bind(pool), req.params.id);
+  }
+  // 완료된 접수의 결제수단 변경 시 미수금 조정
+  if (wasCompleted && b.payment_method !== undefined && prev.payment_method !== b.payment_method) {
+    const oldUnpaid = prev.payment_method === 'unpaid';
+    const newUnpaid = b.payment_method === 'unpaid';
+    if (oldUnpaid !== newUnpaid && rows[0].customer_id) {
+      const amt = (Number(rows[0].labor_fee) || 0) + (Number(rows[0].parts_fee) || 0) + (Number(rows[0].visit_fee) || 0);
+      if (amt > 0) {
+        if (oldUnpaid && !newUnpaid) await pool.query('UPDATE customers SET outstanding_amount = GREATEST(0, COALESCE(outstanding_amount,0) - $2) WHERE id=$1', [rows[0].customer_id, amt]);
+        if (!oldUnpaid && newUnpaid) await pool.query('UPDATE customers SET outstanding_amount = COALESCE(outstanding_amount,0) + $2 WHERE id=$1', [rows[0].customer_id, amt]);
+      }
+    }
+  }
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
@@ -1272,8 +1317,27 @@ async function syncEstimateFromReception(rec) {
     const estAmt = Number(rec.estimate_amount) || 0;
     const discount = (estAmt > 0 && actual > 0 && actual < estAmt) ? (estAmt - actual) : 0;
     await pool.query('UPDATE estimates SET delivered=TRUE, delivered_at=NOW(), field_discount=$2, final_amount=$3 WHERE id=$1',
-      [rec.estimate_id, discount, actual || estAmt]);
+      [rec.estimate_id, discount, actual]);
   } catch (e) { console.log('[견적납품 동기화] 오류:', e.message); }
+}
+
+// 최초 완료 시 회계 처리: 결제 기록 생성, 기사 실적, 고객 미수금
+async function processCompletionAccounting(qry, recId) {
+  const rec = (await qry('SELECT * FROM receptions WHERE id=$1', [recId])).rows[0];
+  if (!rec) return;
+  const recTotal = (Number(rec.labor_fee) || 0) + (Number(rec.parts_fee) || 0) + (Number(rec.visit_fee) || 0);
+  const jobRow = (await qry('SELECT id FROM jobs WHERE reception_id=$1', [recId])).rows[0];
+  const jobId = jobRow && jobRow.id;
+  const exists = jobId ? (await qry('SELECT id FROM payments WHERE job_id=$1', [jobId])).rows[0] : null;
+  if (exists) return;
+  if (rec.assigned_engineer_id) await qry('UPDATE engineers SET total_jobs=total_jobs+1, total_revenue=total_revenue+$2 WHERE id=$1', [rec.assigned_engineer_id, recTotal]);
+  if (recTotal > 0) {
+    const method = rec.payment_method || 'unpaid';
+    const paid = method !== 'unpaid';
+    await qry('INSERT INTO payments (job_id, amount, payment_method, payment_status, paid_at) VALUES ($1,$2,$3,$4,$5)',
+      [jobId || null, recTotal, method, paid ? 'completed' : 'pending', paid ? new Date() : null]);
+    if (!paid && rec.customer_id) await qry('UPDATE customers SET outstanding_amount = COALESCE(outstanding_amount,0) + $2 WHERE id=$1', [rec.customer_id, recTotal]);
+  }
 }
 
 // 수거·견적대기중 + 진행중 (지도 실행 시 자동 호출) — 미처리(new/assigned)면 진행중으로
@@ -1290,6 +1354,9 @@ app.put('/api/receptions/:id/pickup', wrap(async (req, res) => {
 
 // 장비수거 → 사무실 수거·점검 상태 전환
 app.put('/api/receptions/:id/collect', express.json(), wrap(async (req, res) => {
+  const prev = (await pool.query('SELECT status FROM receptions WHERE id=$1', [req.params.id])).rows[0];
+  if (!prev) return res.status(404).json({ error: '접수 없음' });
+  if (prev.status === 'completed' || prev.status === 'cancelled') return res.status(400).json({ error: '완료/취소된 접수는 수거할 수 없습니다' });
   const desc = req.body.work_description || '장비 수거';
   const { rows } = await pool.query(
     `UPDATE receptions SET status='repairing', picked_up=TRUE, collected_at=NOW(), solution=$2 WHERE id=$1 RETURNING *`,
@@ -1330,13 +1397,20 @@ app.put('/api/admin-password', express.json(), wrap(async (req, res) => {
 }));
 
 app.delete('/api/receptions/:id', wrap(async (req, res) => {
-  // 삭제 전 담당 기사·고객명 조회 → 배정된 기사에게 알림
+  // 삭제 전 정보 조회 — 미수금 조정 + 기사 알림
   const info = await pool.query(
-    'SELECT r.assigned_engineer_id, c.name FROM receptions r LEFT JOIN customers c ON c.id=r.customer_id WHERE r.id=$1',
+    'SELECT r.*, c.name AS cust_name FROM receptions r LEFT JOIN customers c ON c.id=r.customer_id WHERE r.id=$1',
     [req.params.id]
   );
-  const engId = info.rows[0] && info.rows[0].assigned_engineer_id;
-  const custName = (info.rows[0] && info.rows[0].name) || '고객';
+  if (!info.rows[0]) return res.status(404).json({ error: '접수 없음' });
+  const rec = info.rows[0];
+  const engId = rec.assigned_engineer_id;
+  const custName = rec.cust_name || '고객';
+  // 완료+미수 접수 삭제 시 미수금 차감
+  if (rec.status === 'completed' && rec.payment_method === 'unpaid' && rec.customer_id) {
+    const amt = (Number(rec.labor_fee) || 0) + (Number(rec.parts_fee) || 0) + (Number(rec.visit_fee) || 0);
+    if (amt > 0) await pool.query('UPDATE customers SET outstanding_amount = GREATEST(0, COALESCE(outstanding_amount,0) - $2) WHERE id=$1', [rec.customer_id, amt]);
+  }
   await pool.query('DELETE FROM receptions WHERE id=$1', [req.params.id]);
   // PC·기사앱 모두 목록 갱신
   broadcastReception('reception_deleted', { reception_id: Number(req.params.id) });
@@ -1471,7 +1545,20 @@ app.post('/api/payments', wrap(async (req, res) => {
 }));
 
 app.put('/api/payments/:id/complete', wrap(async (req, res) => {
-  const { rows } = await pool.query(`UPDATE payments SET payment_status='completed', paid_at=NOW() WHERE id=$1 RETURNING *`, [req.params.id]);
+  const { rows } = await pool.query(`UPDATE payments SET payment_status='completed', paid_at=NOW() WHERE id=$1 AND payment_status='pending' RETURNING *`, [req.params.id]);
+  if (!rows[0]) {
+    const existing = await pool.query('SELECT * FROM payments WHERE id=$1', [req.params.id]);
+    return res.json(existing.rows[0] || {});
+  }
+  if (rows[0].job_id && rows[0].amount > 0) {
+    const job = (await pool.query('SELECT reception_id FROM jobs WHERE id=$1', [rows[0].job_id])).rows[0];
+    if (job) {
+      const rec = (await pool.query('SELECT customer_id FROM receptions WHERE id=$1', [job.reception_id])).rows[0];
+      if (rec && rec.customer_id) {
+        await pool.query('UPDATE customers SET outstanding_amount = GREATEST(0, COALESCE(outstanding_amount,0) - $2) WHERE id=$1', [rec.customer_id, rows[0].amount]);
+      }
+    }
+  }
   res.json(rows[0]);
 }));
 
@@ -1587,6 +1674,8 @@ const incomingCalls = [];
 let callCounter = 1;
 const incomingSms = [];
 let smsCounter = 1;
+const MAX_INCOMING = 200;
+function trimIncoming(arr) { if (arr.length > MAX_INCOMING) arr.splice(0, arr.length - MAX_INCOMING); }
 
 async function matchCustomer(phone) {
   const clean = digits(phone);
@@ -1602,6 +1691,7 @@ app.post('/api/incoming-call', wrap(async (req, res) => {
   const { matched, recent } = await matchCustomer(phone);
   const call = { id: callCounter++, phone: digits(phone), customer: matched, recent_receptions: recent, received_at: new Date().toISOString(), dismissed: false };
   incomingCalls.push(call);
+  trimIncoming(incomingCalls);
   broadcastAdmin('incoming_call', call);
   // 대표 폰에 푸시 (백그라운드에서도 알림)
   sendPushToBosses('📞 전화 수신', (matched ? (matched.name || phone) : digits(phone)) + ' — 탭하여 등록', 'incoming_call');
@@ -1765,6 +1855,7 @@ app.post('/api/incoming-sms', wrap(async (req, res) => {
   const { matched, recent } = await matchCustomer(b.phone);
   const sms = { id: smsCounter++, phone: digits(b.phone), message: b.message, customer: matched, recent_receptions: recent, received_at: b.received_at || new Date().toISOString(), dismissed: false };
   incomingSms.push(sms);
+  trimIncoming(incomingSms);
   broadcastAdmin('incoming_sms', sms);
   sendPushToBosses('💬 SMS 수신', (matched ? (matched.name || sms.phone) : sms.phone) + ': ' + (b.message || '').slice(0, 30), 'incoming_sms');
   res.json(sms);
@@ -1981,35 +2072,27 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
   const b = req.body;
   const total = (Number(b.cost_parts) || 0) + (Number(b.cost_labor) || 0);
   const payMethod = b.payment_method || 'unpaid';
-  const { rows } = await pool.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2, customer_request=$3, labor_fee=$4, parts_fee=$5, payment_method=$6, tax_invoice=$7, reserved_date=NULL WHERE id=$1 RETURNING *`, [req.params.id, b.work_description || '', b.customer_request || null, Number(b.cost_labor) || 0, Number(b.cost_parts) || 0, payMethod, !!b.tax_invoice]);
-  const jobRes = await pool.query(
-    `UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6, next_visit_parts=$7 WHERE reception_id=$1 RETURNING id`,
-    [req.params.id, b.work_description || '', b.parts_used || '', Number(b.cost_parts) || 0, Number(b.cost_labor) || 0, total, b.next_visit_parts || null]
-  );
-  const eng = rows[0].assigned_engineer_id;
-  if (eng) await pool.query('UPDATE engineers SET total_jobs=total_jobs+1, total_revenue=total_revenue+$2 WHERE id=$1', [eng, total]);
-
-  // 비용이 있으면 회계(payments)에 기록 (재완료 시 중복 방지)
-  //  결제수단이 현금/카드/이체 → 입금완료(completed), '미수'/미입력 → 미수(pending)+고객 미수금 증가
-  if (total > 0) {
-    const jobId = jobRes.rows[0] && jobRes.rows[0].id;
-    const exists = jobId ? (await pool.query('SELECT id FROM payments WHERE job_id=$1', [jobId])).rows[0] : null;
-    if (!exists) {
-      const method = payMethod;
-      const paid = method !== 'unpaid';
-      await pool.query(
-        `INSERT INTO payments (job_id, amount, payment_method, payment_status, paid_at) VALUES ($1, $2, $3, $4, $5)`,
-        [jobId || null, total, method, paid ? 'completed' : 'pending', paid ? new Date() : null]
-      );
-      // 미수(나중에 받음)일 때만 고객 미수금 증가
-      if (!paid && rows[0].customer_id) await pool.query('UPDATE customers SET outstanding_amount = COALESCE(outstanding_amount,0) + $2 WHERE id=$1', [rows[0].customer_id, total]);
-    }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const prev = (await client.query('SELECT status FROM receptions WHERE id=$1', [req.params.id])).rows[0];
+    const wasCompleted = prev && prev.status === 'completed';
+    const { rows } = await client.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2, customer_request=$3, labor_fee=$4, parts_fee=$5, payment_method=$6, tax_invoice=$7, reserved_date=NULL WHERE id=$1 RETURNING *`,
+      [req.params.id, b.work_description || '', b.customer_request || null, Number(b.cost_labor) || 0, Number(b.cost_parts) || 0, payMethod, !!b.tax_invoice]);
+    await client.query(`UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6, next_visit_parts=$7 WHERE reception_id=$1`,
+      [req.params.id, b.work_description || '', b.parts_used || '', Number(b.cost_parts) || 0, Number(b.cost_labor) || 0, total, b.next_visit_parts || null]);
+    if (!wasCompleted) await processCompletionAccounting(client.query.bind(client), req.params.id);
+    await client.query('COMMIT');
+    await syncEstimateFromReception(rows[0]);
+    broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
+    broadcastReception('reception_update', rows[0]);
+    res.json(rows[0]);
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
   }
-
-  await syncEstimateFromReception(rows[0]);   // 견적 납품 완료 → 견적서에 현장할인·납품완료 기록
-  broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
-  broadcastReception('reception_update', rows[0]);
-  res.json(rows[0]);
 }));
 
 // 미처리(예약) — 예약일 지정, 작업 유지

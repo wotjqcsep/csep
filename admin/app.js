@@ -248,7 +248,7 @@ async function openReceptionDetail(recId){
     <div class="form-row">
       <div class="form-group"><label>결제수단</label><select id="rd_pm" onchange="calcPay()">
         <option value="">선택</option>
-        ${['card','cash','transfer','unpaid'].map(k=>`<option value="${k}" ${r.payment_method===k?'selected':''}>${PM_LABEL[k]}</option>`).join('')}
+        ${['card','cash','transfer','cashreceipt','tax','unpaid'].map(k=>`<option value="${k}" ${r.payment_method===k?'selected':''}>${PM_LABEL[k]||k}</option>`).join('')}
       </select></div>
       <div class="form-group"><label>세금계산서</label><label style="display:flex;align-items:center;gap:6px;padding-top:9px;font-size:14px"><input type="checkbox" id="rd_tax" ${r.tax_invoice?'checked':''} onchange="calcPay()"> 발급</label></div>
     </div>
@@ -883,8 +883,8 @@ async function paySale(id){ await api('PUT',`/sales/${id}/pay`); await loadAll()
 async function deleteSale(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/sales/'+id); await loadAll(); }
 
 // ── 🛒 매장 판매 (워크인 POS) — 고객정보 없이 즉시 판매, 결산 자동 반영 ──
-function stMoney(el){ let x=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,''); el.value=x?Number(x).toLocaleString('en-US'):''; }
-function stCalc(){ const qty=Number(v('st_qty'))||0; const price=Number((v('st_price')||'').replace(/[^0-9]/g,''))||0; const t=qty*price; const el=document.getElementById('st_total'); if(el) el.value=t?Number(t).toLocaleString('en-US'):''; }
+function stMoney(el){ let x=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=\d)/,''); el.value=x?Number(x).toLocaleString('ko-KR'):''; }
+function stCalc(){ const qty=Number(v('st_qty'))||0; const price=Number((v('st_price')||'').replace(/[^0-9]/g,''))||0; const t=qty*price; const el=document.getElementById('st_total'); if(el) el.value=t?Number(t).toLocaleString('ko-KR'):''; }
 function renderStore(){
   const all=(state.sales||[]).filter(s=>!s.customer_id);   // 워크인(매장) 판매만
   const now=new Date();
@@ -912,7 +912,7 @@ function renderStore(){
       <div class="form-group"><label>합계</label><input id="st_total" readonly style="background:var(--gray-100);font-weight:700"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>결제수단</label><select id="st_pm"><option value="cash">현금</option><option value="card">카드</option><option value="transfer">계좌이체</option></select></div>
+      <div class="form-group"><label>결제수단</label><select id="st_pm"><option value="cash">현금</option><option value="card">카드</option><option value="transfer">계좌이체</option><option value="cashreceipt">현금영수증</option><option value="tax">세금계산서</option></select></div>
       <div class="form-group"><label>메모 (선택)</label><input id="st_memo" placeholder="예: 신품 / 중고 / 고객 특이사항"></div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin:4px 0 12px;font-weight:600;cursor:pointer"><input type="checkbox" id="st_tax" style="width:18px;height:18px"> 🧾 세금계산서 발행</label>
@@ -1231,7 +1231,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.buyerBizno=g('est_buyer_bizno'); estState.buyerCeo=g('est_buyer_ceo'); estState.buyerAddr=g('est_buyer_addr'); estState.buyerType=g('est_buyer_type'); estState.buyerItem=g('est_buyer_item');
   estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=(g('est_bulk')==='')?0:(Number(g('est_bulk'))||0);
   estState.pname=g('est_pname')||estState.pname||'short'; estState.pprice=g('est_pprice')||estState.pprice||'total';
-  estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=g('est_doctype')||estState.doctype||'estimate';
+  estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=estState.doctype||'estimate';
   estState.payMethod=g('est_paymethod')||estState.payMethod||'cash';
   { const e=document.getElementById('est_realcost'); if(e) estState.realCost=String(e.value||'').replace(/[^\d]/g,''); }
   { const e=document.getElementById('est_refund'); if(e){ const v=String(e.value||'').replace(/[^\d]/g,''); estState.refundManual=(v==='')?null:Number(v); } }
@@ -1307,10 +1307,10 @@ function estUpdateFee(){
     html+=`<div style="margin-top:8px;border-top:1px dashed var(--gray-300);padding-top:8px;line-height:1.9">`;
     html+=`<div>· 실수령액 = <b style="color:#1971c2">${won(total)}</b> <span style="color:var(--gray-400)">(수수료 없음)</span></div>`;
     html+=`</div>`;
-    const profit=realCost>0?(total-realCost):0;
+    const profit=total-realCost;
     html+=`<div style="margin-top:6px;padding:8px 0;border-top:2px solid var(--gray-300)">`;
     html+=`<div style="font-weight:800;font-size:14px">· 최종 순이익 = <b style="color:#2b8a3e;font-size:16px">${won(profit)}</b></div>`;
-    html+=`<div style="color:var(--gray-400);font-size:12px;margin:2px 0 0 12px">${realCost>0?`실수령(${won(total)}) - 매입비(${won(realCost)})`:'매입비 미입력'}</div>`;
+    html+=`<div style="color:var(--gray-400);font-size:12px;margin:2px 0 0 12px">실수령(${won(total)}) - 매입비(${won(realCost)})</div>`;
     html+=`</div>`;
   }
   el.innerHTML=html;
@@ -1399,7 +1399,7 @@ function estDocInner(target, copyLabel){
       const rf=(estState.refundManual!=null)?estState.refundManual:autoRf;
       const net=total-feeCut;          // 실수령액
       const finalNet=net+rf;           // 최종 실수령 = 실수령액 + 매입환급
-      const finalProfit=rc>0?(finalNet-rc):profit;  // 최종 순이익
+      const finalProfit=finalNet-rc;  // 최종 순이익 = 최종 실수령 - 매입비
       return `<tr style="color:#888"><td>${rc>0?'실제 매입가':'총매입가'}</td><td style="text-align:right">${won(rc>0?rc:totCost)}</td></tr>
       ${useOut?`<tr style="color:#e03131"><td>외주업체 결제 수수료(${feePct}%)</td><td style="text-align:right">-${won(feeCut)}</td></tr>
       <tr style="color:#1971c2"><td>실수령액</td><td style="text-align:right">${won(net)}</td></tr>`:''}
@@ -1748,7 +1748,7 @@ function renderPayments(){
   const salesRev=salesSettled.reduce((t,s)=>t+(Number(s.total_price)||0),0);
   const salesWoori=salesSettled.reduce((t,s)=>t+saleWoori(s),0);
   const salesMine=salesRev-salesWoori;
-  const salesWpend=AG?(state.sales||[]).filter(s=>(s.payment_method==='card'||s.tax_invoice)&&!s.woori_settled):[];
+  const salesWpend=AG?(state.sales||[]).filter(s=>feeRateRec(s)>0&&!s.woori_settled):[];
   const salesWpendAmt=salesWpend.reduce((t,s)=>t+saleMine(s),0);
   const mdSettled=md.filter(r=>!isWoori(r)||r.woori_settled);   // 대행 경유는 정산받은 것만 매출 집계
   const rev=mdSettled.reduce((s,r)=>s+recRevenue(r),0);
