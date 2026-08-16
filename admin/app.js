@@ -1417,18 +1417,38 @@ function estDocInner(target, copyLabel){
   const title = internal ? esc(DT.t)+' <span style="font-size:14px;color:#c00;letter-spacing:0">(내부용)</span>' : esc(DT.t);
   const taxNote = DT.tax ? `<div style="font-size:11px;color:#c00;margin-top:6px">※ 세금계산서는 사업자정보·서명 등 정식 항목 추가 예정(현재 임시 양식)</div>` : '';
   const receiptNote = DT.receipt ? `<div style="margin-top:14px;text-align:center;font-size:15px;font-weight:700">위 금액을 정히 영수함</div>` : '';
+  const S=state.settings||{};
+  const supBiz={ bizno:esc(S.biz_no||''), nm:esc(S.brand_name||company||'(상호)'), ceo:esc(S.biz_ceo||''), addr:esc(S.biz_addr||''), bt:esc(S.biz_type||''), bi:esc(S.biz_item||'') };
+  const buyBiz={ bizno:esc(estState.buyerBizno||''), nm:esc(estState.customer||'(고객)'), ceo:esc(estState.buyerCeo||''), addr:esc(estState.buyerAddr||''), bt:esc(estState.buyerType||''), bi:esc(estState.buyerItem||'') };
+  const B='border:1px solid #333;padding:4px 6px;font-size:11px';
+  const L='border:1px solid #333;padding:4px 6px;font-size:11px;background:#f2f4f8;text-align:center';
+  const bizHeader=`<table class="biz-tbl"><tbody>
+    <tr><td rowspan="4" style="width:20px;text-align:center;background:#dbeafe;font-weight:700;padding:2px;${B}">공<br>급<br>자</td>
+        <td style="width:60px;${L}">등록번호</td><td colspan="3" style="${B}">${supBiz.bizno}</td>
+        <td rowspan="4" style="width:20px;text-align:center;background:#fef3c7;font-weight:700;padding:2px;${B}">공<br>급<br>받<br>는<br>자</td>
+        <td style="width:60px;${L}">등록번호</td><td colspan="3" style="${B}">${buyBiz.bizno}</td></tr>
+    <tr><td style="${L}">상호</td><td style="${B}">${supBiz.nm}</td><td style="width:40px;${L}">성명</td><td style="${B}">${supBiz.ceo} (인)${stampImg(36)}</td>
+        <td style="${L}">상호</td><td style="${B}">${buyBiz.nm}</td><td style="width:40px;${L}">성명</td><td style="${B}">${buyBiz.ceo}</td></tr>
+    <tr><td style="${L}">주소</td><td colspan="3" style="${B}">${supBiz.addr}</td>
+        <td style="${L}">주소</td><td colspan="3" style="${B}">${buyBiz.addr}</td></tr>
+    <tr><td style="${L}">업태</td><td style="${B}">${supBiz.bt}</td><td style="${L}">종목</td><td style="${B}">${supBiz.bi}</td>
+        <td style="${L}">업태</td><td style="${B}">${buyBiz.bt}</td><td style="${L}">종목</td><td style="${B}">${buyBiz.bi}</td></tr>
+  </tbody></table>`;
   return `<h1>${title}</h1>
-    <div class="top"><div><b>${customer}</b> 귀하<br>${esc(DT.dl)}: ${date}<br>문서번호: ${no}</div>
-      <div style="text-align:right"><b>${company}</b>${stampImg(44)}${contact?`<br>${contact}`:''}</div></div>
-    <table><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
+    <div class="est-meta">${esc(DT.dl)}: ${date}　　문서번호: ${no}</div>
+    ${bizHeader}
+    <table class="items"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
     <table class="sum">${sumRows}</table>
     ${receiptNote}${taxNote}
     ${(clean(memo))?`<div class="memo">비고: ${clean(memo)}</div>`:''}`;
 }
 const EST_DOC_CSS = `h1{text-align:center;letter-spacing:8px;border-bottom:3px solid #333;padding-bottom:10px}
-    .top{display:flex;justify-content:space-between;font-size:13px;margin:14px 0}
-    table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
-    th,td{border:1px solid #ccc;padding:7px 8px}th{background:#f2f4f8}
+    .est-meta{text-align:right;font-size:12px;color:#555;margin:8px 0 10px}
+    .biz-tbl{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:10px}
+    .biz-tbl td{border:1px solid #333;padding:4px 6px;font-size:11px}
+    table.items{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+    table.items th,table.items td{border:1px solid #ccc;padding:7px 8px}
+    table.items th{background:#f2f4f8}
     .sum{margin-top:12px;margin-left:auto;width:300px;font-size:14px}
     .sum td{border:none;padding:4px 8px}.sum .tot{border-top:2px solid #333;font-weight:900;font-size:17px}
     .memo{margin-top:14px;font-size:12px;color:#555;white-space:pre-wrap}`;
