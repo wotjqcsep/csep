@@ -1136,14 +1136,14 @@ function estCustSearch(el){
   if(!el) el=document.getElementById('est_customer');
   const q=(el.value||'').trim().toLowerCase();
   let drop=document.getElementById('est_cust_drop');
-  if(!drop){ drop=document.createElement('div'); drop.id='est_cust_drop'; drop.style.cssText='display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:220px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);font-size:13px'; document.body.appendChild(drop); }
+  if(!drop){ drop=document.createElement('div'); drop.id='est_cust_drop'; drop.style.cssText='display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:220px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);font-size:13px'; document.body.appendChild(drop); drop.addEventListener('mousedown',function(e){e.preventDefault();const item=e.target.closest('[data-cid]');if(item)estCustSelect(Number(item.dataset.cid));}); }
   if(!q){ drop.style.display='none'; if(el.id==='est_customer') estState.customerId=null; return; }
   const qd=q.replace(/[^\d]/g,'');
   const matches=(state.customers||[]).filter(c=>(vdName(c)||'').toLowerCase().includes(q)||(c.phone||'').replace(/[^\d]/g,'').includes(qd&&qd.length>=2?qd:'\0')||(c.phone||'').includes(q)||(c.ceo_name||'').toLowerCase().includes(q)||(c.contact_person||'').toLowerCase().includes(q)||[c.address,c.address_detail].filter(Boolean).join(' ').toLowerCase().includes(q)||(c.biz_no||'').replace(/[^\d]/g,'').includes(qd&&qd.length>=2?qd:'\0')).slice(0,15);
   if(!matches.length){ drop.style.display='none'; return; }
   const rect=el.getBoundingClientRect();
   drop.style.left=rect.left+'px'; drop.style.top=(rect.bottom+2)+'px'; drop.style.width=Math.max(rect.width,320)+'px';
-  drop.innerHTML=matches.map(c=>{ const nm=vdName(c), ceo=c.ceo_name||c.contact_person||'', showCeo=ceo&&ceo!==nm&&ceo!==(c.name||''); return `<div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--gray-100)" onmousedown="estCustSelect(${c.id})"><b>${esc(nm)}</b> <span style="color:var(--gray-400)">${esc(c.phone||'')}</span>${showCeo?` <span style="color:var(--gray-400)">· ${esc(ceo)}</span>`:''}</div>`; }).join('');
+  drop.innerHTML=matches.map(c=>{ const nm=vdName(c), ceo=c.ceo_name||c.contact_person||'', showCeo=ceo&&ceo!==nm&&ceo!==(c.name||''); return `<div data-cid="${c.id}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--gray-100)"><b>${esc(nm)}</b> <span style="color:var(--gray-400)">${esc(c.phone||'')}</span>${showCeo?` <span style="color:var(--gray-400)">· ${esc(ceo)}</span>`:''}</div>`; }).join('');
   drop.style.display='block';
 }
 function estCustSelect(id){
