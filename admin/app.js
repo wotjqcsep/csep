@@ -1143,21 +1143,23 @@ function estCustSearch(el){
   if(!matches.length){ drop.style.display='none'; return; }
   const rect=el.getBoundingClientRect();
   drop.style.left=rect.left+'px'; drop.style.top=(rect.bottom+2)+'px'; drop.style.width=Math.max(rect.width,320)+'px';
-  drop.innerHTML=matches.map(c=>`<div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--gray-100)" onmousedown="estCustSelect(${c.id})"><b>${esc(vdName(c))}</b> <span style="color:var(--gray-400)">${esc(c.phone||'')}</span>${c.ceo_name?` <span style="color:var(--gray-400)">· ${esc(c.ceo_name)}</span>`:''}</div>`).join('');
+  drop.innerHTML=matches.map(c=>{ const nm=vdName(c), ceo=c.ceo_name||c.contact_person||'', showCeo=ceo&&ceo!==nm&&ceo!==(c.name||''); return `<div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--gray-100)" onmousedown="estCustSelect(${c.id})"><b>${esc(nm)}</b> <span style="color:var(--gray-400)">${esc(c.phone||'')}</span>${showCeo?` <span style="color:var(--gray-400)">· ${esc(ceo)}</span>`:''}</div>`; }).join('');
   drop.style.display='block';
 }
 function estCustSelect(id){
   const c=(state.customers||[]).find(x=>x.id===id); if(!c) return;
   const drop=document.getElementById('est_cust_drop'); if(drop) drop.style.display='none';
-  const set=(eid,val)=>{ const e=document.getElementById(eid); if(e && val) e.value=val; };
+  const set=(eid,val)=>{ const e=document.getElementById(eid); if(e) e.value=val||''; };
   set('est_customer',vdName(c));
   estState.customerId=c.id; estState.customer=vdName(c);
-  set('est_phone',c.phone); estState.phone=c.phone||estState.phone;
+  set('est_phone',c.phone||''); estState.phone=c.phone||'';
   set('est_buyer_addr',[c.address,c.address_detail].filter(Boolean).join(' '));
-  set('est_buyer_ceo',c.ceo_name||c.contact_person);
-  set('est_buyer_bizno',c.biz_no);
-  set('est_buyer_type',c.biz_type);
-  set('est_buyer_item',c.biz_item);
+  set('est_buyer_ceo',c.ceo_name||c.contact_person||'');
+  set('est_buyer_bizno',c.biz_no||'');
+  set('est_buyer_type',c.biz_type||'');
+  set('est_buyer_item',c.biz_item||'');
+  const ph=document.getElementById('est_phone'); if(ph) estFmtPhone(ph);
+  const bn=document.getElementById('est_buyer_bizno'); if(bn) estFmtBizno(bn);
   estRenderPreview();
 }
 // 드롭다운 바깥 클릭 시 닫기
