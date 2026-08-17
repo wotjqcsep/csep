@@ -119,7 +119,7 @@ function recCard(r){
   const ch = ({phone:'📞',sms:'💬',kakao:'💭',direct:'📋'})[r.reception_channel] || '📋';
   return `<div class="ws-card ${r.status}">
     <div class="ws-head">
-      <div class="ws-name">${esc(custName(r.customer_id))} ${woTypeBadge(r.initial_memo)} <span style="font-size:13px;font-weight:400;color:var(--gray-400)">${ch}</span></div>
+      <div class="ws-name">${esc(custName(r.customer_id))} ${r.work_type?woTypeBadge('['+r.work_type+']'):woTypeBadge(r.initial_memo)} <span style="font-size:13px;font-weight:400;color:var(--gray-400)">${ch}</span></div>
       <div style="text-align:right;flex-shrink:0">
         <div style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap">
           ${r.status==='repairing'?`<span class="ws-pill" style="background:#7048e8">🔧 수거·점검</span>`:(r.picked_up && r.status!=='completed')?`<span class="ws-pill" style="background:#7048e8">수거·견적</span>`:''}
@@ -491,7 +491,7 @@ async function submitWorkorder(customerId, siteId){
   if(isDeliver){ const estId=v('wo_est'); if(!estId){ showToast('납품할 견적서를 선택하세요','#e03131'); return; }
     try{ est=await api('GET','/estimates/'+estId); }catch(e){ showToast('견적 불러오기 실패','#e03131'); return; } }
   const symptom = isDeliver
-    ? '[납품] '+(est.no||'견적')+' — '+((Array.isArray(est.items)?est.items:[]).slice(0,3).map(i=>i.name).join(', ')||'PC 납품')
+    ? '[견적서 납품] '+(est.no||'견적')+' — '+((Array.isArray(est.items)?est.items:[]).slice(0,3).map(i=>i.name).join(', ')||'PC 납품')
     : v('wo_symptom');
   if(!symptom){ showToast('증상 또는 작업 내용을 입력하세요','#e03131'); return; }
   const memo=[type?`[${type}]`:'', site?`현장:${site.name}`:'', isDeliver?`합계 ${won(est.total)}`:''].filter(Boolean).join(' ');
@@ -635,10 +635,9 @@ function schedMove(delta){ let m=scheduleState.m+delta, y=scheduleState.y; if(m<
 async function addScheduleMemo(){
   const sel = scheduleState.sel;
   if(!sel){ alert('날짜를 먼저 선택하세요.'); return; }
-  const title = document.getElementById('sched_title')?.value.trim();
   const memo = document.getElementById('sched_memo')?.value.trim();
-  if(!title){ alert('제목을 입력하세요.'); return; }
-  await api('POST','/schedules',{ title, memo, date: sel });
+  if(!memo){ alert('메모를 입력하세요.'); return; }
+  await api('POST','/schedules',{ title: memo, memo: '', date: sel });
   await loadAll();
 }
 async function deleteScheduleMemo(id){
@@ -680,9 +679,8 @@ function renderSchedule(){
   const memoForm = sel ? `
     <div style="margin-top:16px;background:#f3f0ff;border:1px solid #e5dbff;border-radius:10px;padding:14px">
       <div style="font-weight:700;margin-bottom:8px;color:#7048e8">📝 메모 추가 — ${esc(fmtRecDate(sel))}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input id="sched_title" placeholder="제목 (필수)" style="flex:1;min-width:140px;padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
-        <input id="sched_memo" placeholder="메모 (선택)" style="flex:2;min-width:200px;padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
+      <div style="display:flex;gap:8px">
+        <input id="sched_memo" placeholder="메모 입력" style="flex:1;padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
         <button class="btn" style="background:#7048e8" onclick="addScheduleMemo()">추가</button>
       </div>
     </div>` : '';
@@ -690,8 +688,8 @@ function renderSchedule(){
   const memoList = selMemos.length ? `
     <div style="margin-top:12px">
       <div style="font-weight:700;margin-bottom:8px;color:#7048e8">📌 메모 (${selMemos.length}건)</div>
-      ${selMemos.map(x=>`<div style="background:#fff;border:1px solid #e5dbff;border-left:4px solid #7048e8;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start">
-        <div><strong>${esc(x.s.title)}</strong>${x.s.memo?`<div style="font-size:12px;color:var(--gray-500);margin-top:4px">${esc(x.s.memo)}</div>`:''}</div>
+      ${selMemos.map(x=>`<div style="background:#fff;border:1px solid #e5dbff;border-left:4px solid #7048e8;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px">${esc(x.s.title)}</span>
         <button class="btn btn-sm btn-danger" onclick="deleteScheduleMemo(${x.s.id})" style="flex-shrink:0;margin-left:10px">삭제</button>
       </div>`).join('')}
     </div>` : '';
@@ -731,7 +729,7 @@ function renderEngineers(){
       <div class="form-group"><label>새 비밀번호</label><input id="set_newpw" type="password" placeholder="새 비밀번호 (공란=비밀번호 없음)"></div>
       <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn" onclick="saveAdminPassword()">비밀번호 변경</button></div>
     </div>
-    <div style="font-size:12px;color:var(--gray-400)">공란으로 저장하면 비밀번호 없이 바로 접속할 수 있습니다. 기본 비밀번호: csep2026!</div>
+    <div style="font-size:12px;color:var(--gray-400)">공란으로 저장하면 비밀번호 없이 바로 접속할 수 있습니다.</div>
   </div>
   <div class="vd-card" style="margin-bottom:16px">
     <div style="font-weight:800;margin-bottom:4px">⚙️ 결산 · 대행업체 설정</div>
@@ -1266,7 +1264,7 @@ async function estToWorkorder(id){
     <div style="font-size:13px;margin-bottom:6px">거래처: <b>${esc(e.customer_name)||'-'}</b> · 합계 <b>${won(e.total)}</b> · 결제 ${estPayLabel((e.opts&&e.opts.payMethod)||'cash')}</div>
     <div style="font-size:12px;color:var(--gray-500);margin-bottom:12px">${esc(summary)||'품목'}</div>
     <div class="form-group"><label>담당 기사 *</label><select id="wo2_eng"><option value="">선택하세요</option>${state.engineers.map(g=>`<option value="${g.id}" style="color:${engColor(g.id)};font-weight:600">${esc(g.name)}${g.is_admin?' (대표)':''}</option>`).join('')}</select></div>
-    ${area('wo2_memo','작업/납품 메모', '[납품] '+(e.no||'')+' '+summary)}
+    ${area('wo2_memo','작업/납품 메모', '[견적서 납품] '+(e.no||'')+' '+summary)}
     <div style="font-size:12px;color:var(--gray-400);margin-bottom:8px">전송하면 작업지시(접수)로 등록되고 금액(${won(e.total)})·결제수단이 함께 지정됩니다. 기사가 완료 처리하면 결산에 반영됩니다.</div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-success" onclick="estToWorkorderSubmit(${id})">📤 작업지시 전송</button></div>`;
   modal('📤 작업지시로 납품', body, true);
@@ -1275,11 +1273,11 @@ async function estToWorkorderSubmit(id){
   const e=window._estWO||{}; const eng=v('wo2_eng'); if(!eng){ showToast('담당 기사를 선택하세요','#e68900'); return; }
   if(!e.customer_id){ showToast('이 견적에 연결된 거래처가 없습니다. 견적을 열어 고객/연락처를 넣고 다시 저장하세요.','#e68900'); return; }
   const items=Array.isArray(e.items)?e.items:[];
-  const symptom='[납품] '+(e.no||'견적')+' — '+(items.slice(0,3).map(i=>i.name).join(', ')||'PC 납품');
+  const symptom='[견적서 납품] '+(e.no||'견적')+' — '+(items.slice(0,3).map(i=>i.name).join(', ')||'PC 납품');
   const memo=v('wo2_memo')||'';
   const pm=(e.opts&&e.opts.payMethod)||'cash';
   try{
-    const rec=await api('POST','/receptions',{ customer_id:e.customer_id, reception_channel:'estimate', symptom, initial_memo:memo });
+    const rec=await api('POST','/receptions',{ customer_id:e.customer_id, reception_channel:'estimate', symptom, initial_memo:memo, work_type:'견적서 납품' });
     await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
     await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(e.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(e.total)||0, estimate_id:e.id });
   }catch(err){ showToast('작업지시 전송 실패: '+(err&&err.message?err.message:err),'#e03131'); return; }

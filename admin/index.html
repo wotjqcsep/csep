@@ -358,7 +358,6 @@ function renderDashboard(){
     ${statCard('총 미수금', won(d.total_outstanding), d.total_outstanding>0?'var(--danger)':'', 20)}
     ${statCard('재고 부족', (d.low_stock_count||0)+'종', d.low_stock_count>0?'var(--danger)':'', 22)}
   </div>
-  ${renderDdayPanel()}
   <div class="split" style="grid-template-columns:1fr 1fr">
     <div class="detail-panel" style="position:static">
       <h3>기사 현황</h3>
@@ -368,7 +367,8 @@ function renderDashboard(){
       <h3>대기 접수</h3>
       ${(d.pending_receptions||[]).length? d.pending_receptions.map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} - ${esc(r.symptom||'')}</span><span><span class="badge ${r.status}">${statusLabel(r.status)}</span></span></div>`).join('') : '<div class="empty-state">대기 접수 없음</div>'}
     </div>
-  </div>`;
+  </div>
+  ${renderDdayPanel()}`;
 }
 function renderDdayPanel(){
   const now=new Date(); const pad=n=>String(n).padStart(2,'0');
@@ -381,7 +381,7 @@ function renderDdayPanel(){
     const d=new Date(s.date+'T00:00:00'); if(isNaN(d))return;
     const diff=Math.round((d.getTime()-todayMs)/(24*60*60*1000));
     if(diff<-7) return;
-    items.push({date:s.date,diff,title:s.title,sub:s.memo||'',type:'memo',id:s.id});
+    items.push({date:s.date,diff,title:s.title,sub:'',type:'memo',id:s.id});
   });
   // 예약 접수
   (state.receptions||[]).forEach(r=>{
