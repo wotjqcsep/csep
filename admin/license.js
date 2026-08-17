@@ -149,11 +149,11 @@ async function showLicenseModal() {
   const toStr = li.expires === 'unlimited' ? '무제한' : _fmtLicDate(li.expires);
 
   const statusBadge = isOffline
-    ? `<span style="background:#fff3bf;color:#e67700;padding:3px 12px;border-radius:10px;font-size:12px;font-weight:700">⚠️ 오프라인 (${li._daysLeft}일 남음)</span>`
-    : `<span style="background:#d3f9d8;color:#2b8a3e;padding:3px 12px;border-radius:10px;font-size:12px;font-weight:700">✅ 유효</span>`;
+    ? `<span style="background:#3d2e00;color:#fcc419;padding:3px 12px;border-radius:10px;font-size:12px;font-weight:700">⚠️ 오프라인 (${li._daysLeft}일 남음)</span>`
+    : `<span style="background:#1a3d2a;color:#51cf66;padding:3px 12px;border-radius:10px;font-size:12px;font-weight:700">✅ 유효</span>`;
 
   const offlineNotice = isOffline
-    ? `<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#e65100">
+    ? `<div style="background:#332b00;border:1px solid #665500;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#fcc419">
         ⚠️ 라이선스 서버에 연결할 수 없어 <strong>제한 모드</strong>로 동작 중입니다.<br>
         사용 가능 메뉴: <strong>견적·명세·계산서, 결산, 통계</strong><br>
         남은 유예 기간: <strong>${li._daysLeft}일</strong> (이후 전체 차단)
@@ -162,7 +162,7 @@ async function showLicenseModal() {
   document.getElementById('modalRoot').innerHTML = `
   <div class="modal-overlay" onclick="if(event.target===this)this.remove()">
     <div class="modal" style="max-width:420px">
-      <div class="modal-head" style="background:${isOffline ? '#fff8e1' : '#f0f4ff'}">
+      <div class="modal-head" style="background:${isOffline ? '#332b00' : '#1a2340'}">
         <h3 style="font-size:16px">🔒 라이선스 정보</h3>
         <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
       </div>

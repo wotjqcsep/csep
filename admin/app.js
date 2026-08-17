@@ -677,7 +677,7 @@ function renderSchedule(){
   const selRecs  = selItems.filter(x=>x.type==='rec');
 
   const memoForm = sel ? `
-    <div style="margin-top:16px;background:#f3f0ff;border:1px solid #e5dbff;border-radius:10px;padding:14px">
+    <div style="margin-top:16px;background:#2d1f4e;border:1px solid #3d2e6b;border-radius:10px;padding:14px">
       <div style="font-weight:700;margin-bottom:8px;color:#7048e8">📝 메모 추가 — ${esc(fmtRecDate(sel))}</div>
       <div style="display:flex;gap:8px">
         <input id="sched_memo" placeholder="메모 입력" style="flex:1;padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
@@ -688,7 +688,7 @@ function renderSchedule(){
   const memoList = selMemos.length ? `
     <div style="margin-top:12px">
       <div style="font-weight:700;margin-bottom:8px;color:#7048e8">📌 메모 (${selMemos.length}건)</div>
-      ${selMemos.map(x=>`<div style="background:#fff;border:1px solid #e5dbff;border-left:4px solid #7048e8;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      ${selMemos.map(x=>`<div style="background:var(--card-bg);border:1px solid #3d2e6b;border-left:4px solid #7048e8;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:13px">${esc(x.s.title)}</span>
         <button class="btn btn-sm btn-danger" onclick="deleteScheduleMemo(${x.s.id})" style="flex-shrink:0;margin-left:10px">삭제</button>
       </div>`).join('')}
@@ -1043,7 +1043,7 @@ function renderEstimates(){ estInit(); const s=estState;
     <div class="form-row">
       <div class="form-group" style="flex:2;position:relative"><label>상호명 <span style="font-size:11px;color:var(--gray-400)">— 기존 거래처 선택 또는 새로 입력</span></label>
         <input id="est_customer" value="${esc(s.customer)}" oninput="estCustSearch()" onfocus="estCustSearch()" autocomplete="off" placeholder="고객명·거래처명·연락처 검색">
-        <div id="est_cust_drop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:200px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
+        <div id="est_cust_drop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:#252838;border:1px solid var(--gray-300);border-radius:6px;max-height:200px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
       </div>
       <div class="form-group"><label>대표자</label><input id="est_buyer_ceo" value="${esc(s.buyerCeo||'')}"></div>
     </div>
