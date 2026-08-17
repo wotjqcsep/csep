@@ -276,7 +276,7 @@ async function _doLoadAll(showLoading){
   // 입력 중(검색창·폼 입력칸)엔 배경 새로고침이 화면을 다시 그리지 않게 (타이핑 유실 방지)
   const ae = document.activeElement;
   const typing = ae && ( (ae.classList && ae.classList.contains('vd-search')) || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA');
-  if(firstLoad){ firstLoad=false; render(); if(typeof initCompletionTracking==='function') initCompletionTracking(); } else if(!document.querySelector('.modal-overlay') && !typing) render();
+  if(firstLoad){ firstLoad=false; render(); if(typeof initCompletionTracking==='function') initCompletionTracking(); } else if(!document.querySelector('.modal-overlay') && !typing && state.page!=='estimates') render();
   }finally{ _loadAllRunning = false; }
 }
 
