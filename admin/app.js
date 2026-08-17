@@ -1614,10 +1614,7 @@ function stdReceipt(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
 function estRenderPreview(){
   const box=document.getElementById('est_preview'); if(!box||!estState) return;
   const target = (estState.ptarget==='internal') ? 'internal' : 'customer';
-  if(!box.shadowRoot) box.attachShadow({mode:'open'});
-  box.shadowRoot.innerHTML = `<style>.doc{color:#222;background:#fff;padding:20px;border:1px solid #dee2e6;border-radius:8px}
-    ${EST_DOC_CSS}</style>
-    <div class="doc">${estDocInner(target)}</div>`;
+  box.innerHTML = `<div class="doc">${estDocInner(target)}</div>`;
 }
 // 견적서 인쇄. target: 'customer'(고객용) | 'internal'(내부용)
 function estPrint(target){
