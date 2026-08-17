@@ -1009,11 +1009,13 @@ function renderEstimates(){ estInit(); const s=estState;
         <input id="est_buyer_addr" value="${esc(s.buyerAddr||'')}" oninput="estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
       </div>
       <div class="form-group"><label>연락처</label>
-        <input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처" oninput="estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
+        <input id="est_phone" value="${esc(s.phone||'')}" placeholder="000-0000-0000" oninput="estFmtPhone(this);estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
       </div>
     </div>
     <div class="form-row" style="margin-top:4px">
-      ${field('est_buyer_bizno','사업자번호',s.buyerBizno||'')}
+      <div class="form-group"><label>사업자번호</label>
+        <input id="est_buyer_bizno" value="${esc(s.buyerBizno||'')}" placeholder="000-00-00000" oninput="estFmtBizno(this);estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
+      </div>
       ${field('est_buyer_type','업태',s.buyerType||'')}${field('est_buyer_item','종목',s.buyerItem||'')}
     </div>
     <div class="form-row">
@@ -1125,6 +1127,10 @@ function estToggle(id){ const b=document.getElementById(id); if(b){ const show=b
 // 매입가 입력 실시간 천단위 콤마
 function estFmtCost(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
 function estFmtRefund(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
+// 연락처 자동 포맷: 000-0000-0000
+function estFmtPhone(el){ const d=String(el.value||'').replace(/[^\d]/g,''); let f=d; if(d.length<=3) f=d; else if(d.length<=7) f=d.slice(0,3)+'-'+d.slice(3); else f=d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7,11); el.value=f; }
+// 사업자번호 자동 포맷: 000-00-00000
+function estFmtBizno(el){ const d=String(el.value||'').replace(/[^\d]/g,''); let f=d; if(d.length<=3) f=d; else if(d.length<=5) f=d.slice(0,3)+'-'+d.slice(3); else f=d.slice(0,3)+'-'+d.slice(3,5)+'-'+d.slice(5,10); el.value=f; }
 // 거래처 자동완성 드롭다운
 function estCustSearch(el){
   if(!el) el=document.getElementById('est_customer');
@@ -1132,7 +1138,8 @@ function estCustSearch(el){
   let drop=document.getElementById('est_cust_drop');
   if(!drop){ drop=document.createElement('div'); drop.id='est_cust_drop'; drop.style.cssText='display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:220px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);font-size:13px'; document.body.appendChild(drop); }
   if(!q){ drop.style.display='none'; if(el.id==='est_customer') estState.customerId=null; return; }
-  const matches=(state.customers||[]).filter(c=>(vdName(c)||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.ceo_name||'').toLowerCase().includes(q)||(c.contact_person||'').toLowerCase().includes(q)||[c.address,c.address_detail].filter(Boolean).join(' ').toLowerCase().includes(q)).slice(0,15);
+  const qd=q.replace(/[^\d]/g,'');
+  const matches=(state.customers||[]).filter(c=>(vdName(c)||'').toLowerCase().includes(q)||(c.phone||'').replace(/[^\d]/g,'').includes(qd&&qd.length>=2?qd:'\0')||(c.phone||'').includes(q)||(c.ceo_name||'').toLowerCase().includes(q)||(c.contact_person||'').toLowerCase().includes(q)||[c.address,c.address_detail].filter(Boolean).join(' ').toLowerCase().includes(q)||(c.biz_no||'').replace(/[^\d]/g,'').includes(qd&&qd.length>=2?qd:'\0')).slice(0,15);
   if(!matches.length){ drop.style.display='none'; return; }
   const rect=el.getBoundingClientRect();
   drop.style.left=rect.left+'px'; drop.style.top=(rect.bottom+2)+'px'; drop.style.width=Math.max(rect.width,320)+'px';
@@ -1154,7 +1161,7 @@ function estCustSelect(id){
   estRenderPreview();
 }
 // 드롭다운 바깥 클릭 시 닫기
-document.addEventListener('click',e=>{ const d=document.getElementById('est_cust_drop'); if(d && !d.contains(e.target) && !['est_customer','est_phone','est_buyer_ceo','est_buyer_addr'].includes(e.target.id)) d.style.display='none'; });
+document.addEventListener('click',e=>{ const d=document.getElementById('est_cust_drop'); if(d && !d.contains(e.target) && !['est_customer','est_phone','est_buyer_ceo','est_buyer_addr','est_buyer_bizno'].includes(e.target.id)) d.style.display='none'; });
 // 견적서 저장 (거래처 없으면 자동 등록)
 async function estSave(btn){
   estSyncAll();
