@@ -2,48 +2,7 @@
 //  CSEP 관리자 — 페이지 렌더러 + 모달 + SSE
 // ============================================================
 
-// ── 디버그 모드: 견적서 성능 진단 (화면 표시) ──
-const _DBG = location.search.includes('debug') || navigator.userAgent.includes('Electron');
-const _dbgLogs = [];
-function _dbgLog(msg) {
-  if (!_DBG) return;
-  _dbgLogs.push(msg);
-  if (_dbgLogs.length > 30) _dbgLogs.shift();
-  const el = document.getElementById('_dbg_log');
-  if (el) el.textContent = _dbgLogs.join('\n');
-}
-if (_DBG) {
-  window.addEventListener('load', () => {
-    const d = document.createElement('div');
-    d.id = '_dbg_panel';
-    d.style.cssText = 'position:fixed;bottom:0;right:0;width:480px;max-height:220px;background:rgba(0,0,10,.92);color:#0f0;font-family:monospace;font-size:11px;padding:6px 10px;z-index:99999;border-top:2px solid #0f0;border-left:2px solid #0f0;overflow-y:auto;line-height:1.5';
-    d.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span id="_dbg_hb" style="color:#0ff">♥ 0</span><span id="_dbg_blocked" style="color:#ff4444"></span><button onclick="this.parentElement.parentElement.style.display=\'none\'" style="background:none;border:none;color:#f66;cursor:pointer;font-size:13px">✕</button></div><pre id="_dbg_log" style="margin:0;white-space:pre-wrap;color:#0f0;font-size:10px"></pre>';
-    document.body.appendChild(d);
-    let _hbCount = 0;
-    setInterval(() => {
-      _hbCount++;
-      const el = document.getElementById('_dbg_hb');
-      if (el) el.textContent = `♥ ${_hbCount} (${new Date().toLocaleTimeString()})`;
-    }, 1000);
-    let lastBeat = performance.now();
-    const check = () => {
-      const now = performance.now(), gap = now - lastBeat;
-      lastBeat = now;
-      const el = document.getElementById('_dbg_blocked');
-      if (gap > 200) {
-        const msg = `⚠ 메인스레드 ${Math.round(gap)}ms 멈춤!`;
-        if (el) el.textContent = msg;
-        _dbgLog(msg);
-      } else if (el && gap < 100) { el.textContent = ''; }
-      requestAnimationFrame(check);
-    };
-    requestAnimationFrame(check);
-  });
-}
-
 // ── Electron: alert()/confirm() 포커스 버그 수정 ──
-// Electron에서 네이티브 alert()/confirm() 대화상자 닫힌 뒤 webContents 입력 포커스가 복원되지 않는 문제 해결.
-// alert() → showToast()로 대체, confirm() → 닫힌 뒤 window.focus() 호출.
 if(navigator.userAgent.includes('Electron')){
   const _origConfirm=window.confirm;
   window.confirm=function(msg){const r=_origConfirm.call(window,msg);setTimeout(()=>{window.focus();const ae=document.activeElement;if(ae&&ae.blur){ae.blur();ae.focus();}},50);return r;};
@@ -1022,7 +981,7 @@ function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
   const cost=Number(String(tr.querySelector('.est-cost').value||'').replace(/[^\d]/g,''))||0;
   const margin=Number(tr.querySelector('.est-margin').value)||0;
   const pe=tr.querySelector('.est-price'); if(pe) pe.value = cost? Number(Math.round(cost*(1+margin/100))).toLocaleString('ko-KR') : ''; }
-function renderEstimates(){ const _t0=_DBG&&performance.now(); estInit(); const s=estState;
+function renderEstimates(){ estInit(); const s=estState;
   const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; const p=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(c*(1+m/100)); return t+p*q; },0);
   const vat=s.noVat?0:Math.round(sub*0.1);
   return `
@@ -1155,7 +1114,6 @@ function renderEstimates(){ const _t0=_DBG&&performance.now(); estInit(); const 
       <div id="est_preview"></div>
     </div>
   </div></div>`;
-  if(_DBG)_dbgLog(`renderEstimates: ${(performance.now()-_t0).toFixed(1)}ms`);
 }
 let _estSavedOpen=false;
 function estToggle(id){ const b=document.getElementById(id); if(b){ const show=b.style.display==='none'; b.style.display=show?'block':'none'; if(id==='est_saved_box') _estSavedOpen=show; } }
@@ -1311,19 +1269,18 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
 }
 // oninput 래퍼 디바운스 — 입력 즉시 반응, 계산·미리보기는 500ms 후 한 번만
 let _estSyncTimer;
-function estSyncLazy(){ clearTimeout(_estSyncTimer); _estSyncTimer=setTimeout(()=>{ if(_DBG)_dbgLog('estSyncLazy 타이머 실행'); const _t=performance.now(); estSyncAll(); if(_DBG)_dbgLog(`  estSyncAll: ${(performance.now()-_t).toFixed(1)}ms`); estCalc(); },500); }
-function estBody(){ const _t=_DBG&&performance.now(); const b=document.getElementById('est_body'); if(b){ b.innerHTML=estState.rows.map((r,i)=>estRowHtml(r,i)).join(''); estCalc(); } if(_DBG)_dbgLog(`estBody: ${(performance.now()-_t).toFixed(1)}ms`); }
-function estCalc(){ const _tc=_DBG&&performance.now(); let sub=0;
+function estSyncLazy(){ clearTimeout(_estSyncTimer); _estSyncTimer=setTimeout(()=>{ estSyncAll(); estCalc(); },500); }
+function estBody(){ const b=document.getElementById('est_body'); if(b){ b.innerHTML=estState.rows.map((r,i)=>estRowHtml(r,i)).join(''); estCalc(); } }
+function estCalc(){ let sub=0;
   document.querySelectorAll('#est_body .est-row').forEach(tr=>{
     const qty=Number(tr.querySelector('.est-qty').value)||0;
     const price=Number(String(tr.querySelector('.est-price').value||'').replace(/[^\d]/g,''))||0, amt=price*qty;
     tr.querySelector('.est-amt').textContent=won(amt); sub+=amt; });
   const vat=estState.noVat?0:Math.round(sub*0.1);
   const vEl=document.getElementById('est_vat'); if(vEl) vEl.textContent=estState.noVat?'—':won(vat);
-  const setIn=(id,val)=>{ const e=document.getElementById(id); if(e && document.activeElement!==e) e.value=nfmt(val); };   // 입력 중엔 덮어쓰지 않음
+  const setIn=(id,val)=>{ const e=document.getElementById(id); if(e && document.activeElement!==e) e.value=nfmt(val); };
   setIn('est_sub_in',sub); setIn('est_total_in',sub+vat);
-  estUpdateFee();       // 결제방법에 따른 수수료·실수령 표시
-  if(_DBG)_dbgLog(`  estCalc: ${(performance.now()-_tc).toFixed(1)}ms`);
+  estUpdateFee();
 }
 // 공급가액 목표값 → 일괄 마진 역산 후 전 품목 적용
 function estSetSupply(val){
@@ -1394,14 +1351,13 @@ function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·
 }
 // 가져오기: 누를 때마다 기존 부품표를 버리고 새로 받음(중복 누적 방지, 초기화 불필요).
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
-function estAddItems(items){ const _ta=_DBG&&performance.now(); estSyncAll();
-  estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));   // 빈 분류 템플릿으로 리셋
+function estAddItems(items){ estSyncAll();
+  estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
   (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1);
     const empty=estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
-    if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.price=''; empty.margin=estState.bulk; }   // 매입가로 넣어 마진% 적용
+    if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.price=''; empty.margin=estState.bulk; }
     else estState.rows.push({cat,name,qty,cost,price:'',margin:estState.bulk}); });
   estBody();
-  if(_DBG)_dbgLog(`estAddItems: ${(performance.now()-_ta).toFixed(1)}ms (${(items||[]).length}개)`);
 }
 function estRows(){ return estState? estState.rows.map(r=>{ const cost=Number(r.cost)||0, margin=Number(r.margin)||0, qty=Number(r.qty)||0;
   const price=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(cost*(1+margin/100));
@@ -1663,14 +1619,9 @@ function stdReceipt(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
 }
 // 실시간 미리보기 — 옵션/입력이 바뀔 때마다 화면에 즉시 반영
 function estRenderPreview(){
-  const _tp=_DBG&&performance.now();
   const box=document.getElementById('est_preview'); if(!box||!estState) return;
   const target = (estState.ptarget==='internal') ? 'internal' : 'customer';
-  const _t1=_DBG&&performance.now();
-  const html = estDocInner(target);
-  const _t2=_DBG&&performance.now();
-  box.innerHTML = `<div class="doc">${html}</div>`;
-  if(_DBG)_dbgLog(`estRenderPreview: ${(performance.now()-_tp).toFixed(1)}ms (docInner=${(_t2-_t1).toFixed(1)}ms, innerHTML=${(performance.now()-_t2).toFixed(1)}ms)`);
+  box.innerHTML = `<div class="doc">${estDocInner(target)}</div>`;
 }
 // 견적서 인쇄. target: 'customer'(고객용) | 'internal'(내부용)
 function estPrint(target){
