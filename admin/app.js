@@ -677,7 +677,7 @@ function renderSchedule(){
   const selRecs  = selItems.filter(x=>x.type==='rec');
 
   const memoForm = sel ? `
-    <div style="margin-top:16px;background:#2d1f4e;border:1px solid #3d2e6b;border-radius:10px;padding:14px">
+    <div style="margin-top:16px;background:var(--memo-bg);border:1px solid var(--memo-border);border-radius:10px;padding:14px">
       <div style="font-weight:700;margin-bottom:8px;color:#7048e8">📝 메모 추가 — ${esc(fmtRecDate(sel))}</div>
       <div style="display:flex;gap:8px">
         <input id="sched_memo" placeholder="메모 입력" style="flex:1;padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
@@ -688,7 +688,7 @@ function renderSchedule(){
   const memoList = selMemos.length ? `
     <div style="margin-top:12px">
       <div style="font-weight:700;margin-bottom:8px;color:#7048e8">📌 메모 (${selMemos.length}건)</div>
-      ${selMemos.map(x=>`<div style="background:var(--card-bg);border:1px solid #3d2e6b;border-left:4px solid #7048e8;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      ${selMemos.map(x=>`<div style="background:var(--memo-item-bg);border:1px solid var(--memo-item-border);border-left:4px solid #7048e8;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:13px">${esc(x.s.title)}</span>
         <button class="btn btn-sm btn-danger" onclick="deleteScheduleMemo(${x.s.id})" style="flex-shrink:0;margin-left:10px">삭제</button>
       </div>`).join('')}
@@ -798,6 +798,22 @@ function renderEngineers(){
       <td>${e.locked?'<span style="color:var(--danger);font-weight:700">🔒 잠김</span>':(e.has_password?'🔑 비번 설정됨':'<span style="color:var(--gray-400)">비번 없음</span>')}</td>
       <td><span style="display:flex;gap:6px">${e.locked?`<button class="btn btn-sm btn-success" onclick="unlockEngineer(${e.id})">잠금해제</button>`:''}<button class="btn btn-sm btn-secondary" onclick="openEngineerModal(${e.id})">편집</button><button class="btn btn-sm btn-danger" onclick="deleteEngineer(${e.id})">삭제</button></span></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">기사가 없습니다</td></tr>'}
     </tbody></table></div>
+  <div class="vd-card" style="margin-top:24px">
+    <div style="font-weight:800;margin-bottom:10px">🎨 화면 색상 농도</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      ${[1,2,3,4,5].map(lv=>{
+        const cur=Number(localStorage.getItem('csep_theme'))||1;
+        const colors=['#f1f3f5','#1e2130','#151722','#0e1018','#08090e'];
+        const labels=['밝게','다크','진하게','매우 진하게','최대 어둡게'];
+        const sel=cur===lv;
+        return `<button onclick="applyTheme(${lv});render()" style="flex:1;min-width:80px;padding:10px 6px;border-radius:10px;border:2px solid ${sel?'var(--primary)':'var(--gray-300)'};background:${colors[lv-1]};cursor:pointer;text-align:center;transition:border .15s">
+          <div style="font-size:18px;font-weight:900;color:${lv===1?'#343a40':'#e5e7eb'}">${lv}</div>
+          <div style="font-size:11px;color:${lv===1?'#868e96':'#9ca3af'};margin-top:2px">${labels[lv-1]}</div>
+        </button>`;
+      }).join('')}
+    </div>
+    <div style="font-size:12px;color:var(--gray-500);margin-top:8px">선택한 설정은 이 PC에 저장됩니다.</div>
+  </div>
   <div class="vd-card" style="margin-top:24px;border:2px solid var(--danger)">
     <div style="font-weight:800;margin-bottom:8px;color:var(--danger)">🗑️ 데이터 초기화</div>
     <div style="font-size:13px;color:var(--gray-500);margin-bottom:12px">선택한 데이터를 모두 삭제합니다. 삭제 후 복구할 수 없습니다.<br>결산·통계는 남은 데이터 기준으로 자동 재계산됩니다.</div>
@@ -1043,7 +1059,7 @@ function renderEstimates(){ estInit(); const s=estState;
     <div class="form-row">
       <div class="form-group" style="flex:2;position:relative"><label>상호명 <span style="font-size:11px;color:var(--gray-400)">— 기존 거래처 선택 또는 새로 입력</span></label>
         <input id="est_customer" value="${esc(s.customer)}" oninput="estCustSearch()" onfocus="estCustSearch()" autocomplete="off" placeholder="고객명·거래처명·연락처 검색">
-        <div id="est_cust_drop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:#252838;border:1px solid var(--gray-300);border-radius:6px;max-height:200px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
+        <div id="est_cust_drop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:var(--est-drop-bg);border:1px solid var(--gray-300);border-radius:6px;max-height:200px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
       </div>
       <div class="form-group"><label>대표자</label><input id="est_buyer_ceo" value="${esc(s.buyerCeo||'')}"></div>
     </div>
