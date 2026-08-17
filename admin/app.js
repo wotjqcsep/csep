@@ -321,12 +321,12 @@ function vendorCard(c){
     <div class="vd-head">
       <div class="vd-title">${esc(vdName(c))}${sites.length?`<span class="vd-sub">· 현장 ${sites.length}곳</span>`:''}</div>
       <div class="vd-btns">
-        <button class="btn btn-sm" style="background:var(--warning)" onclick="openVendorHistory(${c.id})">📋 이력</button>
-        <button class="btn btn-sm" style="background:#1971c2" onclick="openVendorDocs(${c.id})">📄 문서</button>
-        <button class="btn btn-sm" style="background:#0ca678" onclick="openVendorDevices(${c.id})">🖥 장치정보</button>
-        <button class="btn btn-sm" style="background:#7048e8" onclick="openSiteModal(${c.id})">🏢 현장추가</button>
-        <button class="btn btn-sm" onclick="openCustomerModal(${c.id})">✏ 수정</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteVendor(${c.id})">🗑 삭제</button>
+        <button class="btn btn-sm" style="background:var(--btn-warn)" onclick="openVendorHistory(${c.id})">📋 이력</button>
+        <button class="btn btn-sm" style="background:var(--btn-blue)" onclick="openVendorDocs(${c.id})">📄 문서</button>
+        <button class="btn btn-sm" style="background:var(--btn-green)" onclick="openVendorDevices(${c.id})">🖥 장치정보</button>
+        <button class="btn btn-sm" style="background:var(--btn-purple)" onclick="openSiteModal(${c.id})">🏢 현장추가</button>
+        <button class="btn btn-sm" style="background:var(--btn-edit)" onclick="openCustomerModal(${c.id})">✏ 수정</button>
+        <button class="btn btn-sm" style="background:var(--btn-del)" onclick="deleteVendor(${c.id})">🗑 삭제</button>
       </div>
     </div>
     <div class="vd-row"><span class="ic">📞</span>${esc(c.phone)||'-'}<span class="ic" style="margin-left:8px">👤</span>${esc(c.contact_person)||'-'}</div>

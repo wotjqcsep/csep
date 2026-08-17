@@ -27,6 +27,9 @@
   --lic-notice-bg:#fff8e1; --lic-notice-border:#ffe082; --lic-notice-c:#e65100;
   --lic-head-ok:#f0f4ff; --lic-head-warn:#fff8e1;
   --est-drop-bg:#ffffff;
+  --btn-warn:#f08c00; --btn-blue:#1971c2; --btn-green:#0ca678; --btn-purple:#7048e8;
+  --btn-edit:#3b5bdb; --btn-del:#e03131;
+  --icon-phone:#495057; --icon-addr:#495057; --icon-contact:#495057;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--body-bg);color:var(--gray-700);font-size:14px}
@@ -219,6 +222,9 @@ const THEMES = [
     '--lic-notice-bg':'#fff8e1','--lic-notice-border':'#ffe082','--lic-notice-c':'#e65100',
     '--lic-head-ok':'#f0f4ff','--lic-head-warn':'#fff8e1',
     '--est-drop-bg':'#ffffff',
+    '--btn-warn':'#f08c00','--btn-blue':'#1971c2','--btn-green':'#0ca678','--btn-purple':'#7048e8',
+    '--btn-edit':'#3b5bdb','--btn-del':'#e03131',
+    '--icon-phone':'#495057','--icon-addr':'#495057','--icon-contact':'#495057',
   },
   { // 2단계 — 다크
     '--body-bg':'#12141e','--card-bg':'#1e2130','--input-bg':'#252838','--input-border':'#3a3e52','--hover-bg':'#252838',
@@ -242,6 +248,9 @@ const THEMES = [
     '--lic-notice-bg':'#332b00','--lic-notice-border':'#665500','--lic-notice-c':'#fcc419',
     '--lic-head-ok':'#1a2340','--lic-head-warn':'#332b00',
     '--est-drop-bg':'#252838',
+    '--btn-warn':'#c87000','--btn-blue':'#1560a8','--btn-green':'#0a8860','--btn-purple':'#5a38c0',
+    '--btn-edit':'#3050b8','--btn-del':'#b82828',
+    '--icon-phone':'#8a90a0','--icon-addr':'#8a90a0','--icon-contact':'#8a90a0',
   },
   { // 3단계 — 더 어두운
     '--body-bg':'#0c0e16','--card-bg':'#151722','--input-bg':'#1c1f2a','--input-border':'#2e3244','--hover-bg':'#1c1f2a',
@@ -265,6 +274,9 @@ const THEMES = [
     '--lic-notice-bg':'#282000','--lic-notice-border':'#504000','--lic-notice-c':'#e6a800',
     '--lic-head-ok':'#121a30','--lic-head-warn':'#282000',
     '--est-drop-bg':'#1c1f2a',
+    '--btn-warn':'#a06000','--btn-blue':'#104880','--btn-green':'#087050','--btn-purple':'#4830a0',
+    '--btn-edit':'#2840a0','--btn-del':'#981818',
+    '--icon-phone':'#787e90','--icon-addr':'#787e90','--icon-contact':'#787e90',
   },
   { // 4단계 — 매우 어두운
     '--body-bg':'#06080e','--card-bg':'#0e1018','--input-bg':'#141620','--input-border':'#242838','--hover-bg':'#141620',
@@ -288,6 +300,9 @@ const THEMES = [
     '--lic-notice-bg':'#1e1600','--lic-notice-border':'#403000','--lic-notice-c':'#cc8800',
     '--lic-head-ok':'#0c1225','--lic-head-warn':'#1e1600',
     '--est-drop-bg':'#141620',
+    '--btn-warn':'#885000','--btn-blue':'#0c3868','--btn-green':'#065840','--btn-purple':'#382888',
+    '--btn-edit':'#203888','--btn-del':'#801010',
+    '--icon-phone':'#686e80','--icon-addr':'#686e80','--icon-contact':'#686e80',
   },
   { // 5단계 — 거의 검은색
     '--body-bg':'#020304','--card-bg':'#08090e','--input-bg':'#0e1014','--input-border':'#1a1e28','--hover-bg':'#0e1014',
@@ -311,6 +326,9 @@ const THEMES = [
     '--lic-notice-bg':'#140e00','--lic-notice-border':'#302000','--lic-notice-c':'#aa7000',
     '--lic-head-ok':'#080e1c','--lic-head-warn':'#140e00',
     '--est-drop-bg':'#0e1014',
+    '--btn-warn':'#704000','--btn-blue':'#0a2850','--btn-green':'#044830','--btn-purple':'#2c2070',
+    '--btn-edit':'#182870','--btn-del':'#680808',
+    '--icon-phone':'#555b6e','--icon-addr':'#555b6e','--icon-contact':'#555b6e',
   }
 ];
 function applyTheme(level){
