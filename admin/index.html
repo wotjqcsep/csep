@@ -290,12 +290,15 @@ function renderNav(){
     `<button class="tab-item ${state.page===id?'active':''}"${i===firstRight?' style="margin-left:auto"':''} onclick="go('${id}')"><span class="tab-icon">${icon}</span><span>${label}</span></button>`
   ).join('');
 }
-function go(page){ state.page=page; renderNav(); render(); }
+let _estForceRender=false;
+function go(page){ state.page=page; if(page==='estimates') _estForceRender=true; renderNav(); render(); }
 
 // ── 렌더 라우터 ──
 function render(){
   renderNav();
   const el = document.getElementById('page');
+  if(state.page==='estimates' && !_estForceRender && document.getElementById('est_body')) return;
+  _estForceRender=false;
   const r = pageRenderer(state.page);   // menu.js: id → renderXxx 자동 매핑
   el.innerHTML = r ? r() : placeholderPage(state.page);
   if(state.page==='estimates' && typeof estRenderPreview==='function'){ setTimeout(()=>{ estRenderPreview(); if(typeof estUpdateFee==='function') estUpdateFee(); if(typeof _estSavedOpen!=='undefined' && _estSavedOpen && typeof estLoadList==='function') estLoadList(); },50); }

@@ -1211,7 +1211,7 @@ function estNew(dtype){
   go('estimates');
 }
 // 문서 종류 전환(견적서 내부 버튼) — 내용 유지, 양식만 변경
-function estSetDoc(dtype){ estSyncAll(); estState.doctype=dtype||'estimate'; render(); }
+function estSetDoc(dtype){ estSyncAll(); estState.doctype=dtype||'estimate'; _estForceRender=true; render(); }
 // 거래처 카드 → 그 거래처의 저장된 문서
 async function openVendorDocs(customerId){
   const cust=state.customers.find(c=>c.id==customerId)||{};
@@ -1271,7 +1271,7 @@ function estSetSupply(val){
   if(cost<=0){ alert('매입가가 입력되어야 공급가액으로 마진을 역산할 수 있습니다. (매입가 없이 값을 넣으려면 품목별 판매단가를 직접 입력하세요)'); estBody(); return; }
   const margin=Math.round((target/cost-1)*1000)/10;   // 소수1자리 %
   estState.bulk=margin; estState.rows.forEach(r=>{ r.margin=margin; r.price=''; });
-  render();   // 일괄마진 입력·품목 판매단가·합계 모두 재반영
+  _estForceRender=true; render();   // 일괄마진 입력·품목 판매단가·합계 모두 재반영
 }
 function estSetTotal(val){ const t=Number(String(val||'').replace(/[^\d]/g,''))||0; estSetSupply(estState.noVat?t:Math.round(t/1.1)); }
 function estToggleVat(checked){ estSyncAll(); estState.noVat=checked; estBody(); }
@@ -1328,7 +1328,7 @@ function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·
   estSyncAll();
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
   estState.realCost='';
-  render();   // 화면 전체 다시 그려 입력칸까지 초기화
+  _estForceRender=true; render();   // 화면 전체 다시 그려 입력칸까지 초기화
 }
 // 가져오기: 누를 때마다 기존 부품표를 버리고 새로 받음(중복 누적 방지, 초기화 불필요).
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
