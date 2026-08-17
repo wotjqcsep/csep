@@ -348,7 +348,6 @@ function placeholderPage(id){
 // ── 대시보드 ──
 function renderDashboard(){
   const d = state.dashboard; if(!d) return '<div class="loading">불러오는 중...</div>';
-  const eng = d.engineers||[];
   return `
   <div class="stat-grid">
     ${statCard('오늘 신규 접수', d.today_new)}
@@ -359,16 +358,12 @@ function renderDashboard(){
     ${statCard('재고 부족', (d.low_stock_count||0)+'종', d.low_stock_count>0?'var(--danger)':'', 22)}
   </div>
   <div class="split" style="grid-template-columns:1fr 1fr">
-    <div class="detail-panel" style="position:static">
-      <h3>기사 현황</h3>
-      ${eng.length? eng.map(e=>`<div class="detail-row"><span class="detail-value"><strong>${esc(e.name)}</strong></span><span class="detail-value" style="text-align:right"><span class="chip">${statusLabel(e.status)}</span></span></div>`).join('') : '<div class="empty-state">기사 없음</div>'}
-    </div>
+    ${renderDdayPanel()}
     <div class="detail-panel" style="position:static">
       <h3>대기 접수</h3>
       ${(d.pending_receptions||[]).length? d.pending_receptions.map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} - ${esc(r.symptom||'')}</span><span><span class="badge ${r.status}">${statusLabel(r.status)}</span></span></div>`).join('') : '<div class="empty-state">대기 접수 없음</div>'}
     </div>
-  </div>
-  ${renderDdayPanel()}`;
+  </div>`;
 }
 function renderDdayPanel(){
   const now=new Date(); const pad=n=>String(n).padStart(2,'0');
@@ -393,7 +388,7 @@ function renderDdayPanel(){
     items.push({date:dk,diff,title:custName(r.customer_id),sub:r.symptom||'',type:'reserved'});
   });
   items.sort((a,b)=>a.diff-b.diff||a.title.localeCompare(b.title));
-  if(!items.length) return '';
+  if(!items.length) return `<div class="detail-panel" style="position:static"><h3 style="margin-bottom:12px">📅 일정 · D-Day</h3><div class="empty-state">등록된 일정 없음</div></div>`;
   const ddayLabel=diff=>{ if(diff===0)return 'D-Day'; if(diff>0)return `D-${diff}`; return `D+${Math.abs(diff)}`; };
   const rows=items.map(it=>{
     const isToday=it.diff===0, isPast=it.diff<0, isSoon=it.diff>0&&it.diff<=3;
@@ -411,7 +406,7 @@ function renderDdayPanel(){
       </div>
     </div>`;
   }).join('');
-  return `<div class="detail-panel" style="position:static;margin-bottom:16px">
+  return `<div class="detail-panel" style="position:static">
     <h3 style="margin-bottom:12px">📅 일정 · D-Day</h3>
     <div style="display:flex;flex-direction:column;gap:8px">${rows}</div>
   </div>`;
