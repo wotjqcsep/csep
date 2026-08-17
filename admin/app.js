@@ -1428,7 +1428,7 @@ function estDocInner(target, copyLabel){
   const estBox=(lbl,color,d,isSup)=>`<table class="est-biz"><tbody>
     <tr><td colspan="4" style="text-align:center;font-weight:700;font-size:13px;background:${color};${B}">${lbl}</td></tr>
     <tr><td style="${L}">견적번호</td><td colspan="3" style="${B}">${no}</td></tr>
-    <tr><td style="${L}">견적일자</td><td style="${B}">${fmtDate}</td><td style="${L}">견적유효</td><td style="${B}">견적 당일</td></tr>
+    <tr><td style="${L}">견적일자</td><td style="${B}">${fmtDate}</td><td style="${L}">견적유효</td><td style="${B}">금일</td></tr>
     <tr><td style="${L}">사업자번호</td><td colspan="3" style="${B}">${d.bizno}</td></tr>
     <tr><td style="${L}">상호명</td><td style="${B}">${d.nm}</td><td style="${L}">대표</td><td style="${B}">${d.ceo}${isSup?' (인)'+stampImg(40):''}</td></tr>
     <tr><td style="${L}">주소</td><td colspan="3" style="${B}">${d.addr}</td></tr>
