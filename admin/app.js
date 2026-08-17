@@ -1260,8 +1260,9 @@ function estCalc(){ let sub=0;
   const setIn=(id,val)=>{ const e=document.getElementById(id); if(e && document.activeElement!==e) e.value=nfmt(val); };   // 입력 중엔 덮어쓰지 않음
   setIn('est_sub_in',sub); setIn('est_total_in',sub+vat);
   estUpdateFee();       // 결제방법에 따른 수수료·실수령 표시
-  estRenderPreview();   // 실시간 미리보기 갱신
+  clearTimeout(_estPreviewTimer); _estPreviewTimer=setTimeout(estRenderPreview,150);
 }
+let _estPreviewTimer;
 // 공급가액 목표값 → 일괄 마진 역산 후 전 품목 적용
 function estSetSupply(val){
   const target=Number(String(val||'').replace(/[^\d]/g,''))||0;
