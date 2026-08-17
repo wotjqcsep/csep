@@ -424,6 +424,7 @@ async function initDB() {
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS biz_no TEXT;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS biz_type TEXT;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS biz_item TEXT;
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS ceo_name TEXT;
   `);
   // 기존 initial_memo에서 work_type 역파싱 backfill
   await pool.query(`UPDATE receptions SET work_type = substring(initial_memo from '^\\[([^\\]]+)\\]') WHERE work_type IS NULL AND initial_memo ~ '^\\[[^\\]]+\\]'`);
@@ -544,16 +545,16 @@ app.get('/api/customers/:id', wrap(async (req, res) => {
 app.post('/api/customers', wrap(async (req, res) => {
   const b = req.body;
   const { rows } = await pool.query(
-    `INSERT INTO customers (name, customer_type, company_name, contact_person, phone, phone2, email, address, address_detail, memo, outstanding_amount, biz_no, biz_type, biz_item)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$11,$12,$13) RETURNING *`,
-    [b.name, b.customer_type || 'personal', b.company_name, b.contact_person, b.phone, b.phone2, b.email, b.address, b.address_detail, b.memo, b.biz_no, b.biz_type, b.biz_item]
+    `INSERT INTO customers (name, customer_type, company_name, contact_person, phone, phone2, email, address, address_detail, memo, outstanding_amount, biz_no, biz_type, biz_item, ceo_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$11,$12,$13,$14) RETURNING *`,
+    [b.name, b.customer_type || 'personal', b.company_name, b.contact_person, b.phone, b.phone2, b.email, b.address, b.address_detail, b.memo, b.biz_no, b.biz_type, b.biz_item, b.ceo_name]
   );
   res.json(rows[0]);
 }));
 
 app.put('/api/customers/:id', wrap(async (req, res) => {
   const b = req.body;
-  const fields = ['name', 'customer_type', 'company_name', 'contact_person', 'phone', 'phone2', 'email', 'address', 'address_detail', 'memo', 'outstanding_amount', 'biz_no', 'biz_type', 'biz_item'];
+  const fields = ['name', 'customer_type', 'company_name', 'contact_person', 'phone', 'phone2', 'email', 'address', 'address_detail', 'memo', 'outstanding_amount', 'biz_no', 'biz_type', 'biz_item', 'ceo_name'];
   const sets = [], vals = [];
   fields.forEach(f => { if (b[f] !== undefined) { vals.push(b[f]); sets.push(`${f}=$${vals.length}`); } });
   if (!sets.length) { const { rows } = await pool.query('SELECT * FROM customers WHERE id=$1', [req.params.id]); return res.json(rows[0]); }

@@ -201,7 +201,8 @@ function openCustomerModal(id, prefill){
     ${field('c_address','주소',c.address)}
     ${field('c_addr2','상세주소',c.address_detail)}
     <div style="margin-top:6px;font-size:12px;color:#1971c2;font-weight:600">사업자정보 (선택 — 견적서·명세서·계산서 자동입력용)</div>
-    <div class="form-row">${field('c_bizno','사업자번호',c.biz_no)}${field('c_biztype','업태',c.biz_type)}${field('c_bizitem','종목',c.biz_item)}</div>
+    <div class="form-row">${field('c_ceo','대표자',c.ceo_name)}${field('c_bizno','사업자번호',c.biz_no)}</div>
+    <div class="form-row">${field('c_biztype','업태',c.biz_type)}${field('c_bizitem','종목',c.biz_item)}</div>
     ${area('c_memo','메모',c.memo)}
     ${isEdit?field('c_outstanding','미수금',c.outstanding_amount,'number'):''}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveCustomer(${id||'null'})">저장</button></div>`;
@@ -209,7 +210,7 @@ function openCustomerModal(id, prefill){
 }
 function toggleBiz(){ document.getElementById('bizFields').style.display = v('c_type')==='business'?'block':'none'; }
 async function saveCustomer(id){
-  const data = { name:v('c_name'), phone:v('c_phone'), customer_type:v('c_type'), company_name:v('c_company'), contact_person:v('c_contact'), phone2:v('c_phone2'), email:v('c_email'), address:v('c_address'), address_detail:v('c_addr2'), memo:v('c_memo'), biz_no:v('c_bizno'), biz_type:v('c_biztype'), biz_item:v('c_bizitem') };
+  const data = { name:v('c_name'), phone:v('c_phone'), customer_type:v('c_type'), company_name:v('c_company'), contact_person:v('c_contact'), phone2:v('c_phone2'), email:v('c_email'), address:v('c_address'), address_detail:v('c_addr2'), memo:v('c_memo'), biz_no:v('c_bizno'), biz_type:v('c_biztype'), biz_item:v('c_bizitem'), ceo_name:v('c_ceo') };
   if(!data.phone){ alert('전화번호는 필수입니다'); return; }
   if(id){ data.outstanding_amount = Number(v('c_outstanding'))||0; await api('PUT','/customers/'+id, data); }
   else await api('POST','/customers', data);

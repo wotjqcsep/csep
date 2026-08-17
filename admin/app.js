@@ -1118,7 +1118,7 @@ function estCustPick(){
     estState.customerId=c.id;
     const ph=document.getElementById('est_phone'); if(ph && c.phone) ph.value=c.phone; estState.phone=c.phone||estState.phone;
     const addr=document.getElementById('est_buyer_addr'); if(addr && c.address) addr.value=[c.address,c.address_detail].filter(Boolean).join(' ');
-    const ceo=document.getElementById('est_buyer_ceo'); if(ceo && c.contact_person) ceo.value=c.contact_person;
+    const ceo=document.getElementById('est_buyer_ceo'); if(ceo && (c.ceo_name||c.contact_person)) ceo.value=c.ceo_name||c.contact_person;
     const bno=document.getElementById('est_buyer_bizno'); if(bno && c.biz_no) bno.value=c.biz_no;
     const bt=document.getElementById('est_buyer_type'); if(bt && c.biz_type) bt.value=c.biz_type;
     const bi=document.getElementById('est_buyer_item'); if(bi && c.biz_item) bi.value=c.biz_item;
