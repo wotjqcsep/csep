@@ -210,7 +210,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
         <h2 style="margin-bottom:8px;font-size:20px">CSEP 관리자</h2>
         <p style="color:var(--gray-500);font-size:13px;margin-bottom:24px">관리자 비밀번호를 입력하세요</p>
         <input id="loginPw" type="password" placeholder="비밀번호" style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;margin-bottom:12px" onkeydown="if(event.key==='Enter')doAdminLogin()">
-        <div id="loginHint" style="display:none;background:#f0f4ff;border:1px solid #c3d4f7;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#1971c2;text-align:left">최초 기본 비밀번호: <strong>csep2026!</strong><br>사업자 관리 메뉴에서 변경할 수 있습니다.</div>
+        <div id="loginHint" style="display:none"></div>
         <button onclick="doAdminLogin()" style="width:100%;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">로그인</button>
         <div id="loginError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></div>
       </div>
@@ -238,14 +238,14 @@ async function doAdminLogin(){
     const r = await fetch(API+'/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
     if(!r.ok){ errEl.textContent='비밀번호가 올바르지 않습니다'; errEl.style.display='block'; return; }
     const d = await r.json();
-    localStorage.setItem('authToken', d.token);
+    sessionStorage.setItem('authToken', d.token);
     localStorage.setItem('csep_has_logged_in','1');
     document.getElementById('loginScreen').style.display='none';
     startApp();
   }catch(e){ errEl.textContent='서버 연결 실패'; errEl.style.display='block'; }
 }
 async function checkAuth(){
-  const token = localStorage.getItem('authToken');
+  const token = sessionStorage.getItem('authToken');
   if(token){ startApp(); return; }
   try{
     const r = await fetch(API+'/admin-password-status');
@@ -253,7 +253,7 @@ async function checkAuth(){
     if(!d.hasPassword){
       // 비밀번호가 공란 → 자동 로그인
       const lr = await fetch(API+'/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:''})});
-      if(lr.ok){ const ld=await lr.json(); localStorage.setItem('authToken',ld.token); startApp(); return; }
+      if(lr.ok){ const ld=await lr.json(); sessionStorage.setItem('authToken',ld.token); startApp(); return; }
     }
   }catch(e){}
   if(!localStorage.getItem('csep_has_logged_in')) document.getElementById('loginHint').style.display='block';
@@ -262,10 +262,10 @@ async function checkAuth(){
 
 // ── API 헬퍼 ──
 async function api(method, url, body){
-  const opt = { method, headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+(localStorage.getItem('authToken')||'')} };
+  const opt = { method, headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+(sessionStorage.getItem('authToken')||'')} };
   if(body) opt.body = JSON.stringify(body);
   const r = await fetch(API+url, opt);
-  if(r.status === 401){ localStorage.removeItem('authToken'); document.getElementById('loginScreen').style.display='flex'; throw new Error('인증 만료'); }
+  if(r.status === 401){ sessionStorage.removeItem('authToken'); document.getElementById('loginScreen').style.display='flex'; throw new Error('인증 만료'); }
   if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || r.status);
   return r.json();
 }

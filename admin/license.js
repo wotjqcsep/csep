@@ -227,5 +227,5 @@ function _licChangeKey() {
   document.getElementById('licenseScreen').querySelector('.lic-form').style.display = 'block';
   document.getElementById('licenseScreen').querySelector('.lic-loading').style.display = 'none';
   document.getElementById('licenseScreen').style.display = 'flex';
-  localStorage.removeItem('authToken');
+  sessionStorage.removeItem('authToken');
 }

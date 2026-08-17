@@ -440,7 +440,7 @@ async function initDB() {
 app.post('/api/admin-login', express.json(), wrap(async (req, res) => {
   const { password } = req.body;
   const dbRow = (await pool.query("SELECT value FROM settings WHERE key='admin_password'")).rows[0];
-  const adminPw = dbRow ? dbRow.value : (process.env.ADMIN_PASSWORD || 'csep2026!');
+  const adminPw = dbRow ? dbRow.value : '';
   if (adminPw && adminPw.length > 0 && password !== adminPw) return res.status(401).json({ error: '비밀번호가 올바르지 않습니다' });
   const token = crypto.randomUUID();
   sessions.set(token, { role: 'admin', expires: Date.now() + 24 * 60 * 60 * 1000 });
@@ -450,7 +450,7 @@ app.post('/api/admin-login', express.json(), wrap(async (req, res) => {
 // 관리자 비밀번호 조회 (공란 여부 확인용)
 app.get('/api/admin-password-status', wrap(async (req, res) => {
   const dbRow = (await pool.query("SELECT value FROM settings WHERE key='admin_password'")).rows[0];
-  const pw = dbRow ? dbRow.value : (process.env.ADMIN_PASSWORD || 'csep2026!');
+  const pw = dbRow ? dbRow.value : '';
   res.json({ hasPassword: !!(pw && pw.length > 0) });
 }));
 

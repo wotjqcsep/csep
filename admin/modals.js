@@ -737,7 +737,7 @@ function initCompletionTracking(){
 }
 function connectSSE(){
   try{
-    const es = new EventSource(API+'/admin-stream?token='+(localStorage.getItem('authToken')||''));
+    const es = new EventSource(API+'/admin-stream?token='+(sessionStorage.getItem('authToken')||''));
     const reloadEvents = ['reception_new','reception_deleted','job_update','engineer_update'];
     reloadEvents.forEach(ev=>es.addEventListener(ev, ()=>loadAll()));
 
