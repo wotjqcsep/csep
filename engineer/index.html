@@ -860,7 +860,33 @@ function renderScheduleInline(){
       ${selList.length?selList.map(schedItemHtml).join(''):'<div style="color:var(--gray-400);font-size:13px">일정·작업 없음</div>'}
       ${S.engineer.is_admin?`<button class="btn btn-primary" onclick="openAddSchedule()">+ 일정 추가</button>`:''}</div>`:'<div style="margin-top:10px;color:var(--gray-400);font-size:13px;text-align:center">날짜를 선택하세요</div>'}
   </div>
+  ${renderSchedMemoList()}
   ${S.engineer.is_admin?`<button class="btn btn-ghost" onclick="openLeaveAdmin()">🏖️ 휴가 신청 관리</button>`:`<button class="btn btn-ghost" onclick="openLeaveMy()">🏖️ 휴가 신청</button>`}`;
+}
+function renderSchedMemoList(){
+  const memos=(S.schedules||[]).filter(s=>s.title);
+  if(!memos.length) return '';
+  memos.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const now=new Date(); const pad=n=>String(n).padStart(2,'0');
+  const todayKey=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const todayMs=new Date(todayKey+'T00:00:00').getTime();
+  return `<div class="card" style="margin-top:8px">
+    <div style="font-weight:700;margin-bottom:10px;font-size:14px">📝 메모 목록</div>
+    ${memos.map(s=>{
+      const diff=s.date?Math.round((new Date(s.date+'T00:00:00').getTime()-todayMs)/(24*60*60*1000)):null;
+      const isToday=diff===0, isPast=diff!==null&&diff<0, isSoon=diff!==null&&diff>0&&diff<=3;
+      const ddayLabel=diff===null?'':diff===0?'D-Day':diff>0?`D-${diff}`:`D+${Math.abs(diff)}`;
+      const ddayColor=isToday?'#e03131':isPast?'#868e96':isSoon?'#e67700':'var(--primary)';
+      const bg=isToday?'background:#fff3bf':isPast?'background:#f8f9fa':'background:#fff';
+      return `<div style="${bg};border:1px solid #e5dbff;border-left:4px solid #7048e8;border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px">${esc(s.title)}${s.engineer_id?` · <span style="color:${engColorById(s.engineer_id)};font-size:12px">${esc(engName(s.engineer_id))}</span>`:''}</div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:2px">${(s.date||'').slice(5)}${ddayLabel?` · <span style="color:${ddayColor};font-weight:700">${ddayLabel}</span>`:''}</div>
+        </div>
+        ${S.engineer.is_admin?`<button onclick="delScheduleInline(${s.id})" style="border:none;background:none;color:var(--danger);cursor:pointer;font-size:13px;flex-shrink:0">삭제</button>`:''}
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 async function delScheduleInline(id){ await api('DELETE','/schedules/'+id); await loadSchedules(); renderScheduleInline(); }
 
@@ -874,18 +900,17 @@ async function shiftMonth(d){ const [y,m]=schedState.ym.split('-').map(Number); 
 function openAddSchedule(){
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
     <div class="sheet"><h3>일정 추가 (${schedState.sel})</h3>
-      <div class="fg"><label>제목 *</label><div style="display:flex;gap:6px;align-items:center"><input id="sc_title" placeholder="예: 정기점검 방문" style="flex:1">${micBtn('sc_title')}</div></div>
+      <div class="fg"><label>메모 *</label><div style="display:flex;gap:6px;align-items:center"><input id="sc_title" placeholder="메모 입력" style="flex:1">${micBtn('sc_title')}</div></div>
       <div class="fg"><label>담당 기사</label><select id="sc_eng" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">전체</option>${S.engineers.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div>
-      <div class="fg"><label>메모</label><div style="display:flex;gap:6px;align-items:flex-start"><textarea id="sc_memo" style="flex:1"></textarea>${micBtn('sc_memo')}</div></div>
       <button class="btn btn-primary" onclick="submitSchedule()">저장</button>
       <button class="btn btn-ghost" onclick="document.getElementById('ov2').remove()">취소</button>
     </div></div>`);
 }
 async function submitSchedule(){
-  const title=document.getElementById('sc_title').value.trim(); if(!title){alert('제목을 입력하세요');return;}
+  const title=document.getElementById('sc_title').value.trim(); if(!title){alert('메모를 입력하세요');return;}
   const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
   try{
-    await api('POST','/schedules',{title,engineer_id:document.getElementById('sc_eng').value||null,date:schedState.sel,memo:document.getElementById('sc_memo').value});
+    await api('POST','/schedules',{title,engineer_id:document.getElementById('sc_eng').value||null,date:schedState.sel,memo:''});
     document.getElementById('ov2').remove(); await loadSchedules(); reSched();
   }catch(e){ alert('일정 저장 실패: '+(e.message||e)); }
   finally{ if(btn) btn.disabled=false; }
