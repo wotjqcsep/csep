@@ -1,6 +1,6 @@
 {
   "name": "csep-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CSEP PC 버전 (Electron 데스크톱 앱)",
   "main": "main.js",
   "author": "CSEP",
