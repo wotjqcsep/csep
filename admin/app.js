@@ -1090,7 +1090,7 @@ function renderEstimates(){ estInit(); const s=estState;
   <div class="vd-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;gap:6px;align-items:center;font-weight:800;flex-wrap:wrap">품목
-        <button class="btn btn-sm" style="background:#e6fcf5;color:#0ca678;margin:0;font-weight:700" onclick="estToggle('est_url_box')">🔗 URL 공유 <span style="font-size:10px;background:#0ca678;color:#fff;border-radius:8px;padding:1px 6px;margin-left:2px">권장</span></button>
+        <button class="btn btn-sm" style="background:var(--badge-progress-bg);color:var(--badge-progress-c);margin:0;font-weight:700" onclick="estToggle('est_url_box')">🔗 URL 공유 <span style="font-size:10px;background:var(--success);color:#fff;border-radius:8px;padding:1px 6px;margin-left:2px">권장</span></button>
         <button class="btn btn-sm" style="background:#e7f5ff;color:#1971c2;margin:0;font-weight:700" onclick="estToggle('est_paste_box')">📋 소스·텍스트</button>
         <label class="btn btn-sm" style="cursor:pointer;background:var(--badge-repair-bg);color:var(--badge-repair-c);margin:0;font-weight:700">📷 캡처하기<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label></div>
       <div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;color:var(--gray-500)">일괄 마진</span>
@@ -1521,8 +1521,8 @@ function estDocInner(target, copyLabel){
   const supTel=esc(S.biz_tel||contact||'');
   const buyTel=esc(estState.phone||'');
   const dp=String(date||'').split('-'), fmtDate=dp.length===3?`${dp[0]}.${dp[1]}.${dp[2]}`:(date||'');
-  const B='border:1px solid #aaa;padding:4px 6px;font-size:12px';
-  const L='border:1px solid #aaa;padding:4px 6px;font-size:12px;background:#f2f4f8';
+  const B='border:1px solid var(--gray-300);padding:4px 6px;font-size:12px';
+  const L='border:1px solid var(--gray-300);padding:4px 6px;font-size:12px;background:var(--hover-bg)';
   const estBox=(lbl,color,d,isSup)=>`<table class="est-biz"><tbody>
     <tr><td colspan="4" style="text-align:center;font-weight:700;font-size:13px;background:${color};${B}">${lbl}</td></tr>
     <tr><td style="${L}">견적번호</td><td colspan="3" style="${B}">${no}</td></tr>
@@ -1536,7 +1536,7 @@ function estDocInner(target, copyLabel){
   const sup={bizno:esc(S.biz_no||''),nm:esc(S.brand_name||company||''),ceo:esc(S.biz_ceo||''),addr:esc(S.biz_addr||''),bt:esc(S.biz_type||''),bi:esc(S.biz_item||''),tel:supTel};
   const buy={bizno:esc(estState.buyerBizno||''),nm:esc(estState.customer||''),ceo:esc(estState.buyerCeo||''),addr:esc(estState.buyerAddr||''),bt:esc(estState.buyerType||''),bi:esc(estState.buyerItem||''),tel:buyTel};
   return `<h1>${title}</h1>
-    <div class="est-header">${estBox('공급받는자','#fef3c7',buy,false)}${estBox('공급자','#dbeafe',sup,true)}</div>
+    <div class="est-header">${estBox('공급받는자','var(--dday-today-bg)',buy,false)}${estBox('공급자','var(--primary-light)',sup,true)}</div>
     <table class="items"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
     <table class="sum">${sumRows}</table>
     ${receiptNote}${taxNote}
@@ -1557,10 +1557,10 @@ function bizInfoTable(label,x,color){
   const stamp = (label==='공급자') ? stampImg(42) : '';   // 공급자 성명 옆 날인
   return `<table style="width:100%;font-size:11px;table-layout:fixed">
     <tr><td rowspan="4" style="width:20px;text-align:center;background:${color};font-weight:700;padding:2px">${label.split('').join('<br>')}</td>
-        <td style="width:62px;background:#f7f7f7">등록번호</td><td colspan="3">${x.bizno}</td></tr>
-    <tr><td style="background:#f7f7f7">상호</td><td>${x.nm}</td><td style="width:44px;background:#f7f7f7">성명</td><td>${x.ceo} (인)${stamp}</td></tr>
-    <tr><td style="background:#f7f7f7">주소</td><td colspan="3">${x.addr}</td></tr>
-    <tr><td style="background:#f7f7f7">업태</td><td>${x.bt}</td><td style="background:#f7f7f7">종목</td><td>${x.bi}</td></tr>
+        <td style="width:62px;background:var(--hover-bg)">등록번호</td><td colspan="3">${x.bizno}</td></tr>
+    <tr><td style="background:var(--hover-bg)">상호</td><td>${x.nm}</td><td style="width:44px;background:var(--hover-bg)">성명</td><td>${x.ceo} (인)${stamp}</td></tr>
+    <tr><td style="background:var(--hover-bg)">주소</td><td colspan="3">${x.addr}</td></tr>
+    <tr><td style="background:var(--hover-bg)">업태</td><td>${x.bt}</td><td style="background:var(--hover-bg)">종목</td><td>${x.bi}</td></tr>
   </table>`;
 }
 function stdDoc(dtype, ctx, copyLabel){
@@ -1586,8 +1586,8 @@ function stdStatement(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
     <div style="text-align:center;font-size:11px;color:#555">(공급받는자용)${copyLabel&&copyLabel!=='공급받는자용'?' · '+esc(copyLabel):''}</div>
     <div style="text-align:right;font-size:18px;font-weight:800;margin:16px 0 8px">${cust} 귀하</div>
     <div style="font-size:12px">아래와 같이 계산합니다.</div>`;
-  const B='border:1px solid #333;padding:4px 6px;font-size:11px';
-  const L='border:1px solid #333;padding:4px 6px;font-size:11px;background:#f2f2f2;text-align:center';
+  const B='border:1px solid var(--gray-300);padding:4px 6px;font-size:11px';
+  const L='border:1px solid var(--gray-300);padding:4px 6px;font-size:11px;background:var(--hover-bg);text-align:center';
   const header=`<table style="border-collapse:collapse;width:100%;table-layout:fixed;margin-top:4px"><tbody>
     <tr><td rowspan="4" style="width:48%;vertical-align:top;${B}">${left}</td>
         <td style="width:66px;${L}">등록번호</td><td colspan="3" style="${B}">${sup.bizno}</td></tr>
@@ -1595,8 +1595,8 @@ function stdStatement(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
     <tr><td style="${L}">사업장<br>소재지</td><td colspan="3" style="${B}">${sup.addr}</td></tr>
     <tr><td style="${L}">업　태</td><td style="${B}">${sup.bt}</td><td style="${L}">종목</td><td style="${B}">${sup.bi}</td></tr>
   </tbody></table>`;
-  const TB='border:1px solid #333;padding:4px 5px;font-size:11px';
-  const TH='border:1px solid #333;padding:4px 5px;font-size:11px;background:#f2f2f2;text-align:center';
+  const TB='border:1px solid var(--gray-300);padding:4px 5px;font-size:11px';
+  const TH='border:1px solid var(--gray-300);padding:4px 5px;font-size:11px;background:var(--hover-bg);text-align:center';
   const body=items.map(r=>{ const amt=r.amt, tax=Math.round(amt*0.1);
     return `<tr><td style="text-align:center;${TB}">${mm}</td><td style="text-align:center;${TB}">${dd}</td>
       <td style="${TB}">${esc(ctx.dispName(r))}</td><td style="${TB}"></td><td style="text-align:center;${TB}">${r.qty}</td>
@@ -1634,14 +1634,14 @@ function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
       ${buyerSide}
       <td style="width:50%;padding:0;vertical-align:top">${bizInfoTable('공급자',sup,'#eaf3ff')}</td></tr></table>
     <table style="margin-top:6px;font-size:12px"><tr>
-      <td style="background:#f7f7f7;width:70px">작성일자</td><td>${esc(ctx.date)}</td>
-      <td style="background:#f7f7f7;width:70px">공급가액</td><td style="text-align:right">${nfmt(sub)}</td>
-      <td style="background:#f7f7f7;width:52px">세액</td><td style="text-align:right">${nfmt(vat)}</td></tr></table>
+      <td style="background:var(--hover-bg);width:70px">작성일자</td><td>${esc(ctx.date)}</td>
+      <td style="background:var(--hover-bg);width:70px">공급가액</td><td style="text-align:right">${nfmt(sub)}</td>
+      <td style="background:var(--hover-bg);width:52px">세액</td><td style="text-align:right">${nfmt(vat)}</td></tr></table>
     <table style="margin-top:6px;font-size:12px"><thead><tr>
       <th style="width:26px">월</th><th style="width:26px">일</th><th>품목</th><th style="width:56px">규격</th><th style="width:42px">수량</th><th style="width:78px">단가</th><th style="width:90px">공급가액</th><th style="width:78px">세액</th><th style="width:46px">비고</th></tr></thead>
       <tbody>${body||`<tr><td colspan="9" style="text-align:center;color:#aaa;padding:16px">품목 없음</td></tr>`}</tbody></table>
     <table style="margin-top:6px;font-size:13px"><tr>
-      <td style="background:#f7f7f7;width:80px;font-weight:700">합계금액</td>
+      <td style="background:var(--hover-bg);width:80px;font-weight:700">합계금액</td>
       <td style="text-align:right;font-weight:800">${nfmt(total)} 원</td>
       <td style="text-align:center;color:#555;width:150px">이 금액을 ( ${isTax?'영수 · 청구':'청구'} ) 함</td></tr></table>
     ${memo?`<div class="memo">비고: ${memo}</div>`:''}
