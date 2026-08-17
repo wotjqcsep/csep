@@ -1005,7 +1005,8 @@ function renderEstimates(){ estInit(); const s=estState;
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:2">${field('est_buyer_addr','주소',s.buyerAddr||'')}</div>
-      <div class="form-group"><label>연락처</label><input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처"></div>
+      <div class="form-group" style="position:relative"><label>연락처</label><input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처" oninput="estCustSearch('phone')" onfocus="estCustSearch('phone')" autocomplete="off">
+        <div id="est_phone_drop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:200px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
     </div>
     <div class="form-row" style="margin-top:4px">
       ${field('est_buyer_bizno','사업자번호',s.buyerBizno||'')}
@@ -1121,10 +1122,12 @@ function estToggle(id){ const b=document.getElementById(id); if(b){ const show=b
 function estFmtCost(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
 function estFmtRefund(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
 // 거래처 자동완성 드롭다운
-function estCustSearch(){
-  const q=(v('est_customer')||'').trim().toLowerCase();
-  const drop=document.getElementById('est_cust_drop'); if(!drop) return;
-  if(!q){ drop.style.display='none'; estState.customerId=null; return; }
+function estCustSearch(src){
+  const isPhone=src==='phone';
+  const q=(v(isPhone?'est_phone':'est_customer')||'').trim().toLowerCase();
+  const drop=document.getElementById(isPhone?'est_phone_drop':'est_cust_drop'); if(!drop) return;
+  const otherDrop=document.getElementById(isPhone?'est_cust_drop':'est_phone_drop'); if(otherDrop) otherDrop.style.display='none';
+  if(!q){ drop.style.display='none'; if(!isPhone) estState.customerId=null; return; }
   const matches=(state.customers||[]).filter(c=>(vdName(c)||'').toLowerCase().includes(q)||(c.phone||'').includes(q)).slice(0,15);
   if(!matches.length){ drop.style.display='none'; return; }
   drop.innerHTML=matches.map(c=>`<div style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--gray-100)" onmousedown="estCustSelect(${c.id})">${esc(vdName(c))} <span style="color:var(--gray-400)">${esc(c.phone||'')}</span></div>`).join('');
@@ -1132,18 +1135,19 @@ function estCustSearch(){
 }
 function estCustSelect(id){
   const c=(state.customers||[]).find(x=>x.id===id); if(!c) return;
-  const drop=document.getElementById('est_cust_drop'); if(drop) drop.style.display='none';
+  ['est_cust_drop','est_phone_drop'].forEach(did=>{ const d=document.getElementById(did); if(d) d.style.display='none'; });
   const inp=document.getElementById('est_customer'); if(inp) inp.value=vdName(c);
-  estState.customerId=c.id;
+  estState.customerId=c.id; estState.customer=vdName(c);
   const ph=document.getElementById('est_phone'); if(ph && c.phone) ph.value=c.phone; estState.phone=c.phone||estState.phone;
   const addr=document.getElementById('est_buyer_addr'); if(addr && c.address) addr.value=[c.address,c.address_detail].filter(Boolean).join(' ');
   const ceo=document.getElementById('est_buyer_ceo'); if(ceo && (c.ceo_name||c.contact_person)) ceo.value=c.ceo_name||c.contact_person;
   const bno=document.getElementById('est_buyer_bizno'); if(bno && c.biz_no) bno.value=c.biz_no;
   const bt=document.getElementById('est_buyer_type'); if(bt && c.biz_type) bt.value=c.biz_type;
   const bi=document.getElementById('est_buyer_item'); if(bi && c.biz_item) bi.value=c.biz_item;
+  estRenderPreview();
 }
 // 드롭다운 바깥 클릭 시 닫기
-document.addEventListener('click',e=>{ const d=document.getElementById('est_cust_drop'); if(d && !d.contains(e.target) && e.target.id!=='est_customer') d.style.display='none'; });
+document.addEventListener('click',e=>{ ['est_cust_drop','est_phone_drop'].forEach(id=>{ const d=document.getElementById(id); if(d && !d.contains(e.target) && e.target.id!=='est_customer' && e.target.id!=='est_phone') d.style.display='none'; }); });
 // 견적서 저장 (거래처 없으면 자동 등록)
 async function estSave(btn){
   estSyncAll();
@@ -1269,7 +1273,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
 }
 // oninput 래퍼 디바운스 — 입력 즉시 반응, 계산·미리보기는 500ms 후 한 번만
 let _estSyncTimer;
-function estSyncLazy(){ clearTimeout(_estSyncTimer); _estSyncTimer=setTimeout(()=>{ estSyncAll(); estCalc(); },500); }
+function estSyncLazy(){ clearTimeout(_estSyncTimer); _estSyncTimer=setTimeout(()=>{ estSyncAll(); estCalc(); estRenderPreview(); },500); }
 function estBody(){ const b=document.getElementById('est_body'); if(b){ b.innerHTML=estState.rows.map((r,i)=>estRowHtml(r,i)).join(''); estCalc(); } }
 function estCalc(){ let sub=0;
   document.querySelectorAll('#est_body .est-row').forEach(tr=>{
