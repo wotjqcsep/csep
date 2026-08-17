@@ -186,11 +186,25 @@ select,input,textarea{font-family:inherit;font-size:14px}
         <button class="btn-sm btn-secondary" onclick="testCall()">📞 수신 테스트</button>
         <span class="server-status" id="srvStatus">● 서버 연결</span>
         <span>관리자</span>
+        <button id="licBadge" class="btn-sm btn-secondary" onclick="showLicenseModal()" style="cursor:pointer">🔒 인증</button>
       </div>
     </div>
     <nav class="tabbar" id="nav"></nav>
   </div>
   <main class="main">
+    <div id="licenseScreen" style="display:none;position:fixed;inset:0;background:var(--gray-50);z-index:999999;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 4px 24px rgba(0,0,0,.1);width:380px;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">🔒</div>
+        <h2 style="margin-bottom:8px;font-size:20px">CSEP 라이선스 인증</h2>
+        <p style="color:var(--gray-500);font-size:13px;margin-bottom:24px">컴퓨터 A/S ERP</p>
+        <div class="lic-loading" style="display:none;padding:20px 0;color:var(--gray-500);font-size:14px">⏳ 라이선스 확인 중...</div>
+        <div class="lic-form" style="display:none">
+          <input id="licKeyInput" type="text" placeholder="라이선스 키를 입력하세요" style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;margin-bottom:12px" onkeydown="if(event.key==='Enter')doLicenseSubmit()">
+          <button id="licSubmitBtn" onclick="doLicenseSubmit()" style="width:100%;padding:10px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">인증</button>
+          <div id="licError" style="color:var(--danger);font-size:13px;margin-top:8px;display:none"></div>
+        </div>
+      </div>
+    </div>
     <div id="loginScreen" style="display:none;position:fixed;inset:0;background:var(--gray-50);z-index:99999;align-items:center;justify-content:center">
       <div style="background:#fff;border-radius:12px;padding:40px;box-shadow:0 4px 24px rgba(0,0,0,.1);width:340px;text-align:center">
         <h2 style="margin-bottom:8px;font-size:20px">CSEP 관리자</h2>
@@ -207,6 +221,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 <div class="popup-stack" id="popups"></div>
 <div id="modalRoot"></div>
 
+<script src="license.js"></script>
 <script src="menu.js"></script>
 <script>
 const API = '/api';
@@ -296,15 +311,20 @@ async function _doLoadAll(showLoading){
 
 // ── 네비게이션 (상단 탭) ──
 function renderNav(){
-  // MENU_CONFIG 의 모든 항목을 한 줄 탭으로 평탄화
   const items = MENUS.flatMap(m=>m.items);
-  const firstRight = items.findIndex(it=>it[3]);   // 첫 우측정렬 항목에만 margin-left:auto
-  document.getElementById('nav').innerHTML = items.map(([id,icon,label],i)=>
-    `<button class="tab-item ${state.page===id?'active':''}"${i===firstRight?' style="margin-left:auto"':''} onclick="go('${id}')"><span class="tab-icon">${icon}</span><span>${label}</span></button>`
-  ).join('');
+  const firstRight = items.findIndex(it=>it[3]);
+  document.getElementById('nav').innerHTML = items.map(([id,icon,label],i)=>{
+    const allowed = typeof isMenuAllowed==='function' ? isMenuAllowed(id) : true;
+    const ml = i===firstRight?' margin-left:auto;':'';
+    if(!allowed) return `<button class="tab-item" style="${ml}opacity:.35;cursor:not-allowed" onclick="alert('오프라인 모드에서는 사용할 수 없는 메뉴입니다.')" title="오프라인 제한"><span class="tab-icon">${icon}</span><span>${label}</span></button>`;
+    return `<button class="tab-item ${state.page===id?'active':''}" style="${ml}" onclick="go('${id}')"><span class="tab-icon">${icon}</span><span>${label}</span></button>`;
+  }).join('');
 }
 let _estForceRender=false;
-function go(page){ state.page=page; if(page==='estimates') _estForceRender=true; renderNav(); render(); }
+function go(page){
+  if(typeof isMenuAllowed==='function' && !isMenuAllowed(page)){ alert('오프라인 모드에서는 사용할 수 없는 메뉴입니다.'); return; }
+  state.page=page; if(page==='estimates') _estForceRender=true; renderNav(); render();
+}
 
 // ── 렌더 라우터 ──
 function render(){

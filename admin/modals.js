@@ -777,4 +777,4 @@ function startApp(){
   setInterval(pollChatUnread, 5000);
   connectSSE();
 }
-checkAuth();
+checkLicense();
