@@ -264,10 +264,11 @@ async function _doLoadAll(showLoading){
   _loadAllRunning = true;
   try{
   if(showLoading && firstLoad) document.getElementById('page').innerHTML='<div class="loading">불러오는 중...</div>';
-  const jobs = [
+  const allJobs = [
     ['dashboard','/dashboard'],['customers','/customers'],['computers','/computers'],['engineers','/engineers'],
     ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],['sites','/sites'],['partOptions','/part-options'],['resultPresets','/result-presets'],['settings','/settings'],
   ];
+  const jobs = (!firstLoad && state.page==='estimates') ? allJobs.filter(([k])=>k==='customers'||k==='engineers'||k==='settings') : allJobs;
   const results = await Promise.allSettled(jobs.map(([,u])=>api('GET',u)));
   let anyOk=false;
   results.forEach((r,i)=>{ if(r.status==='fulfilled'){ state[jobs[i][0]] = r.value; anyOk=true; } });

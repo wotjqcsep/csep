@@ -1858,4 +1858,4 @@ function renderStats(){
 function row(label,value){ return `<div class="detail-row"><span class="detail-label">${label}</span><span class="detail-value">${value}</span></div>`; }
 
 // 현재 페이지만 다시 그림 (모달 안 열렸을 때)
-function renderInto(){ if(!document.querySelector('.modal-overlay')) render(); }
+function renderInto(){ if(!document.querySelector('.modal-overlay') && state.page!=='estimates') render(); }
