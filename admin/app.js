@@ -1092,7 +1092,7 @@ function renderEstimates(){ estInit(); const s=estState;
       <div style="display:flex;gap:6px;align-items:center;font-weight:800;flex-wrap:wrap">품목
         <button class="btn btn-sm" style="background:#e6fcf5;color:#0ca678;margin:0;font-weight:700" onclick="estToggle('est_url_box')">🔗 URL 공유 <span style="font-size:10px;background:#0ca678;color:#fff;border-radius:8px;padding:1px 6px;margin-left:2px">권장</span></button>
         <button class="btn btn-sm" style="background:#e7f5ff;color:#1971c2;margin:0;font-weight:700" onclick="estToggle('est_paste_box')">📋 소스·텍스트</button>
-        <label class="btn btn-sm" style="cursor:pointer;background:#f3e8ff;color:#7048e8;margin:0;font-weight:700">📷 캡처하기<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label></div>
+        <label class="btn btn-sm" style="cursor:pointer;background:var(--badge-repair-bg);color:var(--badge-repair-c);margin:0;font-weight:700">📷 캡처하기<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label></div>
       <div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;color:var(--gray-500)">일괄 마진</span>
         <input id="est_bulk" type="number" value="${s.bulk}" style="width:56px"> %
         <button class="btn btn-sm btn-secondary" onclick="estApplyBulk()">전체 적용</button></div>
@@ -1161,7 +1161,7 @@ function renderEstimates(){ estInit(); const s=estState;
           <span style="font-size:11px;color:var(--gray-400)">비워두면 자동(중고/자체보유 시 0 입력)</span>
         </label>
       </div>
-      <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:#f8f9fb;border:1px solid var(--gray-200)"></div>
+      <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:var(--card-bg);border:1px solid var(--gray-200)"></div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn" onclick="estPrint(estState.ptarget)">🖨️ 이 상태로 인쇄</button>
         <button class="btn btn-secondary" onclick="estReset()">초기화</button>
