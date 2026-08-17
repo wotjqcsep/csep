@@ -2,7 +2,7 @@
 // - X(닫기) 누르면 트레이로 최소화(계속 실행) → 트레이 메뉴 '종료'로만 진짜 종료
 //   (콜 완료·메시지 알림 소리를 백그라운드에서 계속 받기 위함)
 // - 설치폴더 하위 jpg 폴더 자동 생성 (거래처별 사진 오프라인 저장 준비)
-const { app, BrowserWindow, Tray, Menu, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, nativeImage, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -41,6 +41,10 @@ function createWindow() {
     },
   });
   win.loadURL(CSEP_URL);
+  // F12 → DevTools 열기 (디버그)
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12') win.webContents.toggleDevTools();
+  });
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(CSEP_URL)) { shell.openExternal(url); return { action: 'deny' }; }
     return { action: 'allow' };

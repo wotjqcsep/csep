@@ -275,6 +275,7 @@ async function loadAll(showLoading){
 async function _doLoadAll(showLoading){
   if(_loadAllRunning) return;
   _loadAllRunning = true;
+  if(typeof _DBG!=='undefined'&&_DBG) console.time('[DBG] loadAll');
   try{
   if(showLoading && firstLoad) document.getElementById('page').innerHTML='<div class="loading">불러오는 중...</div>';
   const allJobs = [
@@ -291,7 +292,7 @@ async function _doLoadAll(showLoading){
   const ae = document.activeElement;
   const typing = ae && ( (ae.classList && ae.classList.contains('vd-search')) || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA');
   if(firstLoad){ firstLoad=false; render(); if(typeof initCompletionTracking==='function') initCompletionTracking(); } else if(!document.querySelector('.modal-overlay') && !typing && state.page!=='estimates') render();
-  }finally{ _loadAllRunning = false; }
+  }finally{ _loadAllRunning = false; if(typeof _DBG!=='undefined'&&_DBG) console.timeEnd('[DBG] loadAll'); }
 }
 
 // ── 네비게이션 (상단 탭) ──
@@ -308,13 +309,17 @@ function go(page){ state.page=page; if(page==='estimates') _estForceRender=true;
 
 // ── 렌더 라우터 ──
 function render(){
+  if(typeof _DBG!=='undefined'&&_DBG) console.time('[DBG] render()');
   renderNav();
   const el = document.getElementById('page');
-  if(state.page==='estimates' && !_estForceRender && document.getElementById('est_body')) return;
+  if(state.page==='estimates' && !_estForceRender && document.getElementById('est_body')){ if(typeof _DBG!=='undefined'&&_DBG){console.timeEnd('[DBG] render()');console.log('[DBG] render() 스킵 (est_body 존재)');} return; }
   _estForceRender=false;
   const r = pageRenderer(state.page);   // menu.js: id → renderXxx 자동 매핑
+  if(typeof _DBG!=='undefined'&&_DBG) console.time('[DBG] innerHTML 적용');
   el.innerHTML = r ? r() : placeholderPage(state.page);
+  if(typeof _DBG!=='undefined'&&_DBG) console.timeEnd('[DBG] innerHTML 적용');
   if(state.page==='estimates'){ setTimeout(()=>{ if(typeof estUpdateFee==='function') estUpdateFee(); if(typeof _estSavedOpen!=='undefined' && _estSavedOpen && typeof estLoadList==='function') estLoadList(); },50); }
+  if(typeof _DBG!=='undefined'&&_DBG) console.timeEnd('[DBG] render()');
 }
 // 렌더 함수가 아직 없는 메뉴 → "준비 중" 안내 (메뉴만)
 function placeholderPage(id){
