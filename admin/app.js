@@ -997,25 +997,18 @@ function renderEstimates(){ estInit(); const s=estState;
   <div class="vd-card" style="margin-bottom:14px">
     <div style="font-size:13px;font-weight:700;margin-bottom:6px">공급받는자 <span style="font-size:11px;color:var(--gray-400);font-weight:400">— 고객/거래처 정보</span></div>
     <div class="form-row">
-      <div class="form-group" style="flex:2"><label>상호명 <span style="font-size:11px;color:var(--gray-400)">— 아래 4칸 어디서든 기존 거래처 검색 가능</span></label>
-        <input id="est_customer" value="${esc(s.customer)}" oninput="estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off" placeholder="고객명 또는 거래처명 (검색·자동완성)">
+      <div class="form-group" style="flex:2;position:relative"><label>상호명 <span style="font-size:11px;color:var(--gray-400)">— 기존 거래처 선택 또는 새로 입력</span></label>
+        <input id="est_customer" value="${esc(s.customer)}" oninput="estCustSearch()" onfocus="estCustSearch()" autocomplete="off" placeholder="고객명·거래처명·연락처 검색">
+        <div id="est_cust_drop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:200px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
       </div>
-      <div class="form-group"><label>대표자</label>
-        <input id="est_buyer_ceo" value="${esc(s.buyerCeo||'')}" oninput="estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
-      </div>
+      <div class="form-group"><label>대표자</label><input id="est_buyer_ceo" value="${esc(s.buyerCeo||'')}"></div>
     </div>
     <div class="form-row">
-      <div class="form-group" style="flex:2"><label>주소</label>
-        <input id="est_buyer_addr" value="${esc(s.buyerAddr||'')}" oninput="estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
-      </div>
-      <div class="form-group"><label>연락처</label>
-        <input id="est_phone" value="${esc(s.phone||'')}" placeholder="000-0000-0000" oninput="estFmtPhone(this);estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
-      </div>
+      <div class="form-group" style="flex:2"><label>주소</label><input id="est_buyer_addr" value="${esc(s.buyerAddr||'')}"></div>
+      <div class="form-group"><label>연락처</label><input id="est_phone" value="${esc(s.phone||'')}" placeholder="000-0000-0000" oninput="estFmtPhone(this)"></div>
     </div>
     <div class="form-row" style="margin-top:4px">
-      <div class="form-group"><label>사업자번호</label>
-        <input id="est_buyer_bizno" value="${esc(s.buyerBizno||'')}" placeholder="000-00-00000" oninput="estFmtBizno(this);estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
-      </div>
+      <div class="form-group"><label>사업자번호</label><input id="est_buyer_bizno" value="${esc(s.buyerBizno||'')}" placeholder="000-00-00000" oninput="estFmtBizno(this)"></div>
       ${field('est_buyer_type','업태',s.buyerType||'')}${field('est_buyer_item','종목',s.buyerItem||'')}
     </div>
     <div class="form-row">
@@ -1132,38 +1125,33 @@ function estFmtPhone(el){ const d=String(el.value||'').replace(/[^\d]/g,''); let
 // 사업자번호 자동 포맷: 000-00-00000
 function estFmtBizno(el){ const d=String(el.value||'').replace(/[^\d]/g,''); let f=d; if(d.length<=3) f=d; else if(d.length<=5) f=d.slice(0,3)+'-'+d.slice(3); else f=d.slice(0,3)+'-'+d.slice(3,5)+'-'+d.slice(5,10); el.value=f; }
 // 거래처 자동완성 드롭다운
-function estCustSearch(el){
-  if(!el) el=document.getElementById('est_customer');
+function estCustSearch(){
+  const el=document.getElementById('est_customer'); if(!el) return;
   const q=(el.value||'').trim().toLowerCase();
-  let drop=document.getElementById('est_cust_drop');
-  if(!drop){ drop=document.createElement('div'); drop.id='est_cust_drop'; drop.style.cssText='display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:220px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);font-size:13px'; document.body.appendChild(drop); drop.addEventListener('mousedown',function(e){e.preventDefault();const item=e.target.closest('[data-cid]');if(item)estCustSelect(Number(item.dataset.cid));}); }
-  if(!q){ drop.style.display='none'; if(el.id==='est_customer') estState.customerId=null; return; }
-  const qd=q.replace(/[^\d]/g,'');
-  const matches=(state.customers||[]).filter(c=>(vdName(c)||'').toLowerCase().includes(q)||(c.phone||'').replace(/[^\d]/g,'').includes(qd&&qd.length>=2?qd:'\0')||(c.phone||'').includes(q)||(c.ceo_name||'').toLowerCase().includes(q)||(c.contact_person||'').toLowerCase().includes(q)||[c.address,c.address_detail].filter(Boolean).join(' ').toLowerCase().includes(q)||(c.biz_no||'').replace(/[^\d]/g,'').includes(qd&&qd.length>=2?qd:'\0')).slice(0,15);
+  const drop=document.getElementById('est_cust_drop'); if(!drop) return;
+  if(!q){ drop.style.display='none'; estState.customerId=null; return; }
+  const matches=(state.customers||[]).filter(c=>(vdName(c)||'').toLowerCase().includes(q)||(c.phone||'').includes(q)).slice(0,15);
   if(!matches.length){ drop.style.display='none'; return; }
-  const rect=el.getBoundingClientRect();
-  drop.style.left=rect.left+'px'; drop.style.top=(rect.bottom+2)+'px'; drop.style.width=Math.max(rect.width,320)+'px';
-  drop.innerHTML=matches.map(c=>{ const nm=vdName(c), ceo=c.ceo_name||c.contact_person||'', showCeo=ceo&&ceo!==nm&&ceo!==(c.name||''); return `<div data-cid="${c.id}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--gray-100)"><b>${esc(nm)}</b> <span style="color:var(--gray-400)">${esc(c.phone||'')}</span>${showCeo?` <span style="color:var(--gray-400)">· ${esc(ceo)}</span>`:''}</div>`; }).join('');
+  drop.innerHTML=matches.map(c=>`<div style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--gray-100)" onmousedown="estCustSelect(${c.id})">${esc(vdName(c))} <span style="color:var(--gray-400)">${esc(c.phone||'')}</span></div>`).join('');
   drop.style.display='block';
 }
 function estCustSelect(id){
   const c=(state.customers||[]).find(x=>x.id===id); if(!c) return;
   const drop=document.getElementById('est_cust_drop'); if(drop) drop.style.display='none';
-  const set=(eid,val)=>{ const e=document.getElementById(eid); if(e) e.value=val||''; };
-  set('est_customer',vdName(c));
-  estState.customerId=c.id; estState.customer=vdName(c);
-  set('est_phone',c.phone||''); estState.phone=c.phone||'';
-  set('est_buyer_addr',[c.address,c.address_detail].filter(Boolean).join(' '));
-  set('est_buyer_ceo',c.ceo_name||c.contact_person||'');
-  set('est_buyer_bizno',c.biz_no||'');
-  set('est_buyer_type',c.biz_type||'');
-  set('est_buyer_item',c.biz_item||'');
-  const ph=document.getElementById('est_phone'); if(ph) estFmtPhone(ph);
-  const bn=document.getElementById('est_buyer_bizno'); if(bn) estFmtBizno(bn);
+  document.getElementById('est_customer').value=vdName(c);
+  document.getElementById('est_phone').value=c.phone||'';
+  document.getElementById('est_buyer_ceo').value=c.ceo_name||c.contact_person||'';
+  document.getElementById('est_buyer_addr').value=[c.address,c.address_detail].filter(Boolean).join(' ');
+  document.getElementById('est_buyer_bizno').value=c.biz_no||'';
+  document.getElementById('est_buyer_type').value=c.biz_type||'';
+  document.getElementById('est_buyer_item').value=c.biz_item||'';
+  estState.customerId=c.id; estState.customer=vdName(c); estState.phone=c.phone||'';
+  estFmtPhone(document.getElementById('est_phone'));
+  estFmtBizno(document.getElementById('est_buyer_bizno'));
   estRenderPreview();
 }
 // 드롭다운 바깥 클릭 시 닫기
-document.addEventListener('click',e=>{ const d=document.getElementById('est_cust_drop'); if(d && !d.contains(e.target) && !['est_customer','est_phone','est_buyer_ceo','est_buyer_addr','est_buyer_bizno'].includes(e.target.id)) d.style.display='none'; });
+document.addEventListener('click',e=>{ const d=document.getElementById('est_cust_drop'); if(d && !d.contains(e.target) && e.target.id!=='est_customer') d.style.display='none'; });
 // 견적서 저장 (거래처 없으면 자동 등록)
 async function estSave(btn){
   estSyncAll();
