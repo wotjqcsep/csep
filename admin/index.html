@@ -327,10 +327,10 @@ function applyTheme(level){
     <div class="brandbar">
       <span class="brand">CSEP <small>컴퓨터 A/S ERP</small></span>
       <div class="right">
-        <button class="btn-sm btn-secondary" onclick="testCall()">📞 수신 테스트</button>
+        <button class="btn-sm" onclick="testCall()" style="background:var(--bar-bg);color:#fff;border:1px solid var(--gray-300)">📞 수신 테스트</button>
         <span class="server-status" id="srvStatus">● 서버 연결</span>
         <span>관리자</span>
-        <button id="licBadge" class="btn-sm" onclick="showLicenseModal()" style="cursor:pointer;background:var(--tab-bg);color:var(--bar-text);border:1px solid var(--gray-300)">🔒 인증</button>
+        <button id="licBadge" class="btn-sm" onclick="showLicenseModal()" style="cursor:pointer;background:var(--bar-bg);color:#fff;border:1px solid var(--gray-300)">🔒 인증</button>
       </div>
     </div>
     <nav class="tabbar" id="nav"></nav>
