@@ -990,9 +990,9 @@ function renderEstimates(){ estInit(); const s=estState;
   <div class="vd-card" style="margin-bottom:14px">
     <div style="font-size:13px;font-weight:700;margin-bottom:6px">공급받는자 <span style="font-size:11px;color:var(--gray-400);font-weight:400">— 고객/거래처 정보</span></div>
     <div class="form-row">
-      <div class="form-group" style="flex:2"><label>상호명 <span style="font-size:11px;color:var(--gray-400)">— 기존 거래처 선택 또는 새로 입력</span></label>
-        <input id="est_customer" list="est_cust_list" value="${esc(s.customer)}" oninput="estCustPick()" placeholder="고객명 또는 거래처명 (검색·자동완성)">
-        <datalist id="est_cust_list">${(state.customers||[]).map(c=>`<option value="${esc(vdName(c))}" data-id="${c.id}" data-phone="${esc(c.phone||'')}">${esc(c.phone||'')}</option>`).join('')}</datalist>
+      <div class="form-group" style="flex:2;position:relative"><label>상호명 <span style="font-size:11px;color:var(--gray-400)">— 기존 거래처 선택 또는 새로 입력</span></label>
+        <input id="est_customer" value="${esc(s.customer)}" oninput="estCustSearch()" onfocus="estCustSearch()" autocomplete="off" placeholder="고객명 또는 거래처명 (검색·자동완성)">
+        <div id="est_cust_drop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:200px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
       </div>
       <div class="form-group">${field('est_buyer_ceo','대표자',s.buyerCeo||'')}</div>
     </div>
@@ -1110,20 +1110,30 @@ function estToggle(id){ const b=document.getElementById(id); if(b){ const show=b
 // 매입가 입력 실시간 천단위 콤마
 function estFmtCost(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
 function estFmtRefund(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
-// 거래처 자동완성 선택 → 연락처 자동 채움 + customer_id 연결 (자유입력이면 신규로 간주)
-function estCustPick(){
-  const name=(v('est_customer')||'').trim();
-  const c=(state.customers||[]).find(x=>vdName(x)===name || x.name===name);
-  if(c){
-    estState.customerId=c.id;
-    const ph=document.getElementById('est_phone'); if(ph && c.phone) ph.value=c.phone; estState.phone=c.phone||estState.phone;
-    const addr=document.getElementById('est_buyer_addr'); if(addr && c.address) addr.value=[c.address,c.address_detail].filter(Boolean).join(' ');
-    const ceo=document.getElementById('est_buyer_ceo'); if(ceo && (c.ceo_name||c.contact_person)) ceo.value=c.ceo_name||c.contact_person;
-    const bno=document.getElementById('est_buyer_bizno'); if(bno && c.biz_no) bno.value=c.biz_no;
-    const bt=document.getElementById('est_buyer_type'); if(bt && c.biz_type) bt.value=c.biz_type;
-    const bi=document.getElementById('est_buyer_item'); if(bi && c.biz_item) bi.value=c.biz_item;
-  } else { estState.customerId=null; }
+// 거래처 자동완성 드롭다운
+function estCustSearch(){
+  const q=(v('est_customer')||'').trim().toLowerCase();
+  const drop=document.getElementById('est_cust_drop'); if(!drop) return;
+  if(!q){ drop.style.display='none'; estState.customerId=null; return; }
+  const matches=(state.customers||[]).filter(c=>(vdName(c)||'').toLowerCase().includes(q)||(c.phone||'').includes(q)).slice(0,15);
+  if(!matches.length){ drop.style.display='none'; return; }
+  drop.innerHTML=matches.map(c=>`<div style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--gray-100)" onmousedown="estCustSelect(${c.id})">${esc(vdName(c))} <span style="color:var(--gray-400)">${esc(c.phone||'')}</span></div>`).join('');
+  drop.style.display='block';
 }
+function estCustSelect(id){
+  const c=(state.customers||[]).find(x=>x.id===id); if(!c) return;
+  const drop=document.getElementById('est_cust_drop'); if(drop) drop.style.display='none';
+  const inp=document.getElementById('est_customer'); if(inp) inp.value=vdName(c);
+  estState.customerId=c.id;
+  const ph=document.getElementById('est_phone'); if(ph && c.phone) ph.value=c.phone; estState.phone=c.phone||estState.phone;
+  const addr=document.getElementById('est_buyer_addr'); if(addr && c.address) addr.value=[c.address,c.address_detail].filter(Boolean).join(' ');
+  const ceo=document.getElementById('est_buyer_ceo'); if(ceo && (c.ceo_name||c.contact_person)) ceo.value=c.ceo_name||c.contact_person;
+  const bno=document.getElementById('est_buyer_bizno'); if(bno && c.biz_no) bno.value=c.biz_no;
+  const bt=document.getElementById('est_buyer_type'); if(bt && c.biz_type) bt.value=c.biz_type;
+  const bi=document.getElementById('est_buyer_item'); if(bi && c.biz_item) bi.value=c.biz_item;
+}
+// 드롭다운 바깥 클릭 시 닫기
+document.addEventListener('click',e=>{ const d=document.getElementById('est_cust_drop'); if(d && !d.contains(e.target) && e.target.id!=='est_customer') d.style.display='none'; });
 // 견적서 저장 (거래처 없으면 자동 등록)
 async function estSave(btn){
   estSyncAll();
