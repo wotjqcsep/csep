@@ -978,7 +978,7 @@ function renderEstimates(){ estInit(); const s=estState;
   const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; const p=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(c*(1+m/100)); return t+p*q; },0);
   const vat=s.noVat?0:Math.round(sub*0.1);
   return `
-  <div oninput="estSyncAll()">
+  <div oninput="estSyncLazy()">
   <div class="page-header"><h2>📄 문서 작성 <span style="font-size:13px;color:var(--gray-500)">— 문서 종류를 골라 작성·인쇄 (같은 내용으로 종류만 전환)</span></h2></div>
   ${s.delivered?`<div style="background:#e6fcf5;border:1px solid #63e6be;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px">✅ <b>납품완료</b>${(Number(s.fieldDiscount)||0)>0?` · <span style="color:#e8590c;font-weight:700">현장할인 ${won(s.fieldDiscount)}</span>`:''}${s.finalAmount!=null?` · 실납품액 <b>${won(s.finalAmount)}</b>`:''}</div>`:''}
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
@@ -1229,7 +1229,7 @@ async function estDeleteSaved(id){
   try{ await api('DELETE','/estimates/'+id); }catch(e){ alert('삭제 실패: '+(e&&e.message?e.message:e)); return; }
   estLoadList();
 }
-// DOM → estState (모든 입력에 반영, 화면 재렌더돼도 값 보존)
+// DOM → estState (값 동기화만, 계산 없음)
 function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getElementById(id);return e?e.value:'';};
   const S_=state.settings||{}; estState.company=S_.brand_name||estState.company||''; estState.contact=S_.biz_tel||estState.contact||'';
   estState.customer=g('est_customer'); estState.phone=g('est_phone');
@@ -1244,11 +1244,12 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
     const cost=Number(String(q('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(q('.est-margin').value)||0;
     const priceRaw=String(q('.est-price').value||'').replace(/[^\d]/g,''), auto=cost?Math.round(cost*(1+margin/100)):0;
-    // 판매단가가 자동계산값과 같으면 '자동'(빈값) — 마진 바꾸면 다시 계산됨. 다르면 수동값 유지.
     const price=(priceRaw===''||Number(priceRaw)===auto)?'':priceRaw;
     return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(cost||''), margin, price }; });
-  estCalc();
 }
+// oninput 래퍼 디바운스 — 입력 즉시 반응, 계산·미리보기는 500ms 후 한 번만
+let _estSyncTimer;
+function estSyncLazy(){ clearTimeout(_estSyncTimer); _estSyncTimer=setTimeout(()=>{ estSyncAll(); estCalc(); },500); }
 function estBody(){ const b=document.getElementById('est_body'); if(b){ b.innerHTML=estState.rows.map((r,i)=>estRowHtml(r,i)).join(''); estCalc(); } }
 function estCalc(){ let sub=0;
   document.querySelectorAll('#est_body .est-row').forEach(tr=>{
