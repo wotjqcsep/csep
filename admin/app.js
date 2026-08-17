@@ -997,16 +997,20 @@ function renderEstimates(){ estInit(); const s=estState;
   <div class="vd-card" style="margin-bottom:14px">
     <div style="font-size:13px;font-weight:700;margin-bottom:6px">공급받는자 <span style="font-size:11px;color:var(--gray-400);font-weight:400">— 고객/거래처 정보</span></div>
     <div class="form-row">
-      <div class="form-group" style="flex:2;position:relative"><label>상호명 <span style="font-size:11px;color:var(--gray-400)">— 기존 거래처 선택 또는 새로 입력</span></label>
-        <input id="est_customer" value="${esc(s.customer)}" oninput="estCustSearch()" onfocus="estCustSearch()" autocomplete="off" placeholder="고객명 또는 거래처명 (검색·자동완성)">
-        <div id="est_cust_drop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:200px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
+      <div class="form-group" style="flex:2"><label>상호명 <span style="font-size:11px;color:var(--gray-400)">— 아래 4칸 어디서든 기존 거래처 검색 가능</span></label>
+        <input id="est_customer" value="${esc(s.customer)}" oninput="estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off" placeholder="고객명 또는 거래처명 (검색·자동완성)">
       </div>
-      <div class="form-group">${field('est_buyer_ceo','대표자',s.buyerCeo||'')}</div>
+      <div class="form-group"><label>대표자</label>
+        <input id="est_buyer_ceo" value="${esc(s.buyerCeo||'')}" oninput="estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
+      </div>
     </div>
     <div class="form-row">
-      <div class="form-group" style="flex:2">${field('est_buyer_addr','주소',s.buyerAddr||'')}</div>
-      <div class="form-group" style="position:relative"><label>연락처</label><input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처" oninput="estCustSearch('phone')" onfocus="estCustSearch('phone')" autocomplete="off">
-        <div id="est_phone_drop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:200px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
+      <div class="form-group" style="flex:2"><label>주소</label>
+        <input id="est_buyer_addr" value="${esc(s.buyerAddr||'')}" oninput="estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
+      </div>
+      <div class="form-group"><label>연락처</label>
+        <input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처" oninput="estCustSearch(this)" onfocus="estCustSearch(this)" autocomplete="off">
+      </div>
     </div>
     <div class="form-row" style="margin-top:4px">
       ${field('est_buyer_bizno','사업자번호',s.buyerBizno||'')}
@@ -1122,32 +1126,35 @@ function estToggle(id){ const b=document.getElementById(id); if(b){ const show=b
 function estFmtCost(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
 function estFmtRefund(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
 // 거래처 자동완성 드롭다운
-function estCustSearch(src){
-  const isPhone=src==='phone';
-  const q=(v(isPhone?'est_phone':'est_customer')||'').trim().toLowerCase();
-  const drop=document.getElementById(isPhone?'est_phone_drop':'est_cust_drop'); if(!drop) return;
-  const otherDrop=document.getElementById(isPhone?'est_cust_drop':'est_phone_drop'); if(otherDrop) otherDrop.style.display='none';
-  if(!q){ drop.style.display='none'; if(!isPhone) estState.customerId=null; return; }
-  const matches=(state.customers||[]).filter(c=>(vdName(c)||'').toLowerCase().includes(q)||(c.phone||'').includes(q)).slice(0,15);
+function estCustSearch(el){
+  if(!el) el=document.getElementById('est_customer');
+  const q=(el.value||'').trim().toLowerCase();
+  let drop=document.getElementById('est_cust_drop');
+  if(!drop){ drop=document.createElement('div'); drop.id='est_cust_drop'; drop.style.cssText='display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--gray-300);border-radius:6px;max-height:220px;overflow:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);font-size:13px'; document.body.appendChild(drop); }
+  if(!q){ drop.style.display='none'; if(el.id==='est_customer') estState.customerId=null; return; }
+  const matches=(state.customers||[]).filter(c=>(vdName(c)||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.ceo_name||'').toLowerCase().includes(q)||(c.contact_person||'').toLowerCase().includes(q)||[c.address,c.address_detail].filter(Boolean).join(' ').toLowerCase().includes(q)).slice(0,15);
   if(!matches.length){ drop.style.display='none'; return; }
-  drop.innerHTML=matches.map(c=>`<div style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--gray-100)" onmousedown="estCustSelect(${c.id})">${esc(vdName(c))} <span style="color:var(--gray-400)">${esc(c.phone||'')}</span></div>`).join('');
+  const rect=el.getBoundingClientRect();
+  drop.style.left=rect.left+'px'; drop.style.top=(rect.bottom+2)+'px'; drop.style.width=Math.max(rect.width,320)+'px';
+  drop.innerHTML=matches.map(c=>`<div style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--gray-100)" onmousedown="estCustSelect(${c.id})"><b>${esc(vdName(c))}</b> <span style="color:var(--gray-400)">${esc(c.phone||'')}</span>${c.ceo_name?` <span style="color:var(--gray-400)">· ${esc(c.ceo_name)}</span>`:''}</div>`).join('');
   drop.style.display='block';
 }
 function estCustSelect(id){
   const c=(state.customers||[]).find(x=>x.id===id); if(!c) return;
-  ['est_cust_drop','est_phone_drop'].forEach(did=>{ const d=document.getElementById(did); if(d) d.style.display='none'; });
-  const inp=document.getElementById('est_customer'); if(inp) inp.value=vdName(c);
+  const drop=document.getElementById('est_cust_drop'); if(drop) drop.style.display='none';
+  const set=(eid,val)=>{ const e=document.getElementById(eid); if(e && val) e.value=val; };
+  set('est_customer',vdName(c));
   estState.customerId=c.id; estState.customer=vdName(c);
-  const ph=document.getElementById('est_phone'); if(ph && c.phone) ph.value=c.phone; estState.phone=c.phone||estState.phone;
-  const addr=document.getElementById('est_buyer_addr'); if(addr && c.address) addr.value=[c.address,c.address_detail].filter(Boolean).join(' ');
-  const ceo=document.getElementById('est_buyer_ceo'); if(ceo && (c.ceo_name||c.contact_person)) ceo.value=c.ceo_name||c.contact_person;
-  const bno=document.getElementById('est_buyer_bizno'); if(bno && c.biz_no) bno.value=c.biz_no;
-  const bt=document.getElementById('est_buyer_type'); if(bt && c.biz_type) bt.value=c.biz_type;
-  const bi=document.getElementById('est_buyer_item'); if(bi && c.biz_item) bi.value=c.biz_item;
+  set('est_phone',c.phone); estState.phone=c.phone||estState.phone;
+  set('est_buyer_addr',[c.address,c.address_detail].filter(Boolean).join(' '));
+  set('est_buyer_ceo',c.ceo_name||c.contact_person);
+  set('est_buyer_bizno',c.biz_no);
+  set('est_buyer_type',c.biz_type);
+  set('est_buyer_item',c.biz_item);
   estRenderPreview();
 }
 // 드롭다운 바깥 클릭 시 닫기
-document.addEventListener('click',e=>{ ['est_cust_drop','est_phone_drop'].forEach(id=>{ const d=document.getElementById(id); if(d && !d.contains(e.target) && e.target.id!=='est_customer' && e.target.id!=='est_phone') d.style.display='none'; }); });
+document.addEventListener('click',e=>{ const d=document.getElementById('est_cust_drop'); if(d && !d.contains(e.target) && !['est_customer','est_phone','est_buyer_ceo','est_buyer_addr'].includes(e.target.id)) d.style.display='none'; });
 // 견적서 저장 (거래처 없으면 자동 등록)
 async function estSave(btn){
   estSyncAll();
