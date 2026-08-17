@@ -1664,7 +1664,8 @@ function estPrint(target){
     ${bodyHtml}
     <div style="text-align:center;margin-top:24px"><button onclick="window.print()">🖨️ 인쇄</button></div>
     </body></html>`;
-  const w=window.open('','_blank'); if(!w){ showToast('팝업이 차단되었습니다. 허용 후 다시 시도하세요.','#e03131'); return; }
+  const openUrl=navigator.userAgent.includes('Electron')?window.location.origin:'';
+  const w=window.open(openUrl,'_blank'); if(!w){ showToast('팝업이 차단되었습니다. 허용 후 다시 시도하세요.','#e03131'); return; }
   w.document.write(html); w.document.close();
 }
 // 컴퓨존 견적 스크린샷 → 서버(Vision+AI) → 견적 항목 자동 채움

@@ -314,7 +314,7 @@ function render(){
   _estForceRender=false;
   const r = pageRenderer(state.page);
   el.innerHTML = r ? r() : placeholderPage(state.page);
-  if(state.page==='estimates'){ setTimeout(()=>{ if(typeof estUpdateFee==='function') estUpdateFee(); if(typeof _estSavedOpen!=='undefined' && _estSavedOpen && typeof estLoadList==='function') estLoadList(); },50); }
+  if(state.page==='estimates'){ setTimeout(()=>{ if(typeof estUpdateFee==='function') estUpdateFee(); if(typeof estRenderPreview==='function') estRenderPreview(); if(typeof _estSavedOpen!=='undefined' && _estSavedOpen && typeof estLoadList==='function') estLoadList(); },50); }
 }
 // 렌더 함수가 아직 없는 메뉴 → "준비 중" 안내 (메뉴만)
 function placeholderPage(id){
