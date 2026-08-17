@@ -1016,7 +1016,7 @@ function renderEstimates(){ estInit(); const s=estState;
         <span id="est_save_status" style="font-size:12px;color:var(--gray-500)"></span>
       </div>
     </div>
-    <div id="est_saved_box" style="display:none;margin-top:8px;border-top:1px solid var(--gray-200);padding-top:10px">
+    <div id="est_saved_box" style="display:${_estSavedOpen?'block':'none'};margin-top:8px;border-top:1px solid var(--gray-200);padding-top:10px">
       <div style="display:flex;gap:6px;margin-bottom:8px">
         <input id="est_search" oninput="estLoadList()" placeholder="이름·연락처·견적번호로 검색" style="flex:1;padding:8px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
       </div>
@@ -1108,7 +1108,8 @@ function renderEstimates(){ estInit(); const s=estState;
     </div>
   </div></div>`;
 }
-function estToggle(id){ const b=document.getElementById(id); if(b) b.style.display=(b.style.display==='none'?'block':'none'); }
+let _estSavedOpen=false;
+function estToggle(id){ const b=document.getElementById(id); if(b){ const show=b.style.display==='none'; b.style.display=show?'block':'none'; if(id==='est_saved_box') _estSavedOpen=show; } }
 // 매입가 입력 실시간 천단위 콤마
 function estFmtCost(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }
 function estFmtRefund(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el.value=d?Number(d).toLocaleString('ko-KR'):''; }

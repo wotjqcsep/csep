@@ -600,7 +600,7 @@ app.post('/api/estimates', wrap(async (req, res) => {
   if (!customerId && (cname || phone)) {
     let match = null;
     if (phone) match = (await pool.query("SELECT id FROM customers WHERE REGEXP_REPLACE(phone,'[^0-9]','','g')=REGEXP_REPLACE($1,'[^0-9]','','g') LIMIT 1", [phone])).rows[0];
-    if (!match && cname) match = (await pool.query('SELECT id FROM customers WHERE name=$1 LIMIT 1', [cname])).rows[0];
+    if (!match && cname && phone) match = (await pool.query('SELECT id FROM customers WHERE name=$1 LIMIT 1', [cname])).rows[0];
     if (match) customerId = match.id;
     else { const ins = await pool.query('INSERT INTO customers (name, phone) VALUES ($1,$2) RETURNING id', [cname || phone, phone]); customerId = ins.rows[0].id; customerCreated = true; }
   }

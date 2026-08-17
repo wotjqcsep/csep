@@ -297,7 +297,7 @@ function render(){
   const el = document.getElementById('page');
   const r = pageRenderer(state.page);   // menu.js: id → renderXxx 자동 매핑
   el.innerHTML = r ? r() : placeholderPage(state.page);
-  if(state.page==='estimates' && typeof estRenderPreview==='function'){ estRenderPreview(); if(typeof estUpdateFee==='function') estUpdateFee(); }   // 견적서 미리보기·수수료 초기 렌더
+  if(state.page==='estimates' && typeof estRenderPreview==='function'){ estRenderPreview(); if(typeof estUpdateFee==='function') estUpdateFee(); if(typeof _estSavedOpen!=='undefined' && _estSavedOpen && typeof estLoadList==='function') estLoadList(); }
 }
 // 렌더 함수가 아직 없는 메뉴 → "준비 중" 안내 (메뉴만)
 function placeholderPage(id){
