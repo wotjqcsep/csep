@@ -41,6 +41,15 @@ if (_DBG) {
   });
 }
 
+// ── Electron: alert()/confirm() 포커스 버그 수정 ──
+// Electron에서 네이티브 alert()/confirm() 대화상자 닫힌 뒤 webContents 입력 포커스가 복원되지 않는 문제 해결.
+// alert() → showToast()로 대체, confirm() → 닫힌 뒤 window.focus() 호출.
+if(navigator.userAgent.includes('Electron')){
+  const _origConfirm=window.confirm;
+  window.confirm=function(msg){const r=_origConfirm.call(window,msg);setTimeout(()=>{window.focus();const ae=document.activeElement;if(ae&&ae.blur){ae.blur();ae.focus();}},50);return r;};
+  window.alert=function(msg){if(typeof showToast==='function'){const s=String(msg||'');showToast(s,s.includes('실패')||s.includes('오류')||s.includes('차단')?'#e03131':undefined);}};
+}
+
 // ── 고객 관리 ──
 let custState = { selected:null, tab:'info', search:'', filter:'all', selComp:null };
 function renderCustomers(){
@@ -1218,7 +1227,7 @@ async function estLoadList(){
     + '</tbody></table>';
 }
 async function estLoadOne(id){
-  let e; try{ e=await api('GET','/estimates/'+id); }catch(err){ alert('불러오기 실패: '+(err&&err.message?err.message:err)); return; }
+  let e; try{ e=await api('GET','/estimates/'+id); }catch(err){ showToast('불러오기 실패: '+(err&&err.message?err.message:err),'#e03131'); return; }
   const o=e.opts||{};
   estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
     buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
@@ -1231,7 +1240,7 @@ async function estLoadOne(id){
 }
 // 저장된 견적 → 작업지시로 납품 (기사 배정 → 완료 시 결산 등록)
 async function estToWorkorder(id){
-  let e; try{ e=await api('GET','/estimates/'+id); }catch(err){ alert('견적 불러오기 실패'); return; }
+  let e; try{ e=await api('GET','/estimates/'+id); }catch(err){ showToast('견적 불러오기 실패','#e03131'); return; }
   window._estWO=e;
   const items=Array.isArray(e.items)?e.items:[];
   const summary=items.slice(0,3).map(i=>i.name).join(', ')+(items.length>3?` 외 ${items.length-3}건`:'');
@@ -1245,8 +1254,8 @@ async function estToWorkorder(id){
   modal('📤 작업지시로 납품', body, true);
 }
 async function estToWorkorderSubmit(id){
-  const e=window._estWO||{}; const eng=v('wo2_eng'); if(!eng){ alert('담당 기사를 선택하세요'); return; }
-  if(!e.customer_id){ alert('이 견적에 연결된 거래처가 없습니다. 견적을 열어 고객/연락처를 넣고 다시 저장하세요.'); return; }
+  const e=window._estWO||{}; const eng=v('wo2_eng'); if(!eng){ showToast('담당 기사를 선택하세요','#e68900'); return; }
+  if(!e.customer_id){ showToast('이 견적에 연결된 거래처가 없습니다. 견적을 열어 고객/연락처를 넣고 다시 저장하세요.','#e68900'); return; }
   const items=Array.isArray(e.items)?e.items:[];
   const symptom='[납품] '+(e.no||'견적')+' — '+(items.slice(0,3).map(i=>i.name).join(', ')||'PC 납품');
   const memo=v('wo2_memo')||'';
@@ -1255,7 +1264,7 @@ async function estToWorkorderSubmit(id){
     const rec=await api('POST','/receptions',{ customer_id:e.customer_id, reception_channel:'estimate', symptom, initial_memo:memo });
     await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
     await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(e.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(e.total)||0, estimate_id:e.id });
-  }catch(err){ alert('작업지시 전송 실패: '+(err&&err.message?err.message:err)); return; }
+  }catch(err){ showToast('작업지시 전송 실패: '+(err&&err.message?err.message:err),'#e03131'); return; }
   closeModal(); showToast('📤 작업지시 전송 완료 — 기사가 완료 처리하면 결산에 등록됩니다'); await loadAll();
 }
 // 새 문서 작성 — 빈 양식 + 문서 종류 지정
@@ -1279,7 +1288,7 @@ async function openVendorDocs(customerId){
 }
 async function estDeleteSaved(id){
   if(!confirm('이 저장된 견적을 삭제할까요?')) return;
-  try{ await api('DELETE','/estimates/'+id); }catch(e){ alert('삭제 실패: '+(e&&e.message?e.message:e)); return; }
+  try{ await api('DELETE','/estimates/'+id); }catch(e){ showToast('삭제 실패: '+(e&&e.message?e.message:e),'#e03131'); return; }
   estLoadList();
 }
 // DOM → estState (값 동기화만, 계산 없음)
@@ -1321,7 +1330,7 @@ function estSetSupply(val){
   const target=Number(String(val||'').replace(/[^\d]/g,''))||0;
   estSyncAll();
   const cost=estState.rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0);
-  if(cost<=0){ alert('매입가가 입력되어야 공급가액으로 마진을 역산할 수 있습니다. (매입가 없이 값을 넣으려면 품목별 판매단가를 직접 입력하세요)'); estBody(); return; }
+  if(cost<=0){ showToast('매입가가 입력되어야 공급가액으로 마진을 역산할 수 있습니다.','#e68900'); estBody(); return; }
   const margin=Math.round((target/cost-1)*1000)/10;   // 소수1자리 %
   estState.bulk=margin; estState.rows.forEach(r=>{ r.margin=margin; r.price=''; });
   _estForceRender=true; render();   // 일괄마진 입력·품목 판매단가·합계 모두 재반영
@@ -1667,7 +1676,7 @@ function estRenderPreview(){
 function estPrint(target){
   target = (target==='internal') ? 'internal' : 'customer';
   estSyncAll();
-  if(!estRows().filter(r=>r.name||r.amt).length){ alert('품목을 입력하세요'); return; }
+  if(!estRows().filter(r=>r.name||r.amt).length){ showToast('품목을 입력하세요','#e68900'); return; }
   const no=esc(estState.no), internal=target==='internal';
   const dt=estState.doctype||'estimate';
   // 문서별 용지·2부 출력
@@ -1704,7 +1713,7 @@ function estPrint(target){
     ${bodyHtml}
     <div style="text-align:center;margin-top:24px"><button onclick="window.print()">🖨️ 인쇄</button></div>
     </body></html>`;
-  const w=window.open('','_blank'); if(!w){ alert('팝업이 차단되었습니다. 허용 후 다시 시도하세요.'); return; }
+  const w=window.open('','_blank'); if(!w){ showToast('팝업이 차단되었습니다. 허용 후 다시 시도하세요.','#e03131'); return; }
   w.document.write(html); w.document.close();
 }
 // 컴퓨존 견적 스크린샷 → 서버(Vision+AI) → 견적 항목 자동 채움
@@ -1720,42 +1729,42 @@ async function estAiImport(input){
   const lbl=input.parentNode; const prev=lbl?lbl.innerHTML:''; if(lbl) lbl.textContent='⏳ 분석 중…';
   let r;
   try{ const d=await estCompress(f); r=await api('POST','/estimate/scan',{image:d}); }
-  catch(e){ alert('AI 가져오기 실패: '+(e&&e.message?e.message:e)); if(lbl)lbl.innerHTML=prev; return; }
+  catch(e){ showToast('AI 가져오기 실패: '+(e&&e.message?e.message:e),'#e03131'); if(lbl)lbl.innerHTML=prev; return; }
   if(lbl)lbl.innerHTML=prev;
   const items=(r&&r.items)||[];
-  if(!items.length){ alert('견적 항목을 인식하지 못했습니다. 견적 목록이 잘 보이게 캡처했는지 확인해주세요.'); return; }
+  if(!items.length){ showToast('견적 항목을 인식하지 못했습니다. 견적 목록이 잘 보이게 캡처했는지 확인해주세요.','#e68900'); return; }
   estAddItems(items);
-  alert(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
+  showToast(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
 }
 async function estPasteImport(btn){
   const t=(v('est_paste')||'').trim();
-  if(!t){ alert('붙여넣은 내용이 없습니다. 컴퓨존 견적서 소스복사의 [텍스트]를 붙여넣으세요.'); return; }
+  if(!t){ showToast('붙여넣은 내용이 없습니다. 컴퓨존 견적서 소스복사의 [텍스트]를 붙여넣으세요.','#e68900'); return; }
   if(btn){ btn.disabled=true; btn.textContent='⏳ 분석 중…'; }
   let r;
   try{ r=await api('POST','/estimate/scan',{text:t}); }
-  catch(e){ alert('가져오기 실패: '+(e&&e.message?e.message:e)); if(btn){btn.disabled=false;btn.textContent='📋 이 내용 가져오기';} return; }
+  catch(e){ showToast('가져오기 실패: '+(e&&e.message?e.message:e),'#e03131'); if(btn){btn.disabled=false;btn.textContent='📋 이 내용 가져오기';} return; }
   if(btn){ btn.disabled=false; btn.textContent='📋 이 내용 가져오기'; }
   const items=(r&&r.items)||[];
-  if(!items.length){ alert('부품을 인식하지 못했습니다. 붙여넣은 내용을 확인해주세요.'); return; }
+  if(!items.length){ showToast('부품을 인식하지 못했습니다. 붙여넣은 내용을 확인해주세요.','#e68900'); return; }
   estAddItems(items);
   const box=document.getElementById('est_paste_box'); if(box)box.style.display='none';
   const ta=document.getElementById('est_paste'); if(ta)ta.value='';
-  alert(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
+  showToast(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
 }
 async function estUrlImport(btn){
   const u=(v('est_url')||'').trim();
-  if(!u){ alert('컴퓨존 URL 공유 링크를 입력하세요.'); return; }
+  if(!u){ showToast('컴퓨존 URL 공유 링크를 입력하세요.','#e68900'); return; }
   if(btn){ btn.disabled=true; btn.textContent='⏳'; }
   let r;
   try{ r=await api('POST','/estimate/scan',{url:u}); }
-  catch(e){ alert('URL 가져오기 실패: '+(e&&e.message?e.message:e)); if(btn){btn.disabled=false;btn.textContent='가져오기';} return; }
+  catch(e){ showToast('URL 가져오기 실패: '+(e&&e.message?e.message:e),'#e03131'); if(btn){btn.disabled=false;btn.textContent='가져오기';} return; }
   if(btn){ btn.disabled=false; btn.textContent='가져오기'; }
   const items=(r&&r.items)||[];
-  if(!items.length){ alert('부품을 인식하지 못했습니다. 소스·텍스트나 캡처 방식을 이용해보세요.'); return; }
+  if(!items.length){ showToast('부품을 인식하지 못했습니다. 소스·텍스트나 캡처 방식을 이용해보세요.','#e68900'); return; }
   estAddItems(items);
   const box=document.getElementById('est_url_box'); if(box)box.style.display='none';
   const el=document.getElementById('est_url'); if(el)el.value='';
-  alert(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
+  showToast(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
 }
 
 // ── 재고 관리 ──
