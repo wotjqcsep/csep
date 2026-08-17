@@ -619,11 +619,11 @@ async function deletePartOption(id){ if(!confirm('삭제하시겠습니까?'))re
 async function saveVisitFee(){ await api('PUT','/settings/visit_fee',{value:v('pd_visitfee')||'0'}); await loadAll(); alert('출장비 기본금액이 저장되었습니다.'); }
 
 // ============================================================
-//  일정표 (달력)
+//  일정표 (달력 + 메모)
 // ============================================================
 let scheduleState = { y:null, m:null, sel:null };
-const CAL_COLOR = { pending:'var(--danger)', reserved:'var(--warning)', completed:'var(--success)', cancelled:'var(--gray-400)' };
-const CAL_LABEL = { pending:'미처리', reserved:'예약', completed:'완료', cancelled:'취소' };
+const CAL_COLOR = { pending:'var(--danger)', reserved:'var(--warning)', completed:'var(--success)', cancelled:'var(--gray-400)', memo:'#7048e8' };
+const CAL_LABEL = { pending:'미처리', reserved:'예약', completed:'완료', cancelled:'취소', memo:'메모' };
 function recCalInfo(r){
   if(r.status==='cancelled') return { date: localDateKey(r.completed_at||r.received_at), sec:'cancelled' };
   if(r.status==='completed') return { date: localDateKey(r.completed_at||r.received_at), sec:'completed' };
@@ -631,13 +631,30 @@ function recCalInfo(r){
   return { date: localDateKey(r.received_at), sec:'pending' };
 }
 function schedMove(delta){ let m=scheduleState.m+delta, y=scheduleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} scheduleState.m=m; scheduleState.y=y; renderInto(); }
+
+async function addScheduleMemo(){
+  const sel = scheduleState.sel;
+  if(!sel){ alert('날짜를 먼저 선택하세요.'); return; }
+  const title = document.getElementById('sched_title')?.value.trim();
+  const memo = document.getElementById('sched_memo')?.value.trim();
+  if(!title){ alert('제목을 입력하세요.'); return; }
+  await api('POST','/schedules',{ title, memo, date: sel });
+  await loadAll();
+}
+async function deleteScheduleMemo(id){
+  if(!confirm('이 메모를 삭제하시겠습니까?')) return;
+  await api('DELETE','/schedules/'+id);
+  await loadAll();
+}
+
 function renderSchedule(){
   const now=new Date();
   if(scheduleState.y==null){ scheduleState.y=now.getFullYear(); scheduleState.m=now.getMonth(); }
   const y=scheduleState.y, m=scheduleState.m, pad=n=>String(n).padStart(2,'0');
   const key=d=>`${y}-${pad(m+1)}-${pad(d)}`;
   const byDate={};
-  (state.receptions||[]).forEach(r=>{ const ci=recCalInfo(r); if(!ci.date||ci.date==='-')return; (byDate[ci.date]=byDate[ci.date]||[]).push({r,sec:ci.sec}); });
+  (state.receptions||[]).forEach(r=>{ const ci=recCalInfo(r); if(!ci.date||ci.date==='-')return; (byDate[ci.date]=byDate[ci.date]||[]).push({type:'rec',r,sec:ci.sec}); });
+  (state.schedules||[]).forEach(s=>{ if(!s.date)return; (byDate[s.date]=byDate[s.date]||[]).push({type:'memo',s,sec:'memo'}); });
   const startDow=new Date(y,m,1).getDay(), daysInMonth=new Date(y,m+1,0).getDate();
   const todayKey=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
   const cells=[]; for(let i=0;i<startDow;i++) cells.push(0); for(let d=1;d<=daysInMonth;d++) cells.push(d);
@@ -646,7 +663,8 @@ function renderSchedule(){
   const grid=cells.map(d=>{
     if(!d) return `<div class="cal-day empty"></div>`;
     const k=key(d), items=byDate[k]||[];
-    const dots=['pending','reserved','completed','cancelled'].filter(s=>items.some(x=>x.sec===s))
+    const secs=['pending','reserved','completed','cancelled','memo'];
+    const dots=secs.filter(s=>items.some(x=>x.sec===s))
       .map(s=>`<span style="width:8px;height:8px;border-radius:50%;background:${CAL_COLOR[s]};display:inline-block;margin:1px"></span>`).join('');
     const dowIdx=(startDow+d-1)%7, nc=dowIdx===0?'color:var(--danger)':dowIdx===6?'color:#1971c2':'';
     return `<div class="cal-day ${scheduleState.sel===k?'sel':''} ${k===todayKey?'today':''}" onclick="scheduleState.sel='${k}';renderInto()">
@@ -654,11 +672,39 @@ function renderSchedule(){
       <div class="cal-dots">${dots}${items.length?`<span style="font-size:10px;color:var(--gray-400);margin-left:3px">${items.length}</span>`:''}</div>
     </div>`;
   }).join('');
+
   const sel=scheduleState.sel, selItems=sel?(byDate[sel]||[]):[];
+  const selMemos = selItems.filter(x=>x.type==='memo');
+  const selRecs  = selItems.filter(x=>x.type==='rec');
+
+  const memoForm = sel ? `
+    <div style="margin-top:16px;background:#f3f0ff;border:1px solid #e5dbff;border-radius:10px;padding:14px">
+      <div style="font-weight:700;margin-bottom:8px;color:#7048e8">📝 메모 추가 — ${esc(fmtRecDate(sel))}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="sched_title" placeholder="제목 (필수)" style="flex:1;min-width:140px;padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
+        <input id="sched_memo" placeholder="메모 (선택)" style="flex:2;min-width:200px;padding:8px 10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
+        <button class="btn" style="background:#7048e8" onclick="addScheduleMemo()">추가</button>
+      </div>
+    </div>` : '';
+
+  const memoList = selMemos.length ? `
+    <div style="margin-top:12px">
+      <div style="font-weight:700;margin-bottom:8px;color:#7048e8">📌 메모 (${selMemos.length}건)</div>
+      ${selMemos.map(x=>`<div style="background:#fff;border:1px solid #e5dbff;border-left:4px solid #7048e8;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start">
+        <div><strong>${esc(x.s.title)}</strong>${x.s.memo?`<div style="font-size:12px;color:var(--gray-500);margin-top:4px">${esc(x.s.memo)}</div>`:''}</div>
+        <button class="btn btn-sm btn-danger" onclick="deleteScheduleMemo(${x.s.id})" style="flex-shrink:0;margin-left:10px">삭제</button>
+      </div>`).join('')}
+    </div>` : '';
+
+  const recList = selRecs.length ? `
+    <div style="margin-top:12px"><div class="ws-sec" style="--sec:var(--primary)"><span style="background:var(--primary)">작업 ${selRecs.length}건</span></div>
+      <div class="ws-grid">${selRecs.map(x=>recCard(x.r)).join('')}</div>
+    </div>` : '';
+
   const detail = sel
-    ? `<div style="margin-top:16px"><div class="ws-sec" style="--sec:var(--primary)"><span style="background:var(--primary)">${esc(fmtRecDate(sel))} · ${selItems.length}건</span></div>
-        ${selItems.length? `<div class="ws-grid">${selItems.map(x=>recCard(x.r)).join('')}</div>` : '<div class="empty-state">이 날짜의 내역이 없습니다</div>'}</div>`
-    : '<div class="empty-state" style="margin-top:14px">날짜를 누르면 해당 내역이 표시됩니다</div>';
+    ? (memoForm + memoList + recList + (!selMemos.length && !selRecs.length ? '<div class="empty-state" style="margin-top:12px">이 날짜의 내역이 없습니다</div>' : ''))
+    : '<div class="empty-state" style="margin-top:14px">날짜를 누르면 메모를 추가하거나 내역을 확인할 수 있습니다</div>';
+
   return `
   <div class="page-header"><h2>📅 일정표</h2></div>
   <div class="cal-wrap">

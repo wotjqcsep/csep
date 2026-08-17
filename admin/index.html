@@ -225,7 +225,7 @@ select,input,textarea{font-family:inherit;font-size:14px}
 <script src="menu.js"></script>
 <script>
 const API = '/api';
-const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null, sites:[], partOptions:[], resultPresets:[], settings:{} };
+const state = { page:'dashboard', dashboard:null, customers:[], computers:[], engineers:[], receptions:[], jobs:[], sales:[], inventory:[], payments:[], stats:null, sites:[], partOptions:[], resultPresets:[], settings:{}, schedules:[] };
 // MENUS, TITLES 는 menu.js 에서 정의됨 (메뉴 수정은 menu.js 한 곳에서)
 const DEVICE_TYPES = { desktop:'데스크톱', laptop:'노트북', server:'서버', other:'기타' };
 
@@ -294,7 +294,7 @@ async function _doLoadAll(showLoading){
   if(showLoading && firstLoad) document.getElementById('page').innerHTML='<div class="loading">불러오는 중...</div>';
   const allJobs = [
     ['dashboard','/dashboard'],['customers','/customers'],['computers','/computers'],['engineers','/engineers'],
-    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],['sites','/sites'],['partOptions','/part-options'],['resultPresets','/result-presets'],['settings','/settings'],
+    ['receptions','/receptions'],['jobs','/jobs'],['sales','/sales'],['inventory','/inventory'],['payments','/payments'],['stats','/stats'],['sites','/sites'],['partOptions','/part-options'],['resultPresets','/result-presets'],['settings','/settings'],['schedules','/schedules'],
   ];
   const jobs = (!firstLoad && state.page==='estimates') ? allJobs.filter(([k])=>k==='customers'||k==='engineers'||k==='settings') : allJobs;
   const results = await Promise.allSettled(jobs.map(([,u])=>api('GET',u)));
@@ -358,6 +358,7 @@ function renderDashboard(){
     ${statCard('총 미수금', won(d.total_outstanding), d.total_outstanding>0?'var(--danger)':'', 20)}
     ${statCard('재고 부족', (d.low_stock_count||0)+'종', d.low_stock_count>0?'var(--danger)':'', 22)}
   </div>
+  ${renderDdayPanel()}
   <div class="split" style="grid-template-columns:1fr 1fr">
     <div class="detail-panel" style="position:static">
       <h3>기사 현황</h3>
@@ -367,6 +368,52 @@ function renderDashboard(){
       <h3>대기 접수</h3>
       ${(d.pending_receptions||[]).length? d.pending_receptions.map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} - ${esc(r.symptom||'')}</span><span><span class="badge ${r.status}">${statusLabel(r.status)}</span></span></div>`).join('') : '<div class="empty-state">대기 접수 없음</div>'}
     </div>
+  </div>`;
+}
+function renderDdayPanel(){
+  const now=new Date(); const pad=n=>String(n).padStart(2,'0');
+  const todayKey=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const todayMs=new Date(todayKey+'T00:00:00').getTime();
+  const items=[];
+  // 메모 일정
+  (state.schedules||[]).forEach(s=>{
+    if(!s.date)return;
+    const d=new Date(s.date+'T00:00:00'); if(isNaN(d))return;
+    const diff=Math.round((d.getTime()-todayMs)/(24*60*60*1000));
+    if(diff<-7) return;
+    items.push({date:s.date,diff,title:s.title,sub:s.memo||'',type:'memo',id:s.id});
+  });
+  // 예약 접수
+  (state.receptions||[]).forEach(r=>{
+    if(!r.reserved_date||r.status==='completed'||r.status==='cancelled')return;
+    const dk=String(r.reserved_date).slice(0,10);
+    const d=new Date(dk+'T00:00:00'); if(isNaN(d))return;
+    const diff=Math.round((d.getTime()-todayMs)/(24*60*60*1000));
+    if(diff<-7) return;
+    items.push({date:dk,diff,title:custName(r.customer_id),sub:r.symptom||'',type:'reserved'});
+  });
+  items.sort((a,b)=>a.diff-b.diff||a.title.localeCompare(b.title));
+  if(!items.length) return '';
+  const ddayLabel=diff=>{ if(diff===0)return 'D-Day'; if(diff>0)return `D-${diff}`; return `D+${Math.abs(diff)}`; };
+  const rows=items.map(it=>{
+    const isToday=it.diff===0, isPast=it.diff<0, isSoon=it.diff>0&&it.diff<=3;
+    const bg=isToday?'background:#fff3bf;border:2px solid #fcc419':isPast?'background:#ffe3e3;border:1px solid #ffa8a8':isSoon?'background:#fff9db;border:1px solid #ffe066':'background:#fff;border:1px solid var(--gray-200)';
+    const ddayColor=isToday?'#e03131':isPast?'#868e96':isSoon?'#e67700':'var(--primary)';
+    const icon=it.type==='memo'?'📝':'📋';
+    return `<div style="${bg};border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:12px">
+      <div style="min-width:52px;text-align:center">
+        <div style="font-size:18px;font-weight:900;color:${ddayColor}">${ddayLabel(it.diff)}</div>
+        <div style="font-size:10px;color:var(--gray-400)">${it.date.slice(5)}</div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px"><span>${icon}</span><strong style="font-size:14px;${isToday?'color:#e03131':''}">${esc(it.title)}</strong></div>
+        ${it.sub?`<div style="font-size:12px;color:var(--gray-500);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.sub)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="detail-panel" style="position:static;margin-bottom:16px">
+    <h3 style="margin-bottom:12px">📅 일정 · D-Day</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">${rows}</div>
   </div>`;
 }
 function statCard(label,value,color,size){ return `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value" style="${color?`color:${color};`:''}${size?`font-size:${size}px;`:''}">${value}</div></div>`; }

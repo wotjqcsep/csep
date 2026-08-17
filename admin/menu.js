@@ -19,7 +19,6 @@ const MENU_CONFIG = [
   ]},
   { section: '거래처', items: [
     { id: 'vendors',   icon: '🏢', label: '거래처' },      // 메뉴만(준비 중)
-    { id: 'schedule',  icon: '📅', label: '일정표' },      // 메뉴만(준비 중)
   ]},
   { section: '매출 · 정산', items: [
     { id: 'estimates', icon: '📄', label: '견적·명세·계산서' },   // 견적서 기본 + 문서 종류 버튼으로 명세서·계산서·영수증 전환
@@ -30,8 +29,9 @@ const MENU_CONFIG = [
     { id: 'stats', icon: '📈', label: '통계' },
   ]},
   { section: '관리', items: [
-    { id: 'partsdata', icon: '🧩', label: '부품 데이터', right: true }, // 기사관리 왼쪽(우측정렬 시작)
-    { id: 'engineers', icon: '👷', label: '사업자 관리', right: true },  // 상단 탭 맨 우측 끝
+    { id: 'schedule',  icon: '📅', label: '일정표', right: true },
+    { id: 'partsdata', icon: '🧩', label: '부품 데이터', right: true },
+    { id: 'engineers', icon: '👷', label: '사업자 관리', right: true },
   ]},
 ];
 
