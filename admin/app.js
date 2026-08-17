@@ -1136,18 +1136,24 @@ function estCustSearch(){
   drop.style.display='block';
 }
 function estCustSelect(id){
-  const c=(state.customers||[]).find(x=>x.id===id); if(!c) return;
+  const c=(state.customers||[]).find(x=>x.id==id); if(!c) return;
   const drop=document.getElementById('est_cust_drop'); if(drop) drop.style.display='none';
-  document.getElementById('est_customer').value=vdName(c);
-  document.getElementById('est_phone').value=c.phone||'';
-  document.getElementById('est_buyer_ceo').value=c.ceo_name||c.contact_person||'';
-  document.getElementById('est_buyer_addr').value=[c.address,c.address_detail].filter(Boolean).join(' ');
-  document.getElementById('est_buyer_bizno').value=c.biz_no||'';
-  document.getElementById('est_buyer_type').value=c.biz_type||'';
-  document.getElementById('est_buyer_item').value=c.biz_item||'';
+  const s=(eid,val)=>{const e=document.getElementById(eid);if(e)e.value=val||'';};
+  s('est_customer',vdName(c));
+  s('est_phone',c.phone||'');
+  s('est_buyer_ceo',c.ceo_name||c.contact_person||'');
+  s('est_buyer_addr',[c.address,c.address_detail].filter(Boolean).join(' '));
+  s('est_buyer_bizno',c.biz_no||'');
+  s('est_buyer_type',c.biz_type||'');
+  s('est_buyer_item',c.biz_item||'');
   estState.customerId=c.id; estState.customer=vdName(c); estState.phone=c.phone||'';
-  estFmtPhone(document.getElementById('est_phone'));
-  estFmtBizno(document.getElementById('est_buyer_bizno'));
+  estState.buyerCeo=c.ceo_name||c.contact_person||'';
+  estState.buyerAddr=[c.address,c.address_detail].filter(Boolean).join(' ');
+  estState.buyerBizno=c.biz_no||'';
+  estState.buyerType=c.biz_type||'';
+  estState.buyerItem=c.biz_item||'';
+  const ph=document.getElementById('est_phone'); if(ph) estFmtPhone(ph);
+  const bn=document.getElementById('est_buyer_bizno'); if(bn) estFmtBizno(bn);
   estRenderPreview();
 }
 // 드롭다운 바깥 클릭 시 닫기
