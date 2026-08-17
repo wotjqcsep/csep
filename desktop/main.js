@@ -8,6 +8,10 @@ const fs = require('fs');
 
 const CSEP_URL = 'https://csep-cf37.onrender.com';   // 온라인 백엔드/관리자 화면
 
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+
 let win = null;
 let tray = null;
 app.isQuiting = false;
@@ -31,7 +35,10 @@ function createWindow() {
     title: 'CSEP — 컴퓨터 A/S ERP',
     icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true },
+    webPreferences: {
+      contextIsolation: true,
+      backgroundThrottling: false,
+    },
   });
   win.loadURL(CSEP_URL);
   win.webContents.setWindowOpenHandler(({ url }) => {
