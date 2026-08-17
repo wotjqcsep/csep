@@ -1000,12 +1000,9 @@ function renderEstimates(){ estInit(); const s=estState;
       <div class="form-group" style="flex:2">${field('est_buyer_addr','주소',s.buyerAddr||'')}</div>
       <div class="form-group"><label>연락처</label><input id="est_phone" value="${esc(s.phone||'')}" placeholder="연락처"></div>
     </div>
-    <div style="margin-top:2px">
-      <div style="font-size:12px;color:#1971c2;cursor:pointer;font-weight:600" onclick="estToggle('est_buyer_box')">▸ 사업자정보 추가 (거래명세서·세금계산서용, 선택)</div>
-      <div id="est_buyer_box" style="display:none;margin-top:8px">
-        <div class="form-row">${field('est_buyer_bizno','사업자번호',s.buyerBizno||'')}</div>
-        <div class="form-row">${field('est_buyer_type','업태',s.buyerType||'')}${field('est_buyer_item','종목',s.buyerItem||'')}</div>
-      </div>
+    <div class="form-row" style="margin-top:4px">
+      ${field('est_buyer_bizno','사업자번호',s.buyerBizno||'')}
+      ${field('est_buyer_type','업태',s.buyerType||'')}${field('est_buyer_item','종목',s.buyerItem||'')}
     </div>
     <div class="form-row">
       <div class="form-group"><label>견적일자</label><input id="est_date" type="date" value="${esc(s.date)}"></div>
@@ -1117,8 +1114,15 @@ function estFmtRefund(el){ const d=String(el.value||'').replace(/[^\d]/g,''); el
 function estCustPick(){
   const name=(v('est_customer')||'').trim();
   const c=(state.customers||[]).find(x=>vdName(x)===name || x.name===name);
-  if(c){ estState.customerId=c.id; const ph=document.getElementById('est_phone'); if(ph && c.phone) ph.value=c.phone; estState.phone=c.phone||estState.phone; }
-  else { estState.customerId=null; }   // 새 거래처 → 저장 시 자동 등록
+  if(c){
+    estState.customerId=c.id;
+    const ph=document.getElementById('est_phone'); if(ph && c.phone) ph.value=c.phone; estState.phone=c.phone||estState.phone;
+    const addr=document.getElementById('est_buyer_addr'); if(addr && c.address) addr.value=[c.address,c.address_detail].filter(Boolean).join(' ');
+    const ceo=document.getElementById('est_buyer_ceo'); if(ceo && c.contact_person) ceo.value=c.contact_person;
+    const bno=document.getElementById('est_buyer_bizno'); if(bno && c.biz_no) bno.value=c.biz_no;
+    const bt=document.getElementById('est_buyer_type'); if(bt && c.biz_type) bt.value=c.biz_type;
+    const bi=document.getElementById('est_buyer_item'); if(bi && c.biz_item) bi.value=c.biz_item;
+  } else { estState.customerId=null; }
 }
 // 견적서 저장 (거래처 없으면 자동 등록)
 async function estSave(btn){
