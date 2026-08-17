@@ -1100,7 +1100,10 @@ function renderEstimates(){ estInit(); const s=estState;
         <button class="btn btn-secondary" onclick="estReset()">초기화</button>
       </div>
       <div style="font-size:12px;color:var(--gray-400);margin-top:8px">※ 내부용은 품명·금액 옵션과 무관하게 항상 전체 표시. 옵션은 출력물에만 적용되고 위 표 데이터는 그대로입니다.</div>
-      <div style="font-weight:600;font-size:12px;color:var(--gray-500);margin:12px 0 6px">👁️ 미리보기 (실시간)</div>
+      <div style="display:flex;align-items:center;gap:8px;margin:12px 0 6px">
+        <span style="font-weight:600;font-size:12px;color:var(--gray-500)">👁️ 미리보기</span>
+        <button class="btn btn-sm btn-secondary" onclick="estRenderPreview()" style="font-size:11px;padding:2px 10px">🔄 새로고침</button>
+      </div>
       <div id="est_preview"></div>
     </div>
   </div></div>`;
@@ -1271,9 +1274,7 @@ function estCalc(){ let sub=0;
   const setIn=(id,val)=>{ const e=document.getElementById(id); if(e && document.activeElement!==e) e.value=nfmt(val); };   // 입력 중엔 덮어쓰지 않음
   setIn('est_sub_in',sub); setIn('est_total_in',sub+vat);
   estUpdateFee();       // 결제방법에 따른 수수료·실수령 표시
-  clearTimeout(_estPreviewTimer); _estPreviewTimer=setTimeout(estRenderPreview,150);
 }
-let _estPreviewTimer;
 // 공급가액 목표값 → 일괄 마진 역산 후 전 품목 적용
 function estSetSupply(val){
   const target=Number(String(val||'').replace(/[^\d]/g,''))||0;
