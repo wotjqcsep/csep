@@ -406,6 +406,7 @@ async function initDB() {
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS estimate_id INTEGER;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS work_type TEXT;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS vat_refund DOUBLE PRECISION DEFAULT 0;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered BOOLEAN DEFAULT FALSE;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS field_discount DOUBLE PRECISION DEFAULT 0;
@@ -1289,6 +1290,7 @@ app.put('/api/receptions/:id/payment', wrap(async (req, res) => {
   const { rows } = await pool.query(`UPDATE receptions SET ${sets.join(',')} WHERE id=$${vals.length} RETURNING *`, vals);
   if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
   if (rows[0].status === 'completed') await syncEstimateFromReception(rows[0]);
+  if (rows[0].estimate_id) await calcAndStoreVatRefund(pool.query.bind(pool), req.params.id);
   // 최초 완료: 작업·결제·기사실적·미수금 처리
   if (b.complete && !wasCompleted) {
     const jobRow = (await pool.query('SELECT id FROM jobs WHERE reception_id=$1', [req.params.id])).rows[0];
@@ -1323,6 +1325,28 @@ async function syncEstimateFromReception(rec) {
     await pool.query('UPDATE estimates SET delivered=TRUE, delivered_at=NOW(), field_discount=$2, final_amount=$3 WHERE id=$1',
       [rec.estimate_id, discount, actual]);
   } catch (e) { console.log('[견적납품 동기화] 오류:', e.message); }
+}
+
+// 매입부가세 환급 계산·저장: 견적 opts(realCost, refundManual) + 결제수단 수수료율로 계산
+async function calcAndStoreVatRefund(qry, recId) {
+  try {
+    const rec = (await qry('SELECT * FROM receptions WHERE id=$1', [recId])).rows[0];
+    if (!rec || !rec.estimate_id) return;
+    const est = (await qry('SELECT opts FROM estimates WHERE id=$1', [rec.estimate_id])).rows[0];
+    if (!est) return;
+    const opts = typeof est.opts === 'string' ? JSON.parse(est.opts) : (est.opts || {});
+    const realCost = Number(String(opts.realCost || '').replace(/[^\d]/g, '')) || 0;
+    if (realCost <= 0 && opts.refundManual == null) { await qry('UPDATE receptions SET vat_refund=0 WHERE id=$1', [recId]); return; }
+    const sRows = (await qry('SELECT key, value FROM settings')).rows;
+    const settings = {}; sRows.forEach(r => { settings[r.key] = r.value; });
+    const fr = m => { const map = {cash:'fee_cash',transfer:'fee_transfer',cashreceipt:'fee_cashreceipt',card:'fee_card',tax:'fee_tax'}; const v = settings[map[m]]; return (v === '' || v == null) ? 0 : (Number(v) || 0) / 100; };
+    const rateA = fr(rec.payment_method || ''), rateB = rec.tax_invoice ? fr('tax') : 0;
+    const rate = Math.max(rateA || 0, rateB || 0);
+    const isOutsource = rate > 0;
+    const autoRefund = isOutsource && realCost > 0 ? (realCost - Math.round(realCost / 1.1)) : 0;
+    const refund = opts.refundManual != null ? Number(opts.refundManual) : autoRefund;
+    await qry('UPDATE receptions SET vat_refund=$2 WHERE id=$1', [recId, refund || 0]);
+  } catch (e) { console.log('[매입부가세 환급 계산] 오류:', e.message); }
 }
 
 // 최초 완료 시 회계 처리: 결제 기록 생성, 기사 실적, 고객 미수금
@@ -1601,6 +1625,7 @@ app.get('/api/stats', wrap(async (req, res) => {
   const repairRev = completedRec.reduce((s, r) => s + recRev(r), 0);
   const salesRev = sales.filter(s => s.paid).reduce((s, x) => s + (x.total_price || 0), 0);
   const unpaidAmt = completedRec.filter(r => r.payment_method === 'unpaid').reduce((s, r) => s + recRev(r), 0);
+  const totalVatRefund = completedRec.reduce((s, r) => s + (Number(r.vat_refund) || 0), 0);
   const channelCounts = {};
   receptions.forEach(r => { const c = r.reception_channel || 'unknown'; channelCounts[c] = (channelCounts[c] || 0) + 1; });
   const engineerStats = engineers.map(e => {
@@ -1615,6 +1640,7 @@ app.get('/api/stats', wrap(async (req, res) => {
     sales_revenue: salesRev,
     total_revenue: repairRev + salesRev,
     total_outstanding: unpaidAmt,
+    total_vat_refund: totalVatRefund,
     channel_counts: channelCounts,
     engineer_stats: engineerStats,
     inventory_low_stock: inventory.filter(i => i.quantity <= i.reorder_level),
@@ -2088,6 +2114,7 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
     if (!wasCompleted) await processCompletionAccounting(client.query.bind(client), req.params.id);
     await client.query('COMMIT');
     await syncEstimateFromReception(rows[0]);
+    await calcAndStoreVatRefund(pool.query.bind(pool), req.params.id);
     broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
     broadcastReception('reception_update', rows[0]);
     res.json(rows[0]);
@@ -2121,7 +2148,17 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000);
 
+async function backfillVatRefund() {
+  try {
+    const recs = (await pool.query('SELECT id FROM receptions WHERE estimate_id IS NOT NULL')).rows;
+    if (!recs.length) return;
+    for (const r of recs) await calcAndStoreVatRefund(pool.query.bind(pool), r.id);
+    console.log(`[백필] 매입부가세 환급 ${recs.length}건 재계산 완료`);
+  } catch (e) { console.log('[백필] 매입부가세 환급 오류:', e.message); }
+}
+
 initDB()
   .then(() => { cleanupOldPhotos(); setInterval(cleanupOldPhotos, 24 * 60 * 60 * 1000); })
+  .then(() => backfillVatRefund())
   .then(() => app.listen(PORT, () => console.log(`CSEP 서버 실행: http://localhost:${PORT}`)))
   .catch(e => { console.error('DB 초기화 실패:', e.message); app.listen(PORT, () => console.log(`CSEP 서버 실행(DB오류): http://localhost:${PORT}`)); });

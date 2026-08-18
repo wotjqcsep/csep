@@ -1824,7 +1824,8 @@ function feePctRec(r){ return Math.round(feeRateRec(r)*10000)/100; }
 function isWoori(r){ return feeRateRec(r)>0; }   // 외주 수수료 대상
 function recRevenue(r){ return (Number(r.labor_fee)||0)+(Number(r.parts_fee)||0)+(Number(r.visit_fee)||0); }
 function wooriCut(r){ return Math.round(recRevenue(r)*feeRateRec(r)); }
-function mySettle(r){ return recRevenue(r)-wooriCut(r); }
+function recVatRefund(r){ return isWoori(r)?(Number(r.vat_refund)||0):0; }
+function mySettle(r){ return recRevenue(r)-wooriCut(r)+recVatRefund(r); }
 let settleState = { y:null, m:null };
 function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }
 async function doWooriSettle(id){ await api('PUT',`/receptions/${id}/woori-settle`,{settled:true}); await loadAll(); render(); }
@@ -1858,7 +1859,8 @@ function renderPayments(){
   const unpaidAmt=unpaid.reduce((s,r)=>s+recRevenue(r),0);
   const byPM={cash:0,transfer:0,cashreceipt:0,card:0,tax:0,unpaid:0}; mdSettled.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
   salesSettled.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
-  const byCust={}; mdSettled.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); });
+  const vatRefundMonth=mdSettled.reduce((s,r)=>s+recVatRefund(r),0);
+  const byCust={}; mdSettled.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0,refund:0}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); o.refund+=recVatRefund(r); });
   const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
   return `
   <div class="page-header"><h2>💳 결산${brandName()?` <span style="font-size:13px;color:var(--gray-500)">— ${esc(brandName())}</span>`:''}</h2>
@@ -1873,6 +1875,7 @@ function renderPayments(){
     ${statCard('이달 정산액', won(myTotal+salesMine), 'var(--success)', 20)}
     ${statCard('이달 매장판매', won(salesRev), salesRev>0?'var(--primary)':'', 18)}
     ${AG?statCard(`${agencyName()} 받을 정산액`, won(wooriPendingAmt+salesWpendAmt), (wooriPendingAmt+salesWpendAmt)>0?'var(--warning)':'', 18):''}
+    ${vatRefundMonth>0?statCard('매입부가세 환급', '+'+won(vatRefundMonth), '#0ca678', 18):''}
     ${statCard('고객 미수금', won(unpaidAmt), unpaidAmt>0?'var(--danger)':'', 18)}
   </div>
   <div class="split" style="grid-template-columns:${AG?'1fr 1fr':'1fr'};margin-bottom:16px">
@@ -1880,27 +1883,29 @@ function renderPayments(){
       <h3>이달 결제수단별</h3>
       ${['cash','transfer','cashreceipt','card','tax','unpaid'].map(k=>`<div class="detail-row"><span class="detail-value">${PM_LABEL[k]}</span><span class="detail-value" style="text-align:right"><strong>${won(byPM[k])}</strong></span></div>`).join('')}
       ${AG?`<div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">${esc(agencyName())} 대행수수료(이달, 판매 포함)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth+salesWoori)}</strong></span></div>`:''}
+      ${vatRefundMonth>0?`<div class="detail-row" style="border:none"><span class="detail-value" style="color:#0ca678">매입부가세 환급(이달)</span><span class="detail-value" style="text-align:right;color:#0ca678"><strong>+${won(vatRefundMonth)}</strong></span></div>`:''}
     </div>
     ${AG?`<div class="detail-panel" style="position:static">
       <h3>${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3>
-      ${wooriPending.slice(0,8).map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} · ${PM_LABEL[r.payment_method]||''}${r.tax_invoice?'/계산서':''}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(mySettle(r))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettle(${r.id})">정산받음</button></span></div>`).join('')}
+      ${wooriPending.slice(0,8).map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} · ${PM_LABEL[r.payment_method]||''}${r.tax_invoice?'/계산서':''}${recVatRefund(r)?` <span style="color:#0ca678;font-size:11px">환급+${won(recVatRefund(r))}</span>`:''}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(mySettle(r))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettle(${r.id})">정산받음</button></span></div>`).join('')}
       ${salesWpend.slice(0,8).map(s=>`<div class="detail-row"><span class="detail-value">🛒 ${esc(s.item_name)} · ${PM_LABEL[s.payment_method]||''}${s.tax_invoice?'/계산서':''}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(saleMine(s))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettleSale(${s.id})">정산받음</button></span></div>`).join('')}
       ${(wooriPending.length+salesWpend.length)===0?'<div class="empty-state">받을 정산액 없음</div>':''}
     </div>`:''}
   </div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th>`:''}<th style="text-align:right">정산액</th></tr></thead>
+    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th>`:''}<th style="text-align:right;color:#0ca678">환급</th><th style="text-align:right">정산액</th></tr></thead>
     <tbody>${custRows.length? custRows.map(([cid,o])=>`<tr>
       <td><strong>${esc(custName(cid))}</strong></td>
       <td style="text-align:right">${won(o.labor)}</td>
       <td style="text-align:right">${won(o.parts)}</td>
       <td style="text-align:right"><strong>${won(o.rev)}</strong></td>
       ${AG?`<td style="text-align:right;color:var(--warning)">${o.woori?won(o.woori):'-'}</td>`:''}
-      <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`).join('') : `<tr><td colspan="${AG?6:5}" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>`}
+      <td style="text-align:right;color:#0ca678">${o.refund?'+'+won(o.refund):'-'}</td>
+      <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`).join('') : `<tr><td colspan="${AG?7:6}" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>`}
     </tbody></table></div>
   <div style="font-weight:700;margin:18px 2px 8px">🔧 이달 완료 작업·납품 내역 — ${md.length}건 · 매출 ${won(rev)}</div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>일자</th><th>거래처</th><th>내용</th><th>담당</th><th>결제수단</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
+    <thead><tr><th>일자</th><th>거래처</th><th>내용</th><th>담당</th><th>결제수단</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th><th style="text-align:right;color:#0ca678">환급</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
     <tbody>${md.length? [...md].sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||'')||b.id-a.id).map(r=>`<tr>
       <td style="font-size:12px">${(r.completed_at||'').slice(0,10)}</td>
       <td><strong>${esc(custName(r.customer_id))}</strong></td>
@@ -1908,7 +1913,7 @@ function renderPayments(){
       <td>${r.assigned_engineer_id?engBadge(r.assigned_engineer_id):'-'}</td>
       <td><span class="chip">${PM_LABEL[r.payment_method]||payMethodLabel(r.payment_method)}${r.tax_invoice?' /계산서':''}</span></td>
       <td style="text-align:right"><strong>${won(recRevenue(r))}</strong></td>
-      ${AG?`<td style="text-align:right;color:var(--warning)">${wooriCut(r)?won(wooriCut(r)):'-'}</td><td style="text-align:right;color:var(--success)"><strong>${won(mySettle(r))}</strong></td>`:''}</tr>`).join('') : `<tr><td colspan="${AG?8:6}" class="empty-state">이달 완료 작업이 없습니다</td></tr>`}
+      ${AG?`<td style="text-align:right;color:var(--warning)">${wooriCut(r)?won(wooriCut(r)):'-'}</td><td style="text-align:right;color:#0ca678">${recVatRefund(r)?'+'+won(recVatRefund(r)):'-'}</td><td style="text-align:right;color:var(--success)"><strong>${won(mySettle(r))}</strong></td>`:''}</tr>`).join('') : `<tr><td colspan="${AG?9:6}" class="empty-state">이달 완료 작업이 없습니다</td></tr>`}
     </tbody></table></div>
   <div style="font-weight:700;margin:18px 2px 8px">🛒 이달 판매 내역 (매장 등) — ${salesMonth.length}건 · 매출 ${won(salesRev)}${AG?` · 정산 ${won(salesMine)}`:''}</div>
   <div class="table-container"><table class="table">
@@ -1935,6 +1940,7 @@ function renderStats(){
     ${statCard('수리 매출', won(s.repair_revenue), '', 20)}
     ${statCard('판매 매출', won(s.sales_revenue), '', 20)}
     ${statCard('총 매출', won(s.total_revenue), 'var(--success)', 20)}
+    ${s.total_vat_refund>0?statCard('매입부가세 환급(누적)', '+'+won(s.total_vat_refund), '#0ca678', 18):''}
     ${statCard('총 미수금', won(s.total_outstanding), 'var(--danger)', 20)}
   </div>
   <div class="split" style="grid-template-columns:1fr 1fr">
