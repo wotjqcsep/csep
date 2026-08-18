@@ -104,6 +104,7 @@ function fmtRecDate(key){
 function fmtRecTime(t){ const d=recDate(t); return d? d.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''; }
 function fmtRecDay(t){ const d=recDate(t); return d? `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : (t? String(t).slice(5,10) : ''); }
 const WO_TYPE_COLOR={출장:'#1971c2',납품:'#e67700','견적서 납품':'#7048e8'};
+function _memoDup(s,m){ if(!s||!m)return false; const n=t=>t.replace(/[\s—\-,]/g,'').substring(0,35); return n(s)===n(m); }
 function woTypeBadge(memo){
   if(!memo) return '';
   const m=memo.match(/^\[([^\]]+)\]/);
@@ -133,7 +134,7 @@ function recCard(r){
     ${r.symptom?`<div class="ws-row"><span class="ic">🔧</span><span>${esc(r.symptom)}</span></div>`:''}
     ${phone?`<div class="ws-row"><span class="ic">📞</span><span>${esc(phone)}</span></div>`:''}
     ${addr?`<div class="ws-row"><span class="ic">📍</span><span>${esc(addr)}</span></div>`:''}
-    ${(r.solution||r.initial_memo)?`<div class="ws-memo">${esc(r.solution||r.initial_memo)}</div>`:''}
+    ${(r.solution||(r.initial_memo&&!_memoDup(r.symptom,r.initial_memo)))?`<div class="ws-memo">${esc(r.solution||r.initial_memo)}</div>`:''}
     <div class="ws-actions">
       <button class="btn btn-sm" style="background:#1971c2" onclick="openReceptionDetail(${r.id})">🔍 상세보기</button>
       ${r.status!=='completed'?`<button class="btn btn-sm" onclick="openEngineerChange(${r.id})">👤 기사 변경</button>
@@ -244,7 +245,7 @@ async function openReceptionDetail(recId){
     </div>
     ${rows.map(([k,val,raw])=>`<div class="detail-row"><span class="detail-label">${k}</span><span class="detail-value">${raw?val:esc(val)}</span></div>`).join('')}
     <div class="form-section">증상 / 요청</div>
-    <div style="background:var(--gray-50);border-radius:8px;padding:10px;font-size:13px;white-space:pre-wrap">${esc(r.symptom)||'-'}${r.customer_request?'\n\n[고객요청] '+esc(r.customer_request):''}${r.initial_memo?'\n\n[메모] '+esc(r.initial_memo):''}</div>
+    <div style="background:var(--gray-50);border-radius:8px;padding:10px;font-size:13px;white-space:pre-wrap">${esc(r.symptom)||'-'}${r.customer_request?'\n\n[고객요청] '+esc(r.customer_request):''}${(r.initial_memo&&!_memoDup(r.symptom,r.initial_memo))?'\n\n[메모] '+esc(r.initial_memo):''}</div>
     ${photos.length?`<div class="form-section">현장 사진 (${photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${photos.map(p=>`<img src="${p.photo}" style="width:92px;height:92px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--gray-200)" onclick="window.open(this.src,'_blank')">`).join('')}</div>`:''}
     <div class="form-section">처리 · 결제 (처리하기)</div>
     <textarea id="rd_sol" style="width:100%;min-height:60px" placeholder="처리한 내용을 입력하세요">${esc(r.solution||'')}</textarea>
@@ -1284,7 +1285,7 @@ async function estToWorkorder(id){
     <div style="font-size:13px;margin-bottom:6px">거래처: <b>${esc(e.customer_name)||'-'}</b> · 합계 <b>${won(e.total)}</b> · 결제 ${estPayLabel((e.opts&&e.opts.payMethod)||'cash')}</div>
     <div style="font-size:12px;color:var(--gray-500);margin-bottom:12px">${esc(summary)||'품목'}</div>
     <div class="form-group"><label>담당 기사 *</label><select id="wo2_eng"><option value="">선택하세요</option>${state.engineers.map(g=>`<option value="${g.id}" style="color:${engColor(g.id)};font-weight:600">${esc(g.name)}${g.is_admin?' (대표)':''}</option>`).join('')}</select></div>
-    ${area('wo2_memo','작업/납품 메모', '[견적서 납품] '+(e.no||'')+' '+summary)}
+    ${area('wo2_memo','작업/납품 메모 (선택)', '')}
     <div style="font-size:12px;color:var(--gray-400);margin-bottom:8px">전송하면 작업지시(접수)로 등록되고 금액(${won(e.total)})·결제수단이 함께 지정됩니다. 기사가 완료 처리하면 결산에 반영됩니다.</div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-success" onclick="estToWorkorderSubmit(${id})">📤 작업지시 전송</button></div>`;
   modal('📤 작업지시로 납품', body, true);
