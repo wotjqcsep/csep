@@ -1382,7 +1382,7 @@ function estUpdateFee(){
   const net=total-cut;               // 실수령액 = 합계 - 외주업체 결제 수수료
   const realCost=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
   const useOutsource=rate>0;         // 외주업체 경유 여부
-  const autoRefund=useOutsource&&realCost>0?(realCost-Math.round(realCost/1.1)):0;
+  const autoRefund=realCost>0?(realCost-Math.round(realCost/1.1)):0;
   const refund=(estState.refundManual!=null)?estState.refundManual:autoRefund;
   const finalNet=net+refund;         // 최종 실수령 = 실수령액 + 매입환급
   const finalProfit=finalNet-realCost; // 최종 순이익 = 최종 실수령 - 매입비
@@ -1394,7 +1394,7 @@ function estUpdateFee(){
     if(refund>0) html+=`<div>· 매입 부가세 환급 = <b style="color:#0ca678">+${won(refund)}</b></div>`;
     html+=`</div>`;
     html+=`<div style="margin-top:8px;padding:8px 0;border-top:2px solid var(--gray-300)">`;
-    html+=`<div style="font-weight:800;font-size:14px">· 최종 실수령(외주업체로부터 받는 총액) = <b style="color:#1971c2;font-size:16px">${won(finalNet)}</b></div>`;
+    html+=`<div style="font-weight:800;font-size:14px">· 최종 실수령 = <b style="color:#1971c2;font-size:16px">${won(finalNet)}</b></div>`;
     html+=`<div style="color:var(--gray-400);font-size:12px;margin:2px 0 0 12px">실수령액(${won(net)})${refund>0?` + 매입부가세환급(${won(refund)})`:''}</div>`;
     html+=`</div>`;
     html+=`<div style="margin-top:6px;padding:8px 0;border-top:2px solid var(--gray-300)">`;
@@ -1405,11 +1405,11 @@ function estUpdateFee(){
     html+=`💵 <b>${estPayLabel(estState.payMethod)}</b> (고객 직접 지급)`;
     html+=`<div style="margin-top:8px;border-top:1px dashed var(--gray-300);padding-top:8px;line-height:1.9">`;
     html+=`<div>· 실수령액 = <b style="color:#1971c2">${won(total)}</b> <span style="color:var(--gray-400)">(수수료 없음)</span></div>`;
+    if(refund>0) html+=`<div>· 매입 부가세 환급 = <b style="color:#0ca678">+${won(refund)}</b></div>`;
     html+=`</div>`;
-    const profit=total-realCost;
     html+=`<div style="margin-top:6px;padding:8px 0;border-top:2px solid var(--gray-300)">`;
-    html+=`<div style="font-weight:800;font-size:14px">· 최종 순이익 = <b style="color:#2b8a3e;font-size:16px">${won(profit)}</b></div>`;
-    html+=`<div style="color:var(--gray-400);font-size:12px;margin:2px 0 0 12px">실수령(${won(total)}) - 매입비(${won(realCost)})</div>`;
+    html+=`<div style="font-weight:800;font-size:14px">· 최종 순이익 = <b style="color:#2b8a3e;font-size:16px">${won(finalProfit)}</b></div>`;
+    html+=`<div style="color:var(--gray-400);font-size:12px;margin:2px 0 0 12px">실수령(${won(total)})${refund>0?` + 매입부가세환급(${won(refund)})`:''} - 매입비(${won(realCost)})</div>`;
     html+=`</div>`;
   }
   el.innerHTML=html;
@@ -1494,7 +1494,7 @@ function estDocInner(target, copyLabel){
     + (internal ? (function(){
       const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
       const useOut=feeRt>0;
-      const autoRf=useOut&&rc>0?(rc-Math.round(rc/1.1)):0;
+      const autoRf=rc>0?(rc-Math.round(rc/1.1)):0;
       const rf=(estState.refundManual!=null)?estState.refundManual:autoRf;
       const net=total-feeCut;          // 실수령액
       const finalNet=net+rf;           // 최종 실수령 = 실수령액 + 매입환급
@@ -1824,7 +1824,7 @@ function feePctRec(r){ return Math.round(feeRateRec(r)*10000)/100; }
 function isWoori(r){ return feeRateRec(r)>0; }   // 외주 수수료 대상
 function recRevenue(r){ return (Number(r.labor_fee)||0)+(Number(r.parts_fee)||0)+(Number(r.visit_fee)||0); }
 function wooriCut(r){ return Math.round(recRevenue(r)*feeRateRec(r)); }
-function recVatRefund(r){ return isWoori(r)?(Number(r.vat_refund)||0):0; }
+function recVatRefund(r){ return Number(r.vat_refund)||0; }
 function mySettle(r){ return recRevenue(r)-wooriCut(r)+recVatRefund(r); }
 let settleState = { y:null, m:null };
 function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }

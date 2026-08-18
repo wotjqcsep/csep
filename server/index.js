@@ -1327,7 +1327,7 @@ async function syncEstimateFromReception(rec) {
   } catch (e) { console.log('[견적납품 동기화] 오류:', e.message); }
 }
 
-// 매입부가세 환급 계산·저장: 견적 opts(realCost, refundManual) + 결제수단 수수료율로 계산
+// 매입부가세 환급 계산·저장: 견적 opts(realCost, refundManual)로 계산 — 결제수단 무관
 async function calcAndStoreVatRefund(qry, recId) {
   try {
     const rec = (await qry('SELECT * FROM receptions WHERE id=$1', [recId])).rows[0];
@@ -1337,13 +1337,7 @@ async function calcAndStoreVatRefund(qry, recId) {
     const opts = typeof est.opts === 'string' ? JSON.parse(est.opts) : (est.opts || {});
     const realCost = Number(String(opts.realCost || '').replace(/[^\d]/g, '')) || 0;
     if (realCost <= 0 && opts.refundManual == null) { await qry('UPDATE receptions SET vat_refund=0 WHERE id=$1', [recId]); return; }
-    const sRows = (await qry('SELECT key, value FROM settings')).rows;
-    const settings = {}; sRows.forEach(r => { settings[r.key] = r.value; });
-    const fr = m => { const map = {cash:'fee_cash',transfer:'fee_transfer',cashreceipt:'fee_cashreceipt',card:'fee_card',tax:'fee_tax'}; const v = settings[map[m]]; return (v === '' || v == null) ? 0 : (Number(v) || 0) / 100; };
-    const rateA = fr(rec.payment_method || ''), rateB = rec.tax_invoice ? fr('tax') : 0;
-    const rate = Math.max(rateA || 0, rateB || 0);
-    const isOutsource = rate > 0;
-    const autoRefund = isOutsource && realCost > 0 ? (realCost - Math.round(realCost / 1.1)) : 0;
+    const autoRefund = realCost > 0 ? (realCost - Math.round(realCost / 1.1)) : 0;
     const refund = opts.refundManual != null ? Number(opts.refundManual) : autoRefund;
     await qry('UPDATE receptions SET vat_refund=$2 WHERE id=$1', [recId, refund || 0]);
   } catch (e) { console.log('[매입부가세 환급 계산] 오류:', e.message); }
