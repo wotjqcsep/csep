@@ -249,8 +249,8 @@ async function openReceptionDetail(recId){
     <div class="form-section">처리 · 결제 (처리하기)</div>
     <textarea id="rd_sol" style="width:100%;min-height:60px" placeholder="처리한 내용을 입력하세요">${esc(r.solution||'')}</textarea>
     <div class="form-row" style="margin-top:8px">
-      <div class="form-group"><label>공임비</label><input id="rd_labor" type="number" min="0" value="${r.labor_fee||''}" oninput="calcPay()"></div>
-      <div class="form-group"><label>부품비</label><input id="rd_parts" type="number" min="0" value="${r.parts_fee||''}" oninput="calcPay()"></div>
+      <div class="form-group"><label>공임비</label><input id="rd_labor" type="text" inputmode="numeric" value="${Number(r.labor_fee)?Number(r.labor_fee).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this);calcPay()" placeholder="0"></div>
+      <div class="form-group"><label>부품비</label><input id="rd_parts" type="text" inputmode="numeric" value="${Number(r.parts_fee)?Number(r.parts_fee).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this);calcPay()" placeholder="0"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>결제수단</label><select id="rd_pm" onchange="calcPay()">
@@ -275,7 +275,7 @@ async function openReceptionDetail(recId){
   calcPay();
 }
 function calcPay(){
-  const labor=Number(v('rd_labor'))||0, parts=Number(v('rd_parts'))||0, pm=v('rd_pm');
+  const labor=Number((v('rd_labor')||'').replace(/[^\d]/g,''))||0, parts=Number((v('rd_parts')||'').replace(/[^\d]/g,''))||0, pm=v('rd_pm');
   const tax=document.getElementById('rd_tax') && document.getElementById('rd_tax').checked;
   const rev=labor+parts, wr=feeRateRec({payment_method:pm,tax_invoice:tax}), woori=Math.round(rev*wr), mine=rev-woori;
   const vatRefund=Number((document.getElementById('rd_vatrefund')||{}).value||0);
@@ -289,7 +289,7 @@ function calcPay(){
 }
 async function savePayment(recId, complete){
   const tax = !!(document.getElementById('rd_tax') && document.getElementById('rd_tax').checked);
-  const data={ labor_fee:Number(v('rd_labor'))||0, parts_fee:Number(v('rd_parts'))||0, payment_method:v('rd_pm')||null, tax_invoice:tax, solution:v('rd_sol'), complete: !!complete };
+  const data={ labor_fee:Number((v('rd_labor')||'').replace(/[^\d]/g,''))||0, parts_fee:Number((v('rd_parts')||'').replace(/[^\d]/g,''))||0, payment_method:v('rd_pm')||null, tax_invoice:tax, solution:v('rd_sol'), complete: !!complete };
   if(complete && !data.payment_method){ if(!confirm('결제수단이 없습니다. 그래도 완료할까요?')) return; }
   else if(complete && !confirm('완료 처리하시겠습니까?')) return;
   try{ await api('PUT',`/receptions/${recId}/payment`, data); }
@@ -533,7 +533,7 @@ function renderPartsdata(){   // ⚠️ 이름은 renderPartsdata(소문자 d) �
     <div class="vd-card">
       <div style="font-weight:800;margin-bottom:10px">🚗 출장비 기본금액</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <input id="pd_visitfee" type="number" min="0" value="${esc((state.settings||{}).visit_fee||'')}" placeholder="예: 30000" style="flex:1;padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px">
+        <input id="pd_visitfee" type="text" inputmode="numeric" value="${Number((state.settings||{}).visit_fee)?Number((state.settings||{}).visit_fee).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this)" placeholder="예: 30,000" style="flex:1;padding:9px 12px;border:1px solid var(--gray-300);border-radius:8px">
         <button class="btn" onclick="saveVisitFee()">저장</button>
       </div>
       <div style="font-size:12px;color:var(--gray-400);margin-top:6px">거절·비용청구 콜취소 시 기본으로 청구되는 금액 (현장에서 변경 가능)</div>
@@ -620,7 +620,7 @@ async function addPartOption(){
   await loadAll();
 }
 async function deletePartOption(id){ if(!confirm('삭제하시겠습니까?'))return; await api('DELETE','/part-options/'+id); await loadAll(); }
-async function saveVisitFee(){ await api('PUT','/settings/visit_fee',{value:v('pd_visitfee')||'0'}); await loadAll(); alert('출장비 기본금액이 저장되었습니다.'); }
+async function saveVisitFee(){ await api('PUT','/settings/visit_fee',{value:(v('pd_visitfee')||'').replace(/[^\d]/g,'')||'0'}); await loadAll(); alert('출장비 기본금액이 저장되었습니다.'); }
 
 // ============================================================
 //  일정표 (달력 + 메모)
