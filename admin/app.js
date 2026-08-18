@@ -259,6 +259,7 @@ async function openReceptionDetail(recId){
       </select></div>
       <div class="form-group"><label>세금계산서</label><label style="display:flex;align-items:center;gap:6px;padding-top:9px;font-size:14px"><input type="checkbox" id="rd_tax" ${r.tax_invoice?'checked':''} onchange="calcPay()"> 발급</label></div>
     </div>
+    <input type="hidden" id="rd_vatrefund" value="${Number(r.vat_refund)||0}">
     <div id="rd_calc" style="background:var(--gray-50);border-radius:8px;padding:10px;font-size:13px;margin-bottom:8px"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-sm btn-secondary" onclick="savePayment(${r.id},false)">💾 저장</button>
@@ -277,11 +278,14 @@ function calcPay(){
   const labor=Number(v('rd_labor'))||0, parts=Number(v('rd_parts'))||0, pm=v('rd_pm');
   const tax=document.getElementById('rd_tax') && document.getElementById('rd_tax').checked;
   const rev=labor+parts, wr=feeRateRec({payment_method:pm,tax_invoice:tax}), woori=Math.round(rev*wr), mine=rev-woori;
+  const vatRefund=Number((document.getElementById('rd_vatrefund')||{}).value||0);
+  const finalMine=mine+vatRefund;
   const el=document.getElementById('rd_calc'); if(!el) return;
   el.innerHTML = `매출 <strong>${won(rev)}</strong>`
     + (woori?` · <span style="color:var(--warning)">${esc(agencyName())} 수수료(${Math.round(wr*10000)/100}%) ${won(woori)}</span>`:'')
-    + ` · <span style="color:var(--success)">정산액 <strong>${won(mine)}</strong></span>`
-    + (woori?`<div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ 카드/계산서 → 매출은 ${esc(agencyName())} 경유, 나중에 ${won(mine)} 현금 정산 받음</div>`:'');
+    + (vatRefund?` · <span style="color:#0ca678">환급 +${won(vatRefund)}</span>`:'')
+    + ` · <span style="color:var(--success)">정산액 <strong>${won(finalMine)}</strong></span>`
+    + (woori?`<div style="font-size:11px;color:var(--gray-400);margin-top:4px">※ 카드/계산서 → 매출은 ${esc(agencyName())} 경유, 나중에 ${won(finalMine)} 현금 정산 받음</div>`:'');
 }
 async function savePayment(recId, complete){
   const tax = !!(document.getElementById('rd_tax') && document.getElementById('rd_tax').checked);
