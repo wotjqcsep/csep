@@ -411,6 +411,7 @@ async function initDB() {
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS field_discount DOUBLE PRECISION DEFAULT 0;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS final_amount DOUBLE PRECISION;
+    ALTER TABLE estimates ADD COLUMN IF NOT EXISTS purchase_date TEXT;
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax_invoice BOOLEAN DEFAULT FALSE;
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS woori_settled BOOLEAN DEFAULT FALSE;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS next_visit_parts TEXT;
@@ -583,7 +584,7 @@ app.get('/api/customers/:id/receptions', wrap(async (req, res) => {
 // ============================================================
 app.get('/api/estimates', wrap(async (req, res) => {
   const q = String((req.query.q || '')).trim();
-  let sql = 'SELECT id,no,customer_id,customer_name,phone,company,est_date,total,delivered,field_discount,final_amount,created_at FROM estimates';
+  let sql = 'SELECT id,no,customer_id,customer_name,phone,company,est_date,total,delivered,field_discount,final_amount,purchase_date,created_at FROM estimates';
   const params = [];
   if (q) { sql += ' WHERE customer_name ILIKE $1 OR phone ILIKE $1 OR no ILIKE $1 OR company ILIKE $1'; params.push('%' + q + '%'); }
   sql += ' ORDER BY id DESC LIMIT 300';
@@ -611,10 +612,10 @@ app.post('/api/estimates', wrap(async (req, res) => {
   }
   const items = Array.isArray(b.items) ? b.items : [];
   const row = await pool.query(
-    `INSERT INTO estimates (no,customer_id,customer_name,phone,company,contact,est_date,memo,items,opts,subtotal,vat,total)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+    `INSERT INTO estimates (no,customer_id,customer_name,phone,company,contact,est_date,memo,items,opts,subtotal,vat,total,purchase_date)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
     [b.no || '', customerId, cname, phone, b.company || '', b.contact || '', b.est_date || '', b.memo || '',
-     JSON.stringify(items), JSON.stringify(b.opts || {}), Number(b.subtotal) || 0, Number(b.vat) || 0, Number(b.total) || 0]);
+     JSON.stringify(items), JSON.stringify(b.opts || {}), Number(b.subtotal) || 0, Number(b.vat) || 0, Number(b.total) || 0, b.purchase_date || null]);
   res.json({ ...row.rows[0], customer_created: customerCreated });
 }));
 app.delete('/api/estimates/:id', wrap(async (req, res) => {
@@ -1397,6 +1398,35 @@ app.put('/api/receptions/:id/woori-settle', wrap(async (req, res) => {
   if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
+}));
+
+// 외주업체 정산 제출 데이터 조회 (월별)
+app.get('/api/agency-settlement', wrap(async (req, res) => {
+  const { year, month } = req.query;
+  if (!year || !month) return res.status(400).json({ error: 'year, month 필수' });
+  const y = Number(year), m = Number(month);
+  const from = `${y}-${String(m).padStart(2,'0')}-01`;
+  const toY = m === 12 ? y + 1 : y;
+  const toM = m === 12 ? 1 : m + 1;
+  const to = `${toY}-${String(toM).padStart(2,'0')}-01`;
+  // 카드/세금계산서 대행 건: 완료되고 수수료율>0인 접수(결제수단 또는 세금계산서)
+  const recs = (await pool.query(
+    `SELECT r.id, r.customer_id, r.labor_fee, r.parts_fee, r.visit_fee, r.payment_method, r.tax_invoice,
+            r.woori_settled, r.vat_refund, r.estimate_id, r.estimate_amount, r.completed_at, r.symptom,
+            e.no AS est_no, e.total AS est_total, e.purchase_date, e.opts
+     FROM receptions r LEFT JOIN estimates e ON e.id = r.estimate_id
+     WHERE r.status='completed' AND r.completed_at >= $1 AND r.completed_at < $2
+     ORDER BY r.completed_at`,
+    [from, to]
+  )).rows;
+  // 매장판매도 포함
+  const tag = `${y}-${String(m).padStart(2,'0')}`;
+  const sales = (await pool.query(
+    `SELECT id, item_name, total_price, payment_method, tax_invoice, woori_settled, sale_date
+     FROM sales WHERE (sale_date||'') LIKE $1||'%'
+     ORDER BY sale_date`, [tag]
+  )).rows;
+  res.json({ receptions: recs, sales });
 }));
 
 // 설정 (출장비 기본금액 등)

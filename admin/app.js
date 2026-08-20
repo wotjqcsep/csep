@@ -1023,7 +1023,7 @@ function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
     buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',   // 공급받는자 사업자정보(명세서·계산서용)
     no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:0,
-    savedId:null, doctype:'estimate', payMethod:'cash', realCost:'', noVat:false,   // 문서 종류 + 결제방법 + 실제 매입가(부가세 환급 계산용) + 부가세 제외
+    savedId:null, doctype:'estimate', payMethod:'cash', realCost:'', noVat:false, purchaseDate:'',   // 문서 종류 + 결제방법 + 실제 매입가(부가세 환급 계산용) + 부가세 제외 + 매입확정일
     pname:'short', pprice:'total', ptarget:'customer',   // 기본값: 고객용+간략화+총액만
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})) }; }
 function estRowHtml(x,i){ x=x||{};
@@ -1161,6 +1161,10 @@ function renderEstimates(){ estInit(); const s=estState;
           <input id="est_realcost" value="${(()=>{const v=Number(String(s.realCost||'').replace(/[^\d]/g,''))||0; return v?won(v):'';})()}" oninput="estFmtCost(this)" placeholder="예: 1,400,000" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
           <span style="font-size:11px;color:var(--gray-400)">부가세 포함 금액</span>
         </label>
+        <label>매입확정일
+          <input type="date" id="est_purchasedate" value="${s.purchaseDate||''}" onchange="estState.purchaseDate=this.value" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:150px">
+          <span style="font-size:11px;color:var(--gray-400)">실제 결제일(컴퓨존 등)</span>
+        </label>
         <label>매입 부가세 환급
           <input id="est_refund" value="${s.refundManual!=null?won(Number(String(s.refundManual).replace(/[^\d]/g,''))||0):''}" oninput="estFmtRefund(this)" placeholder="자동 계산" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:110px;text-align:right">
           <span style="font-size:11px;color:var(--gray-400)">비워두면 자동(중고/자체보유 시 0 입력)</span>
@@ -1236,7 +1240,7 @@ async function estSave(btn){
     items:rows, opts:{doctype:estState.doctype,payMethod:estState.payMethod,realCost:estState.realCost,noVat:estState.noVat,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,bulk:estState.bulk,
       refundManual:estState.refundManual!=null?estState.refundManual:null,
       buyerBizno:estState.buyerBizno,buyerCeo:estState.buyerCeo,buyerAddr:estState.buyerAddr,buyerType:estState.buyerType,buyerItem:estState.buyerItem},
-    subtotal:sub, vat, total:sub+vat, no_vat:estState.noVat||false };
+    subtotal:sub, vat, total:sub+vat, no_vat:estState.noVat||false, purchase_date:estState.purchaseDate||'' };
   if(btn) btn.disabled=true; if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
   let r;
   try{ r=await api('POST','/estimates',body); }
@@ -1270,7 +1274,7 @@ async function estLoadOne(id){
     buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
     customerId:e.customer_id||null, date:e.est_date||estToday(), no:e.no||'', memo:e.memo||'', bulk:(o.bulk===''||o.bulk==null)?0:(Number(o.bulk)||0), savedId:e.id,
     delivered:e.delivered||false, fieldDiscount:Number(e.field_discount)||0, finalAmount:e.final_amount,
-    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', refundManual:o.refundManual!=null?o.refundManual:null, noVat:o.noVat||e.no_vat||false, pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
+    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', refundManual:o.refundManual!=null?o.refundManual:null, noVat:o.noVat||e.no_vat||false, purchaseDate:e.purchase_date||'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
   go('estimates');   // 견적서 화면으로 이동 + estState 반영
@@ -1425,7 +1429,7 @@ function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estStat
 function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·매입가·합계 입력이 모두 지워집니다)'))return;
   estSyncAll();
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
-  estState.realCost='';
+  estState.realCost=''; estState.purchaseDate='';
   _estForceRender=true; render();   // 화면 전체 다시 그려 입력칸까지 초기화
 }
 // 가져오기: 누를 때마다 기존 부품표를 버리고 새로 받음(중복 누적 방지, 초기화 불필요).
@@ -1835,6 +1839,167 @@ let settleState = { y:null, m:null };
 function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }
 async function doWooriSettle(id){ await api('PUT',`/receptions/${id}/woori-settle`,{settled:true}); await loadAll(); render(); }
 async function doWooriSettleSale(id){ await api('PUT',`/sales/${id}/woori-settle`,{settled:true}); await loadAll(); render(); }
+
+async function printAgencySettlement(year, month){
+  let data;
+  try{ data=await api('GET',`/agency-settlement?year=${year}&month=${month}`); }
+  catch(e){ showToast('정산 데이터 조회 실패','#e03131'); return; }
+  const recs=data.receptions||[], sales=data.sales||[];
+  const agName=agencyName(), brName=brandName()||agName;
+  const st=state.settings||{};
+  const myBizName=(st.company_name||'').trim()||(st.brand_name||'').trim()||'';
+  const myBizNo=(st.biz_no||'').trim();
+  const myCeo=(st.biz_ceo||'').trim();
+
+  const agencyRecs=recs.filter(r=>feeRateRec(r)>0);
+  const agencySales=sales.filter(s=>feeRateRec(s)>0);
+
+  const vatRecs=recs.filter(r=>{
+    if(!r.estimate_id) return false;
+    return (Number(r.vat_refund)||0)>0;
+  });
+
+  let rowNum=0;
+  let agencyRows='', agencyTotalRev=0, agencyTotalFee=0, agencyTotalPay=0;
+  agencyRecs.forEach(r=>{
+    const rev=recRevenue(r);
+    const fee=wooriCut(r);
+    const pay=rev-fee;
+    agencyTotalRev+=rev; agencyTotalFee+=fee; agencyTotalPay+=pay;
+    rowNum++;
+    agencyRows+=`<tr>
+      <td style="text-align:center">${rowNum}</td>
+      <td style="text-align:center">${(r.completed_at||'').slice(0,10)}</td>
+      <td>${r.est_no||('#'+r.id)}</td>
+      <td style="text-align:center">${PM_LABEL[r.payment_method]||r.payment_method||''}${r.tax_invoice?'/계산서':''}</td>
+      <td style="text-align:right">${won(rev)}</td>
+      <td style="text-align:right;color:#c00">${won(fee)}</td>
+      <td style="text-align:right;font-weight:700">${won(pay)}</td>
+    </tr>`;
+  });
+  agencySales.forEach(s=>{
+    const rev=Number(s.total_price)||0;
+    const fee=Math.round(rev*feeRateRec(s));
+    const pay=rev-fee;
+    agencyTotalRev+=rev; agencyTotalFee+=fee; agencyTotalPay+=pay;
+    rowNum++;
+    agencyRows+=`<tr>
+      <td style="text-align:center">${rowNum}</td>
+      <td style="text-align:center">${(s.sale_date||'').slice(0,10)}</td>
+      <td>판매: ${esc(s.item_name)}</td>
+      <td style="text-align:center">${PM_LABEL[s.payment_method]||s.payment_method||''}${s.tax_invoice?'/계산서':''}</td>
+      <td style="text-align:right">${won(rev)}</td>
+      <td style="text-align:right;color:#c00">${won(fee)}</td>
+      <td style="text-align:right;font-weight:700">${won(pay)}</td>
+    </tr>`;
+  });
+
+  let vatNum=0, vatRows='', vatTotal=0;
+  vatRecs.forEach(r=>{
+    const opts=typeof r.opts==='string'?JSON.parse(r.opts):(r.opts||{});
+    const realCost=Number(String(opts.realCost||'').replace(/[^\d]/g,''))||0;
+    const refund=Number(r.vat_refund)||0;
+    vatTotal+=refund;
+    vatNum++;
+    vatRows+=`<tr>
+      <td style="text-align:center">${vatNum}</td>
+      <td style="text-align:center">${r.purchase_date||(r.completed_at||'').slice(0,10)}</td>
+      <td>${r.est_no||('#'+r.id)}</td>
+      <td style="text-align:right">${won(r.est_total||0)}</td>
+      <td style="text-align:right">${won(realCost)}</td>
+      <td style="text-align:right;font-weight:700;color:#0ca678">${won(refund)}</td>
+    </tr>`;
+  });
+
+  const grandTotal=agencyTotalPay+vatTotal;
+
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>외주업체 정산서 ${year}년 ${month}월</title>
+<style>
+  body{font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#222;padding:20px;max-width:820px;margin:auto;font-size:13px}
+  h1{font-size:20px;text-align:center;margin:0 0 4px;letter-spacing:2px}
+  .period{text-align:center;font-size:14px;color:#555;margin-bottom:16px}
+  .info-box{display:flex;justify-content:space-between;margin-bottom:16px;font-size:12px}
+  .info-box .col{width:48%}
+  .info-box .col td{padding:2px 6px}
+  .info-box .col td:first-child{font-weight:700;color:#555;white-space:nowrap}
+  table.settle{width:100%;border-collapse:collapse;margin-bottom:20px}
+  table.settle th,table.settle td{border:1px solid #999;padding:5px 8px;font-size:12px}
+  table.settle th{background:#f0f0f0;font-weight:700;text-align:center}
+  table.settle tfoot td{background:#fafafa;font-weight:700}
+  .section-title{font-size:15px;font-weight:700;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #333}
+  .grand-total{text-align:center;margin:24px 0;padding:14px;background:#f7f7ff;border:2px solid #7048e8;border-radius:8px;font-size:16px}
+  .grand-total strong{color:#7048e8;font-size:20px}
+  .sign-area{display:flex;justify-content:space-between;margin-top:40px}
+  .sign-box{width:45%;text-align:center}
+  .sign-box .line{border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:12px}
+  .no-print{margin-bottom:16px;text-align:center}
+  @media print{.no-print{display:none} @page{size:A4 portrait;margin:12mm}}
+</style></head><body>
+  <div class="no-print"><button onclick="window.print()" style="padding:8px 24px;font-size:14px;cursor:pointer;border:1px solid #7048e8;background:#7048e8;color:#fff;border-radius:6px">🖨️ 인쇄</button></div>
+  <h1>외주업체 정산서</h1>
+  <div class="period">${year}년 ${month}월</div>
+  <div class="info-box">
+    <table class="col"><tbody>
+      <tr><td>제출처</td><td>${esc(agName)}</td></tr>
+    </tbody></table>
+    <table class="col"><tbody>
+      <tr><td>제출자</td><td>${esc(myBizName)}${myCeo?' / '+esc(myCeo):''}</td></tr>
+      ${myBizNo?`<tr><td>사업자번호</td><td>${esc(myBizNo)}</td></tr>`:''}
+      <tr><td>작성일</td><td>${new Date().toISOString().slice(0,10)}</td></tr>
+    </tbody></table>
+  </div>
+
+  ${agencyRows?`
+  <div class="section-title">1. 대행 수금 정산 (카드/세금계산서)</div>
+  <table class="settle">
+    <thead><tr><th>No</th><th>완료일</th><th>건명</th><th>결제수단</th><th>결제금액</th><th>수수료</th><th>지급요청액</th></tr></thead>
+    <tbody>${agencyRows}</tbody>
+    <tfoot><tr>
+      <td colspan="4" style="text-align:center">합 계</td>
+      <td style="text-align:right">${won(agencyTotalRev)}</td>
+      <td style="text-align:right;color:#c00">${won(agencyTotalFee)}</td>
+      <td style="text-align:right">${won(agencyTotalPay)}</td>
+    </tr></tfoot>
+  </table>`:`
+  <div class="section-title">1. 대행 수금 정산</div>
+  <p style="color:#999;text-align:center;padding:12px">해당 월 대행 수금 건이 없습니다.</p>`}
+
+  ${vatRows?`
+  <div class="section-title">2. 매입부가세 환급</div>
+  <table class="settle">
+    <thead><tr><th>No</th><th>매입확정일</th><th>건명</th><th>견적합계</th><th>매입가</th><th>환급금</th></tr></thead>
+    <tbody>${vatRows}</tbody>
+    <tfoot><tr>
+      <td colspan="5" style="text-align:center">환급 합계</td>
+      <td style="text-align:right;color:#0ca678">${won(vatTotal)}</td>
+    </tr></tfoot>
+  </table>`:`
+  <div class="section-title">2. 매입부가세 환급</div>
+  <p style="color:#999;text-align:center;padding:12px">해당 월 매입부가세 환급 건이 없습니다.</p>`}
+
+  <div class="grand-total">
+    총 지급 요청액: <strong>${won(grandTotal)}</strong>
+    <div style="font-size:12px;color:#666;margin-top:4px">
+      (대행잔액 ${won(agencyTotalPay)} + 매입VAT환급 ${won(vatTotal)})
+    </div>
+  </div>
+
+  <div class="sign-area">
+    <div class="sign-box">
+      <div class="line">제출자: ${esc(myBizName)} (인)</div>
+    </div>
+    <div class="sign-box">
+      <div class="line">확인자: ${esc(agName)} (인)</div>
+    </div>
+  </div>
+</body></html>`;
+
+  const w=window.open('','_blank','width=900,height=700');
+  if(!w){ showToast('팝업이 차단되었습니다. 팝업을 허용해주세요.','#e03131'); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
 function renderPayments(){
   const now=new Date();
   if(settleState.y==null){ settleState.y=now.getFullYear(); settleState.m=now.getMonth(); }
@@ -1873,6 +2038,7 @@ function renderPayments(){
       <button class="btn btn-sm btn-secondary" onclick="settleMove(-1)">◀</button>
       <strong>${y}년 ${m+1}월</strong>
       <button class="btn btn-sm btn-secondary" onclick="settleMove(1)">▶</button>
+      <button class="btn btn-sm" style="background:#7048e8;margin-left:8px" onclick="printAgencySettlement(${y},${m+1})">📄 외주업체 정산서</button>
     </div>
   </div>
   <div class="stat-grid">
