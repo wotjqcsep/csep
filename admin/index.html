@@ -185,7 +185,13 @@ select,input,textarea{font-family:inherit;font-size:14px;background:var(--input-
 .cal-dots{display:flex;flex-wrap:wrap;align-items:center;margin-top:auto}
 /* 견적서 미리보기 — 동적 <style> 주입 없이 여기에 정의 */
 #est_preview .doc{color:var(--gray-700);background:var(--card-bg);padding:20px;border:1px solid var(--gray-200);border-radius:8px}
-@media print{#est_preview .doc{color:#222;background:#fff}}
+@media print{
+#est_preview .doc{color:#222;background:#fff}
+#agency-settle-overlay{position:static!important;overflow:visible!important}
+#agency-settle-overlay>div:first-child{display:none!important}
+body>*:not(#agency-settle-overlay){display:none!important}
+@page{size:A4 portrait;margin:12mm}
+}
 #est_preview .doc h1{text-align:center;letter-spacing:8px;border-bottom:3px solid var(--gray-300);padding-bottom:10px;color:var(--gray-700)}
 #est_preview .doc .est-header{display:flex;gap:0;margin:12px 0 10px}
 #est_preview .doc .est-biz{width:50%;border-collapse:collapse;table-layout:fixed}

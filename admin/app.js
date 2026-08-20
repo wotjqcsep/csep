@@ -1994,10 +1994,62 @@ async function printAgencySettlement(year, month){
   </div>
 </body></html>`;
 
-  const w=window.open('','_blank','width=900,height=700');
-  if(!w){ showToast('팝업이 차단되었습니다. 팝업을 허용해주세요.','#e03131'); return; }
-  w.document.write(html);
-  w.document.close();
+  const overlay=document.createElement('div');
+  overlay.id='agency-settle-overlay';
+  overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#fff;overflow:auto;';
+  overlay.innerHTML=`<div style="position:sticky;top:0;z-index:1;background:#fff;padding:8px 16px;border-bottom:1px solid #ddd;display:flex;gap:8px;align-items:center">
+    <button onclick="window.print()" style="padding:6px 20px;font-size:14px;cursor:pointer;border:1px solid #7048e8;background:#7048e8;color:#fff;border-radius:6px">🖨️ 인쇄</button>
+    <button onclick="document.getElementById('agency-settle-overlay').remove()" style="padding:6px 20px;font-size:14px;cursor:pointer;border:1px solid #e03131;background:#e03131;color:#fff;border-radius:6px">✕ 닫기</button>
+  </div>
+  <div style="font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#222;padding:20px;max-width:820px;margin:auto;font-size:13px">
+  <h1 style="font-size:20px;text-align:center;margin:0 0 4px;letter-spacing:2px">외주업체 정산서</h1>
+  <div style="text-align:center;font-size:14px;color:#555;margin-bottom:16px">${year}년 ${month}월</div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:12px">
+    <table style="width:48%"><tbody>
+      <tr><td style="font-weight:700;color:#555;padding:2px 6px;white-space:nowrap">제출처</td><td style="padding:2px 6px">${esc(agName)}</td></tr>
+    </tbody></table>
+    <table style="width:48%"><tbody>
+      <tr><td style="font-weight:700;color:#555;padding:2px 6px;white-space:nowrap">제출자</td><td style="padding:2px 6px">${esc(myBizName)}${myCeo?' / '+esc(myCeo):''}</td></tr>
+      ${myBizNo?`<tr><td style="font-weight:700;color:#555;padding:2px 6px;white-space:nowrap">사업자번호</td><td style="padding:2px 6px">${esc(myBizNo)}</td></tr>`:''}
+      <tr><td style="font-weight:700;color:#555;padding:2px 6px;white-space:nowrap">작성일</td><td style="padding:2px 6px">${new Date().toISOString().slice(0,10)}</td></tr>
+    </tbody></table>
+  </div>
+  ${agencyRows?`
+  <div style="font-size:15px;font-weight:700;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #333">1. 대행 수금 정산 (카드/세금계산서)</div>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+    <thead><tr>${['No','완료일','건명','결제수단','결제금액','수수료','지급요청액'].map(h=>'<th style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#f0f0f0;font-weight:700;text-align:center">'+h+'</th>').join('')}</tr></thead>
+    <tbody>${agencyRows}</tbody>
+    <tfoot><tr>
+      <td colspan="4" style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:center">합 계</td>
+      <td style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:right">${won(agencyTotalRev)}</td>
+      <td style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:right;color:#c00">${won(agencyTotalFee)}</td>
+      <td style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:right">${won(agencyTotalPay)}</td>
+    </tr></tfoot>
+  </table>`:`
+  <div style="font-size:15px;font-weight:700;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #333">1. 대행 수금 정산</div>
+  <p style="color:#999;text-align:center;padding:12px">해당 월 대행 수금 건이 없습니다.</p>`}
+  ${vatRows?`
+  <div style="font-size:15px;font-weight:700;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #333">2. 매입부가세 환급</div>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+    <thead><tr>${['No','매입확정일','건명','견적합계','매입가','환급금'].map(h=>'<th style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#f0f0f0;font-weight:700;text-align:center">'+h+'</th>').join('')}</tr></thead>
+    <tbody>${vatRows}</tbody>
+    <tfoot><tr>
+      <td colspan="5" style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:center">환급 합계</td>
+      <td style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:right;color:#0ca678">${won(vatTotal)}</td>
+    </tr></tfoot>
+  </table>`:`
+  <div style="font-size:15px;font-weight:700;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #333">2. 매입부가세 환급</div>
+  <p style="color:#999;text-align:center;padding:12px">해당 월 매입부가세 환급 건이 없습니다.</p>`}
+  <div style="text-align:center;margin:24px 0;padding:14px;background:#f7f7ff;border:2px solid #7048e8;border-radius:8px;font-size:16px">
+    총 지급 요청액: <strong style="color:#7048e8;font-size:20px">${won(grandTotal)}</strong>
+    <div style="font-size:12px;color:#666;margin-top:4px">(대행잔액 ${won(agencyTotalPay)} + 매입VAT환급 ${won(vatTotal)})</div>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin-top:40px">
+    <div style="width:45%;text-align:center"><div style="border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:12px">제출자: ${esc(myBizName)} (인)</div></div>
+    <div style="width:45%;text-align:center"><div style="border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:12px">확인자: ${esc(agName)} (인)</div></div>
+  </div>
+  </div>`;
+  document.body.appendChild(overlay);
 }
 
 function renderPayments(){
