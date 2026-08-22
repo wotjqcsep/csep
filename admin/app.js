@@ -1018,6 +1018,16 @@ async function submitStoreSale(){
 const EST_CATS=['CPU','메인보드','메모리','그래픽카드','SSD','HDD','케이스','파워','쿨러/튜닝','모니터','소프트웨어','주변기기','조립비/AS'];
 let estState=null;
 function estToday(){ const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
+// 제품 결제날자 기본값 — 보통 납품 2일 전쯤 매입 결제하므로 오늘 -2일 제안 (수정 가능)
+function estPurchaseDefault(){ const n=new Date(); n.setDate(n.getDate()-2); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
+// 견적서 상세에서 매입확정일 변경 — 이미 저장된 견적이면 즉시 서버 반영(수정)
+async function estPurchaseDateChange(val){
+  estState.purchaseDate=val;
+  const st=document.getElementById('est_pd_status');
+  if(!estState.savedId){ if(st){st.style.color='var(--gray-400)';st.textContent='(저장 시 반영)';} return; }
+  try{ await api('PUT',`/estimates/${estState.savedId}/purchase-date`,{ purchase_date:val }); if(st){st.style.color='#0ca678';st.textContent='✓ 수정됨';} }
+  catch(e){ if(st){st.style.color='#e03131';st.textContent='수정 실패';} }
+}
 function estCompanyDefault(){ const st=state.settings||{}; return (st.brand_name&&st.brand_name.trim())||(st.company_name||'')||''; }
 function estInit(){ if(estState) return; const n=new Date(), t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
@@ -1162,8 +1172,8 @@ function renderEstimates(){ estInit(); const s=estState;
           <span style="font-size:11px;color:var(--gray-400)">부가세 포함 금액</span>
         </label>
         <label>매입확정일
-          <input type="date" id="est_purchasedate" value="${s.purchaseDate||''}" onchange="estState.purchaseDate=this.value" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:150px">
-          <span style="font-size:11px;color:var(--gray-400)">실제 결제일(컴퓨존 등)</span>
+          <input type="date" id="est_purchasedate" value="${s.purchaseDate||''}" onchange="estPurchaseDateChange(this.value)" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:150px">
+          <span style="font-size:11px;color:var(--gray-400)">실제 결제일(컴퓨존 등)</span><span id="est_pd_status" style="font-size:11px;margin-left:6px"></span>
         </label>
         <label>매입 부가세 환급
           <input id="est_refund" value="${s.refundManual!=null?won(Number(String(s.refundManual).replace(/[^\d]/g,''))||0):''}" oninput="estFmtRefund(this)" placeholder="자동 계산" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:110px;text-align:right">
@@ -1289,6 +1299,10 @@ async function estToWorkorder(id){
     <div style="font-size:13px;margin-bottom:6px">거래처: <b>${esc(e.customer_name)||'-'}</b> · 합계 <b>${won(e.total)}</b> · 결제 ${estPayLabel((e.opts&&e.opts.payMethod)||'cash')}</div>
     <div style="font-size:12px;color:var(--gray-500);margin-bottom:12px">${esc(summary)||'품목'}</div>
     <div class="form-group"><label>담당 기사 *</label><select id="wo2_eng"><option value="">선택하세요</option>${state.engineers.map(g=>`<option value="${g.id}" style="color:${engColor(g.id)};font-weight:600">${esc(g.name)}${g.is_admin?' (대표)':''}</option>`).join('')}</select></div>
+    <div class="form-group"><label>제품 결제날자 <span style="font-size:11px;color:var(--gray-400)">(컴퓨존 등 실제 매입 결제일 · 외주업체 정산서에 표시)</span></label>
+      <input type="date" id="wo2_purchasedate" value="${e.purchase_date||estPurchaseDefault()}" style="padding:6px 8px;border:1px solid var(--gray-300);border-radius:6px">
+      <div style="font-size:11px;color:var(--gray-400);margin-top:3px">※ 나중에 견적서 상세에서도 수정할 수 있습니다</div>
+    </div>
     ${area('wo2_memo','작업/납품 메모 (선택)', '')}
     <div style="font-size:12px;color:var(--gray-400);margin-bottom:8px">전송하면 작업지시(접수)로 등록되고 금액(${won(e.total)})·결제수단이 함께 지정됩니다. 기사가 완료 처리하면 결산에 반영됩니다.</div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-success" onclick="estToWorkorderSubmit(${id})">📤 작업지시 전송</button></div>`;
@@ -1301,7 +1315,9 @@ async function estToWorkorderSubmit(id){
   const symptom='[견적서 납품] '+(e.no||'견적')+' — '+(items.slice(0,3).map(i=>i.name).join(', ')||'PC 납품');
   const memo=v('wo2_memo')||'';
   const pm=(e.opts&&e.opts.payMethod)||'cash';
+  const purchaseDate=v('wo2_purchasedate')||'';
   try{
+    if(e.id) await api('PUT',`/estimates/${e.id}/purchase-date`,{ purchase_date:purchaseDate });
     const rec=await api('POST','/receptions',{ customer_id:e.customer_id, reception_channel:'estimate', symptom, initial_memo:memo, work_type:'견적서 납품' });
     await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
     await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(e.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(e.total)||0, estimate_id:e.id });

@@ -618,6 +618,13 @@ app.post('/api/estimates', wrap(async (req, res) => {
      JSON.stringify(items), JSON.stringify(b.opts || {}), Number(b.subtotal) || 0, Number(b.vat) || 0, Number(b.total) || 0, b.purchase_date || null]);
   res.json({ ...row.rows[0], customer_created: customerCreated });
 }));
+// 매입확정일(제품 결제날자)만 수정 — 작업지시/견적 상세에서 갱신
+app.put('/api/estimates/:id/purchase-date', wrap(async (req, res) => {
+  const pd = req.body.purchase_date || null;
+  const { rows } = await pool.query('UPDATE estimates SET purchase_date=$2 WHERE id=$1 RETURNING id,purchase_date', [req.params.id, pd]);
+  if (!rows[0]) return res.status(404).json({ error: '견적서를 찾을 수 없습니다' });
+  res.json(rows[0]);
+}));
 app.delete('/api/estimates/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM estimates WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
