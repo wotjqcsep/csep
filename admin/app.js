@@ -1176,10 +1176,6 @@ function renderEstimates(){ estInit(); const s=estState;
           <input id="est_realcost" value="${(()=>{const v=Number(String(s.realCost||'').replace(/[^\d]/g,''))||0; return v?won(v):'';})()}" oninput="estFmtCost(this)" placeholder="예: 1,400,000" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
           <span style="font-size:11px;color:var(--gray-400)">부가세 포함 금액</span>
         </label>
-        <label>매입확정일
-          <input type="date" id="est_purchasedate" value="${s.purchaseDate||''}" onchange="estPurchaseDateChange(this.value)" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:150px">
-          <span style="font-size:11px;color:var(--gray-400)">실제 결제일(컴퓨존 등)</span><span id="est_pd_status" style="font-size:11px;margin-left:6px"></span>
-        </label>
         <label>매입 부가세 환급
           <input id="est_refund" value="${s.refundManual!=null?won(Number(String(s.refundManual).replace(/[^\d]/g,''))||0):''}" oninput="estFmtRefund(this)" placeholder="자동 계산" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:110px;text-align:right">
           <span style="font-size:11px;color:var(--gray-400)">비워두면 자동(중고/자체보유 시 0 입력)</span>
