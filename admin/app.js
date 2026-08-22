@@ -480,7 +480,10 @@ async function openWorkorderModal(customerId, siteId){
     <div class="form-group"><label>장비 선택 (선택사항)</label><select id="wo_comp"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>
     <div class="form-group"><label>작업 구분 (선택사항)</label><select id="wo_type" onchange="document.getElementById('wo_est_box').style.display=this.value==='견적서 납품'?'block':'none'"><option value="출장">출장</option><option value="납품">납품</option><option value="견적서 납품">📄 견적서 납품</option></select></div>
     <div class="form-group" id="wo_est_box" style="display:none"><label>납품할 견적서 선택 *</label>
-      <select id="wo_est">${ests.length?('<option value="">선택하세요</option>'+ests.map(e=>`<option value="${e.id}">${esc(e.no)||('#'+e.id)} · ${won(e.total)} · ${esc(e.est_date)||''}</option>`).join('')):'<option value="">저장된 견적이 없습니다</option>'}</select></div>
+      <select id="wo_est">${ests.length?('<option value="">선택하세요</option>'+ests.map(e=>`<option value="${e.id}">${esc(e.no)||('#'+e.id)} · ${won(e.total)} · ${esc(e.est_date)||''}</option>`).join('')):'<option value="">저장된 견적이 없습니다</option>'}</select>
+      <label style="margin-top:10px;display:block">제품 결제날자 <span style="font-size:11px;color:var(--gray-400)">(컴퓨존 등 실제 매입 결제일 · 외주업체 정산서에 표시)</span></label>
+      <input type="date" id="wo_purchasedate" value="${estPurchaseDefault()}" style="padding:6px 8px;border:1px solid var(--gray-300);border-radius:6px">
+      <div style="font-size:11px;color:var(--gray-400);margin-top:3px">※ 기본값은 오늘 -2일 · 나중에 견적서 상세에서도 수정할 수 있습니다</div></div>
     <div class="form-group"><label>담당 기사 *</label><select id="wo_eng"><option value="">선택하세요</option>${state.engineers.map(e=>`<option value="${e.id}" style="color:${engColor(e.id)};font-weight:600">${esc(e.name)}${e.is_admin?' (대표)':''}</option>`).join('')}</select></div>
     ${area('wo_symptom','증상 또는 작업 내용 *','')}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn btn-success" onclick="submitWorkorder(${customerId},${siteId||'null'})">📤 작업지시 전송</button></div>`;
@@ -503,6 +506,8 @@ async function submitWorkorder(customerId, siteId){
   const rec=await api('POST','/receptions',{ customer_id:customerId, computer_id:comp?Number(comp):null, reception_channel:isDeliver?'estimate':'direct', symptom, initial_memo:memo, work_type:type||null });
   await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);
   if(isDeliver){ const pm=(est.opts&&est.opts.payMethod)||'cash';
+    const purchaseDate=v('wo_purchasedate')||'';
+    if(est.id) { try{ await api('PUT',`/estimates/${est.id}/purchase-date`,{ purchase_date:purchaseDate }); }catch(e){} }
     await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(est.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(est.total)||0, estimate_id:est.id }); }
   closeModal(); showToast(isDeliver?'📤 견적서 납품 작업지시 전송 완료':'📤 작업지시를 전송했습니다'); await loadAll();
 }
