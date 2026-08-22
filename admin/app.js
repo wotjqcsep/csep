@@ -1644,42 +1644,47 @@ function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   const isTax=dtype==='tax';
   if(!isTax) return stdStatementFallback(sup,buy,items,sub,vat,total,ctx,memo,copyLabel);
   const dp=String(ctx.date||'').split('-'), yy=dp[0]||'', mm=dp[1]||'', dd=dp[2]||'';
-  const b='border:1px solid #333;padding:3px 5px;font-size:11px';
-  const lb='border:1px solid #333;padding:3px 5px;font-size:11px;background:#f2f4f8;text-align:center';
-  const stamp=stampImg(38);
-  const bizRow=(label,x,isSup)=>`
-    <tr><td rowspan="4" style="width:18px;text-align:center;font-weight:700;writing-mode:vertical-lr;letter-spacing:4px;${lb}">${label}</td>
-        <td colspan="2" style="${lb}">등록번호</td><td colspan="6" style="${b}">${x.bizno}</td></tr>
-    <tr><td style="${lb}">상호<br>(법인명)</td><td colspan="3" style="${b}">${x.nm}</td><td style="${lb}">성명</td><td style="${b}">${x.ceo}<span style="position:relative;display:inline-block"> (인)${isSup?'<img src="'+((state.settings||{}).stamp_img||'')+'" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38px;height:38px;object-fit:contain;opacity:0.85">':''}</span></td></tr>
-    <tr><td style="${lb}">사업장<br>주 소</td><td colspan="5" style="${b}">${x.addr}</td></tr>
-    <tr><td style="${lb}">업 태</td><td colspan="2" style="${b}">${x.bt}</td><td style="${lb}">종목</td><td colspan="2" style="${b}">${x.bi}</td></tr>`;
-  const subDigits=String(sub).split('').map(d=>`<td style="text-align:center;${b}">${d}</td>`);
-  const vatDigits=String(vat).split('').map(d=>`<td style="text-align:center;${b}">${d}</td>`);
-  while(subDigits.length<11) subDigits.unshift(`<td style="${b}"></td>`);
-  while(vatDigits.length<11) vatDigits.unshift(`<td style="${b}"></td>`);
+  const b='border:1px solid #333;padding:2px 4px;font-size:11px';
+  const lb='border:1px solid #333;padding:2px 4px;font-size:11px;background:#f0f0f0;text-align:center';
+  const stampHtml=(state.settings||{}).stamp_img?'<span style="position:relative;display:inline-block"> (인)<img src="'+((state.settings||{}).stamp_img)+'" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;object-fit:contain;opacity:0.85"></span>':' (인)';
+  const subStr=nfmt(sub), vatStr=nfmt(vat);
   const body=items.map(r=>{ const amt=r.amt, tax=Math.round(amt*0.1);
     return `<tr><td style="text-align:center;${b}">${mm}</td><td style="text-align:center;${b}">${dd}</td>
-      <td colspan="2" style="${b}">${esc(ctx.dispName(r))}</td><td style="${b}"></td><td style="text-align:center;${b}">${r.qty}</td>
-      <td style="text-align:right;${b}">${nfmt(r.price)}</td><td style="text-align:right;${b}">${nfmt(amt)}</td>
-      <td style="text-align:right;${b}">${nfmt(tax)}</td><td style="${b}"></td></tr>`; }).join('');
+      <td colspan="4" style="${b}">${esc(ctx.dispName(r))}</td><td style="${b}"></td><td style="text-align:center;${b}">${r.qty}</td>
+      <td style="text-align:right;${b}">${nfmt(r.price)}</td><td colspan="2" style="text-align:right;${b}">${nfmt(amt)}</td>
+      <td colspan="2" style="text-align:right;${b}">${nfmt(tax)}</td><td style="${b}"></td></tr>`; }).join('');
   const BLANK=4-items.length;
-  const blanks=Array(Math.max(0,BLANK)).fill(`<tr><td style="${b}"></td><td style="${b}"></td><td colspan="2" style="${b}"></td><td style="${b}"></td><td style="${b}"></td><td style="${b}"></td><td style="${b}"></td><td style="${b}"></td><td style="${b}"></td></tr>`).join('');
-  return `<div style="font-size:10px;margin-bottom:2px">[별지 제11호 서식]</div>
-    <table style="border-collapse:collapse;width:100%;table-layout:auto;font-size:11px;border:2px solid #333">
-    <tr><td colspan="10" style="text-align:center;font-size:18px;font-weight:800;letter-spacing:12px;padding:8px;border:1px solid #333">세 금 계 산 서</td></tr>
-    <tr><td colspan="10" style="text-align:center;font-size:10px;padding:2px;${b}">(${esc(copyLabel||'공급받는자 보관용')})</td></tr>
-    ${bizRow('공<br>급<br>자',sup,true)}
-    ${bizRow('공<br>급<br>받<br>는<br>자',buy,false)}
-    <tr><td style="${lb}">작성</td><td style="${lb}">공란수</td><td colspan="8" style="text-align:center;font-weight:700;${lb}">공 급 가 액</td></tr>
-    <tr><td style="text-align:center;${b}">${yy}.${mm}.${dd}</td><td style="${b}"></td>${subDigits.slice(0,8).join('')}</tr>
-    <tr><td colspan="2" style="text-align:center;font-weight:700;${lb}">세 액</td>${vatDigits.slice(0,8).join('')}</tr>
-    <tr><td style="${lb}">월</td><td style="${lb}">일</td><td colspan="2" style="${lb}">품 목</td><td style="${lb}">규격</td><td style="${lb}">수량</td><td style="${lb}">단 가</td><td style="${lb}">공급가액</td><td style="${lb}">세 액</td><td style="${lb}">비고</td></tr>
+  const blanks=Array(Math.max(0,BLANK)).fill(`<tr><td style="${b}">&nbsp;</td><td style="${b}"></td><td colspan="4" style="${b}"></td><td style="${b}"></td><td style="${b}"></td><td style="${b}"></td><td colspan="2" style="${b}"></td><td colspan="2" style="${b}"></td><td style="${b}"></td></tr>`).join('');
+  return `<div style="font-size:9px;margin-bottom:2px">[별지 제11호 서식]</div>
+    <table style="border-collapse:collapse;width:100%;font-size:11px;border:2px solid #333">
+    <colgroup><col style="width:3%"><col style="width:6%"><col style="width:6%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:3%"><col style="width:6%"><col style="width:6%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:14%"></colgroup>
+    <!-- 제목 -->
+    <tr><td colspan="15" style="text-align:center;font-size:18px;font-weight:800;letter-spacing:14px;padding:8px;${b}">세 금 계 산 서</td></tr>
+    <tr><td colspan="15" style="text-align:center;font-size:10px;padding:2px;${b}">(${esc(copyLabel||'공급받는자 보관용')})</td></tr>
+    <!-- 공급자(좌) + 공급받는자(우) 사업자 정보 -->
+    <tr><td rowspan="4" style="text-align:center;font-weight:700;writing-mode:vertical-lr;letter-spacing:6px;${lb}">공급자</td>
+        <td style="${lb}">등록번호</td><td colspan="5" style="${b}">${sup.bizno}</td>
+        <td rowspan="4" style="text-align:center;font-weight:700;writing-mode:vertical-lr;letter-spacing:3px;${lb}">공급받는자</td>
+        <td style="${lb}">등록번호</td><td colspan="6" style="${b}">${buy.bizno}</td></tr>
+    <tr><td style="${lb}">상 호<br>(법인명)</td><td colspan="2" style="${b}">${sup.nm}</td><td style="${lb}">성명</td><td colspan="2" style="${b}">${sup.ceo}${stampHtml}</td>
+        <td style="${lb}">상 호<br>(법인명)</td><td colspan="3" style="${b}">${buy.nm}</td><td style="${lb}">성명</td><td colspan="2" style="${b}">${buy.ceo} (인)</td></tr>
+    <tr><td style="${lb}">사업장<br>주 소</td><td colspan="5" style="${b}">${sup.addr}</td>
+        <td style="${lb}">사업장<br>주 소</td><td colspan="6" style="${b}">${buy.addr}</td></tr>
+    <tr><td style="${lb}">업 태</td><td colspan="2" style="${b}">${sup.bt}</td><td style="${lb}">종목</td><td colspan="2" style="${b}">${sup.bi}</td>
+        <td style="${lb}">업 태</td><td colspan="3" style="${b}">${buy.bt}</td><td style="${lb}">종목</td><td colspan="2" style="${b}">${buy.bi}</td></tr>
+    <!-- 작성일·공급가액·세액 -->
+    <tr><td colspan="2" style="${lb}">작 성</td><td colspan="7" style="text-align:center;font-weight:700;${lb}">공 급 가 액</td><td colspan="4" style="text-align:center;font-weight:700;${lb}">세 액</td><td colspan="2" style="${lb}">비 고</td></tr>
+    <tr><td style="text-align:center;${b}">${yy}</td><td style="text-align:center;${b}">${mm}.${dd}</td><td colspan="7" style="text-align:right;font-weight:800;font-size:13px;${b}">${subStr}</td><td colspan="4" style="text-align:right;font-weight:800;font-size:13px;${b}">${vatStr}</td><td colspan="2" style="${b}"></td></tr>
+    <!-- 품목 헤더 -->
+    <tr><td style="${lb}">월</td><td style="${lb}">일</td><td colspan="4" style="${lb}">품 목</td><td style="${lb}">규격</td><td style="${lb}">수량</td><td style="${lb}">단 가</td><td colspan="2" style="${lb}">공급가액</td><td colspan="2" style="${lb}">세 액</td><td style="${lb}">비고</td></tr>
+    <!-- 품목 -->
     ${body}${blanks}
-    <tr><td colspan="2" style="font-weight:700;text-align:center;${lb}">합계금액</td><td style="text-align:center;${lb}">현 금</td><td style="text-align:center;${lb}">수 표</td><td style="text-align:center;${lb}">어 음</td><td colspan="3" style="text-align:center;${lb}">외상미수금</td><td colspan="2" rowspan="2" style="text-align:center;font-size:10px;${b}">이 금액을<br><b>영수 · 청구</b> 함</td></tr>
-    <tr><td colspan="2" style="text-align:right;font-weight:800;${b}">${nfmt(total)}</td><td style="${b}"></td><td style="${b}"></td><td style="${b}"></td><td colspan="3" style="${b}"></td></tr>
+    <!-- 합계 -->
+    <tr><td colspan="2" style="font-weight:700;text-align:center;${lb}">합계금액</td><td colspan="2" style="text-align:center;${lb}">현 금</td><td colspan="2" style="text-align:center;${lb}">수 표</td><td colspan="2" style="text-align:center;${lb}">어 음</td><td colspan="3" style="text-align:center;${lb}">외상미수금</td><td colspan="4" rowspan="2" style="text-align:center;vertical-align:middle;font-size:12px;${b}">이 금액을 <b>영수<br>청구</b> 함</td></tr>
+    <tr><td colspan="2" style="text-align:right;font-weight:800;font-size:13px;${b}">${nfmt(total)}</td><td colspan="2" style="${b}"></td><td colspan="2" style="${b}"></td><td colspan="2" style="${b}"></td><td colspan="3" style="${b}"></td></tr>
     </table>
     ${memo?`<div class="memo" style="margin-top:6px">비고: ${memo}</div>`:''}
-    <div style="font-size:10px;color:#888;margin-top:4px">※ 정식 발행은 국세청 전자세금계산서를 권장합니다. 본 양식은 출력용입니다.</div>`;
+    <div style="font-size:9px;color:#888;margin-top:4px;text-align:center">※ 정식 발행은 국세청 전자세금계산서를 권장합니다. 본 양식은 출력용입니다.</div>`;
 }
 function stdStatementFallback(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   const dp=String(ctx.date||'').split('-'), mm=dp[1]||'', dd=dp[2]||'';
