@@ -660,8 +660,17 @@ function popupCard(type, item){
 async function dismissCall(id){ await api('DELETE','/incoming-call/'+id); pendingCalls=pendingCalls.filter(c=>c.id!=id); renderPopups(); }
 async function dismissSms(id){ await api('DELETE','/incoming-sms/'+id); pendingSms=pendingSms.filter(s=>s.id!=id); renderPopups(); }
 function quickReception(custId, type, itemId){
+  const smsItem = type==='sms' ? pendingSms.find(s=>s.id==itemId) : null;
   if(type==='call') dismissCall(itemId); else if(type==='sms') dismissSms(itemId);
   go('receptions'); openReceptionModal(); pickCust(custId);
+  if(smsItem && smsItem.message){
+    const parsed=parseSmsMessage(smsItem.message);
+    const memo=[parsed.memo||'',parsed.address||''].filter(Boolean).join(' / ');
+    setTimeout(()=>{
+      const el=document.getElementById('r_symptom'); if(el) el.value=memo||smsItem.message;
+      const chEl=document.getElementById('r_channel'); if(chEl) chEl.value='sms';
+    },100);
+  }
 }
 // SMS 메시지에서 주소/이름/상호 자동 추출
 function parseSmsMessage(msg){

@@ -795,8 +795,8 @@ function renderCustDevDetail(idx){
   el.scrollTop=0;
 }
 // 전화 수신 등록 등에서 고객 객체로 바로 진입
-function woEnterWithCustomer(cust){
-  woState={customerId:String(cust.id),customer:cust,search:'',results:[],comps:[],symptom:'',searchSeq:(woState&&woState.searchSeq)||0};
+function woEnterWithCustomer(cust, symptom){
+  woState={customerId:String(cust.id),customer:cust,search:'',results:[],comps:[],symptom:symptom||'',searchSeq:(woState&&woState.searchSeq)||0};
   S.tab='wo'; render(); woLoadComps(cust.id);
 }
 async function submitWoTab(){
@@ -1187,8 +1187,10 @@ function parseSmsMessage(msg){
 }
 function registerIncomingSms(id){
   const s=S.incomingSms.find(x=>x.id==id); if(!s) return;
-  if(s.customer){ woEnterWithCustomer(s.customer); }
-  else { const parsed=parseSmsMessage(s.message); openCustomerAdd(s.phone, parsed); }
+  const parsed=parseSmsMessage(s.message);
+  const memo=[parsed.memo||'',parsed.address||''].filter(Boolean).join(' / ');
+  if(s.customer){ woEnterWithCustomer(s.customer, memo||s.message||''); }
+  else { openCustomerAdd(s.phone, parsed); }
   S.incomingSms=S.incomingSms.filter(x=>x.id!=id); renderIncoming();
   api('DELETE','/incoming-sms/'+id).catch(()=>{});
 }
