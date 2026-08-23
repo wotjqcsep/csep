@@ -1267,8 +1267,10 @@ async function estSave(btn){
   }
   catch(e){ if(btn)btn.disabled=false; if(st){st.style.color='#e03131';st.textContent='저장 실패: '+(e&&e.message?e.message:e);} return; }
   if(btn)btn.disabled=false;
-  estState.savedId=r.id;
-  if(st){ st.style.color='#0ca678'; st.textContent=(estState.savedId===r.id&&body.no===r.no?'수정':'저장')+'됨'+(r.customer_created?' (거래처 신규 등록됨)':'')+' · 견적번호 '+esc(r.no); }
+  const wasEdit=!!estState.savedId;
+  if(st){ st.style.color='#0ca678'; st.textContent=(wasEdit?'수정':'저장')+'됨'+(r.customer_created?' (거래처 신규 등록됨)':'')+' · 견적번호 '+esc(r.no); }
+  if(wasEdit){ estState.savedId=r.id; }
+  else { estState.savedId=null; estState.no=await estNextNo(); const el=document.getElementById('est_no'); if(el) el.value=estState.no; }
   await loadAll();
   const box=document.getElementById('est_saved_box'); if(box){ box.style.display='block'; _estSavedOpen=true; estLoadList(); }
 }
@@ -1284,12 +1286,13 @@ async function estLoadList(){
     + list.map(e=>{const pm=(e.opts&&e.opts.payMethod)||'cash'; return `<tr>
         <td>${esc(e.no)||('#'+e.id)}${e.delivered?' <span class="badge assigned" style="font-size:10px">납품완료</span>':''}${(Number(e.field_discount)||0)>0?` <span style="color:#e8590c;font-size:11px">현장할인 ${won(e.field_discount)}</span>`:''}</td><td>${esc(e.customer_name)||'-'}</td><td>${esc(e.phone)||'-'}</td>
         <td style="text-align:right;font-weight:600">${won(e.total)}</td><td>${estPayLabel(pm)}</td><td>${esc(e.est_date)||''}</td>
-        <td style="white-space:nowrap"><button class="btn btn-sm" onclick="estLoadOne(${e.id})">불러오기</button>
+        <td style="white-space:nowrap"><button class="btn btn-sm" style="background:#fab005;color:#000" onclick="estEditOne(${e.id})">편집</button>
+          <button class="btn btn-sm" onclick="estLoadOne(${e.id})">복사</button>
           <button class="btn btn-sm" style="background:#7048e8" onclick="estToWorkorder(${e.id})">📤 작업지시</button>
           <button class="btn btn-sm btn-danger" onclick="estDeleteSaved(${e.id})">×</button></td></tr>`}).join('')
     + '</tbody></table>';
 }
-async function estLoadOne(id){
+async function estEditOne(id){
   let e; try{ e=await api('GET','/estimates/'+id); }catch(err){ showToast('불러오기 실패: '+(err&&err.message?err.message:err),'#e03131'); return; }
   const o=e.opts||{};
   estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
@@ -1299,7 +1302,21 @@ async function estLoadOne(id){
     doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', refundManual:o.refundManual!=null?o.refundManual:null, noVat:o.noVat||e.no_vat||false, purchaseDate:e.purchase_date||'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})))
       .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
-  go('estimates');   // 견적서 화면으로 이동 + estState 반영
+  _estForceRender=true; go('estimates');
+  showToast('📝 견적 #'+e.id+' 편집 모드 — 저장하면 이 견적이 수정됩니다');
+}
+async function estLoadOne(id){
+  let e; try{ e=await api('GET','/estimates/'+id); }catch(err){ showToast('복사 실패: '+(err&&err.message?err.message:err),'#e03131'); return; }
+  const o=e.opts||{}, nextNo=await estNextNo();
+  estState={ company:e.company||estCompanyDefault(), contact:e.contact||'', customer:e.customer_name||'', phone:e.phone||'',
+    buyerBizno:o.buyerBizno||'', buyerCeo:o.buyerCeo||'', buyerAddr:o.buyerAddr||'', buyerType:o.buyerType||'', buyerItem:o.buyerItem||'',
+    customerId:e.customer_id||null, date:estToday(), no:nextNo, memo:e.memo||'', bulk:(o.bulk===''||o.bulk==null)?0:(Number(o.bulk)||0), savedId:null,
+    delivered:false, fieldDiscount:0, finalAmount:null,
+    doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', refundManual:null, noVat:o.noVat||e.no_vat||false, purchaseDate:'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
+    rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})))
+      .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
+  _estForceRender=true; go('estimates');
+  showToast('📋 견적 복사됨 — 새 견적번호 '+nextNo+' 부여');
 }
 // 저장된 견적 → 작업지시로 납품 (기사 배정 → 완료 시 결산 등록)
 async function estToWorkorder(id){
