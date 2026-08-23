@@ -1169,14 +1169,19 @@ function renderEstimates(){ estInit(); const s=estState;
             <option value="tax" ${s.payMethod==='tax'?'selected':''}>세금계산서</option>
           </select>
         </label>
-        <label>실제 매입가(수동)
-          <input id="est_realcost" value="${(()=>{const v=Number(String(s.realCost||'').replace(/[^\d]/g,''))||0; return v?won(v):'';})()}" oninput="estFmtCost(this)" placeholder="예: 1,400,000" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:130px;text-align:right">
-          <span style="font-size:11px;color:var(--gray-400)">부가세 포함 금액</span>
+      </div>
+      <div style="margin-top:10px;padding:10px 14px;border-radius:8px;background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border:2px dashed #e65100;position:relative">
+        <div style="font-size:11px;font-weight:800;color:#e65100;margin-bottom:8px">⚠️ 특수 항목 — 매입 부가세 환급 계산용 (일반 견적 시 입력 불필요)</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+        <label style="color:#bf360c;font-weight:600">실제 매입가
+          <input id="est_realcost" value="${(()=>{const v=Number(String(s.realCost||'').replace(/[^\d]/g,''))||0; return v?won(v):'';})()}" oninput="estFmtCost(this)" placeholder="예: 1,400,000" style="margin-left:5px;padding:4px 6px;border:1px solid #e65100;border-radius:6px;width:130px;text-align:right;background:#fff">
+          <span style="font-size:11px;color:#bf360c">부가세 포함 금액</span>
         </label>
-        <label>매입 부가세 환급
-          <input id="est_refund" value="${s.refundManual!=null?won(Number(String(s.refundManual).replace(/[^\d]/g,''))||0):''}" oninput="estFmtRefund(this)" placeholder="자동 계산" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px;width:110px;text-align:right">
-          <span style="font-size:11px;color:var(--gray-400)">비워두면 자동(중고/자체보유 시 0 입력)</span>
+        <label style="color:#bf360c;font-weight:600">매입 부가세 환급
+          <input id="est_refund" value="${s.refundManual!=null?won(Number(String(s.refundManual).replace(/[^\d]/g,''))||0):''}" oninput="estFmtRefund(this)" placeholder="자동 계산" style="margin-left:5px;padding:4px 6px;border:1px solid #e65100;border-radius:6px;width:110px;text-align:right;background:#fff">
+          <span style="font-size:11px;color:#bf360c">비워두면 자동(중고/자체보유 시 0 입력)</span>
         </label>
+        </div>
       </div>
       <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:var(--card-bg);border:1px solid var(--gray-200)"></div>
       <div style="border-top:2px solid var(--gray-300);margin-top:14px;padding-top:10px">
