@@ -1748,7 +1748,7 @@ function stdReceiptOne(sup,items,total,ctx,memo,copyLabel){
     <td style="${L}">${r.qty}</td>
     <td style="text-align:right;${B}">${nfmt(r.price)}</td>
     <td colspan="2" style="text-align:right;${B}">${nfmt(r.amt)}</td></tr>`).join('');
-  const BLANK=24;
+  const BLANK=15;
   const blanks=Array(Math.max(0,BLANK-items.length)).fill(`<tr>
     <td style="${B}">&nbsp;</td><td colspan="3" style="${B}"></td>
     <td style="${B}"></td><td style="${B}"></td><td colspan="2" style="${B}"></td></tr>`).join('');
