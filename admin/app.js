@@ -1258,11 +1258,14 @@ async function estSave(btn){
     subtotal:sub, vat, total:sub+vat, no_vat:estState.noVat||false, purchase_date:estState.purchaseDate||'' };
   if(btn) btn.disabled=true; if(st){st.style.color='var(--gray-500)';st.textContent='저장 중…';}
   let r;
-  try{ r=await api('POST','/estimates',body); }
+  try{
+    if(estState.savedId) r=await api('PUT','/estimates/'+estState.savedId,body);
+    else r=await api('POST','/estimates',body);
+  }
   catch(e){ if(btn)btn.disabled=false; if(st){st.style.color='#e03131';st.textContent='저장 실패: '+(e&&e.message?e.message:e);} return; }
   if(btn)btn.disabled=false;
   estState.savedId=r.id;
-  if(st){ st.style.color='#0ca678'; st.textContent='저장됨'+(r.customer_created?' (거래처 신규 등록됨)':'')+' · 견적 #'+r.id; }
+  if(st){ st.style.color='#0ca678'; st.textContent=(body.customer_id?'수정':'저장')+'됨'+(r.customer_created?' (거래처 신규 등록됨)':'')+' · 견적 #'+r.id; }
   await loadAll();   // 거래처 목록 갱신(자동완성 반영)
 }
 // 저장된 견적 검색·목록
@@ -1273,13 +1276,13 @@ async function estLoadList(){
   try{ list=await api('GET','/estimates'+(q?('?q='+encodeURIComponent(q)):'')); }
   catch(e){ box.innerHTML='<div style="color:#e03131;font-size:13px">불러오기 실패: '+esc(e&&e.message?e.message:e)+'</div>'; return; }
   if(!list.length){ box.innerHTML='<div style="color:var(--gray-400);font-size:13px;padding:8px">저장된 견적이 없습니다</div>'; return; }
-  box.innerHTML=`<table class="table" style="font-size:13px"><thead><tr><th>견적번호</th><th>고객/거래처</th><th>연락처</th><th style="text-align:right">합계</th><th>일자</th><th></th></tr></thead><tbody>`
-    + list.map(e=>`<tr>
+  box.innerHTML=`<table class="table" style="font-size:13px"><thead><tr><th>견적번호</th><th>고객/거래처</th><th>연락처</th><th style="text-align:right">합계</th><th>결제</th><th>일자</th><th></th></tr></thead><tbody>`
+    + list.map(e=>{const pm=(e.opts&&e.opts.payMethod)||'cash'; return `<tr>
         <td>${esc(e.no)||('#'+e.id)}${e.delivered?' <span class="badge assigned" style="font-size:10px">납품완료</span>':''}${(Number(e.field_discount)||0)>0?` <span style="color:#e8590c;font-size:11px">현장할인 ${won(e.field_discount)}</span>`:''}</td><td>${esc(e.customer_name)||'-'}</td><td>${esc(e.phone)||'-'}</td>
-        <td style="text-align:right;font-weight:600">${won(e.total)}</td><td>${esc(e.est_date)||''}</td>
+        <td style="text-align:right;font-weight:600">${won(e.total)}</td><td>${estPayLabel(pm)}</td><td>${esc(e.est_date)||''}</td>
         <td style="white-space:nowrap"><button class="btn btn-sm" onclick="estLoadOne(${e.id})">불러오기</button>
           <button class="btn btn-sm" style="background:#7048e8" onclick="estToWorkorder(${e.id})">📤 작업지시</button>
-          <button class="btn btn-sm btn-danger" onclick="estDeleteSaved(${e.id})">×</button></td></tr>`).join('')
+          <button class="btn btn-sm btn-danger" onclick="estDeleteSaved(${e.id})">×</button></td></tr>`}).join('')
     + '</tbody></table>';
 }
 async function estLoadOne(id){

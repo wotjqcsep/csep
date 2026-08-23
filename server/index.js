@@ -596,7 +596,7 @@ app.get('/api/customers/:id/receptions', wrap(async (req, res) => {
 // ============================================================
 app.get('/api/estimates', wrap(async (req, res) => {
   const q = String((req.query.q || '')).trim();
-  let sql = 'SELECT id,no,customer_id,customer_name,phone,company,est_date,total,delivered,field_discount,final_amount,purchase_date,created_at FROM estimates';
+  let sql = 'SELECT id,no,customer_id,customer_name,phone,company,est_date,total,delivered,field_discount,final_amount,purchase_date,opts,created_at FROM estimates';
   const params = [];
   if (q) { sql += ' WHERE customer_name ILIKE $1 OR phone ILIKE $1 OR no ILIKE $1 OR company ILIKE $1'; params.push('%' + q + '%'); }
   sql += ' ORDER BY id DESC LIMIT 300';
@@ -629,6 +629,16 @@ app.post('/api/estimates', wrap(async (req, res) => {
     [b.no || '', customerId, cname, phone, b.company || '', b.contact || '', b.est_date || '', b.memo || '',
      JSON.stringify(items), JSON.stringify(b.opts || {}), Number(b.subtotal) || 0, Number(b.vat) || 0, Number(b.total) || 0, b.purchase_date || null]);
   res.json({ ...row.rows[0], customer_created: customerCreated });
+}));
+app.put('/api/estimates/:id', wrap(async (req, res) => {
+  const b = req.body || {};
+  const items = Array.isArray(b.items) ? b.items : [];
+  const { rows } = await pool.query(
+    `UPDATE estimates SET no=$2, customer_id=$3, customer_name=$4, phone=$5, company=$6, contact=$7, est_date=$8, memo=$9, items=$10, opts=$11, subtotal=$12, vat=$13, total=$14, purchase_date=$15 WHERE id=$1 RETURNING *`,
+    [req.params.id, b.no||'', b.customer_id||null, b.customer_name||'', b.phone||'', b.company||'', b.contact||'', b.est_date||'', b.memo||'',
+     JSON.stringify(items), JSON.stringify(b.opts||{}), Number(b.subtotal)||0, Number(b.vat)||0, Number(b.total)||0, b.purchase_date||null]);
+  if (!rows[0]) return res.status(404).json({ error: '견적서를 찾을 수 없습니다' });
+  res.json(rows[0]);
 }));
 // 매입확정일(제품 결제날자)만 수정 — 작업지시/견적 상세에서 갱신
 app.put('/api/estimates/:id/purchase-date', wrap(async (req, res) => {
