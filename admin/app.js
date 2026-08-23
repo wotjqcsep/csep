@@ -180,12 +180,17 @@ function renderReceptions(){
 }
 async function setRecStatus(id,status){ await api('PUT',`/receptions/${id}/status?status=${status}`); await loadAll(); }
 // 콜 취소 — 삭제 아님, '취소됨'으로 기록 보존
-async function cancelReception(id){
-  const reason = prompt('취소 사유 (선택):', '');
-  if(reason===null) return;  // 취소 눌림
+function cancelReception(id){
+  modal('✕ 콜 취소', `
+    <div style="margin-bottom:10px;font-size:13px">이 접수를 취소합니다. (기록은 보존됩니다)</div>
+    <div class="form-group"><label>취소 사유 (선택)</label><input id="cancel_reason" placeholder="사유를 입력하세요"></div>
+    <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">닫기</button><button class="btn btn-danger" onclick="doCancelReception(${id})">취소 확인</button></div>`);
+}
+async function doCancelReception(id){
+  const reason=(document.getElementById('cancel_reason')||{}).value||'';
   try{ await api('PUT',`/receptions/${id}/cancel`, { reason }); }
   catch(e){ alert('취소 실패: '+(e&&e.message?e.message:e)); return; }
-  await loadAll();
+  closeModal(); await loadAll();
 }
 // 기사 변경 (재배정)
 function openEngineerChange(recId){
