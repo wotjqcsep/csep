@@ -513,7 +513,10 @@ function renderWoTab(){
           <button class="btn btn-ghost" style="margin-top:10px" onclick="openCustomerAdd('')">🧑 새 고객 등록</button>`}
     </div>
     ${sel?`
-    <button class="btn btn-ghost" style="margin:0 0 8px;border:1px solid var(--warning);color:var(--warning)" onclick="openHistory(${woState.customerId})">🕘 거래처 이력</button>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button class="btn btn-ghost" style="flex:1;margin:0;border:1px solid var(--warning);color:var(--warning)" onclick="openHistory(${woState.customerId})">🕘 이력</button>
+      <button class="btn btn-ghost" style="flex:1;margin:0;border:1px solid var(--primary);color:var(--primary)" onclick="openCustomerEdit(${woState.customerId})">✏️ 고객정보 수정</button>
+    </div>
     ${comps.length?`<div class="sec-label">🖥️ 등록 장치 (${comps.length})</div>
       ${comps.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#fff;border:1px solid #e3e7ec;border-radius:9px;margin-bottom:6px">
         <div style="min-width:0"><strong>${esc(c.name)||'장비'}</strong> <span style="font-size:12px;color:var(--gray-500)">${DEVICE_TYPES[c.device_type]||esc(c.device_type)||''}</span>${[c.cpu,devSpec('ram',c.ram),devSpec('ssd',c.ssd)].filter(Boolean).length?`<div style="font-size:11px;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${[c.cpu,devSpec('ram',c.ram),devSpec('ssd',c.ssd)].filter(Boolean).map(esc).join(' · ')}</div>`:''}</div>
@@ -1290,6 +1293,37 @@ async function saveCustomerAdd(){
     woState={customerId:String(cust.id),customer:cust,search:'',results:[],comps:[],symptom:memo||'',searchSeq:(woState.searchSeq||0)};
     S.tab='wo'; render(); woLoadComps(cust.id);
   }catch(e){ alert('고객 저장 실패: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
+}
+
+async function openCustomerEdit(custId){
+  let c;
+  try{ const list=await api('GET','/customers?search='); c=list.find(x=>x.id==custId); }catch(e){}
+  if(!c){ c=woState.customer||S.customers.find(x=>x.id==custId); }
+  if(!c){ alert('고객 정보를 찾을 수 없습니다'); return; }
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
+    <div class="sheet"><h3>✏️ 고객정보 수정</h3>
+      <div class="fg"><label>고객 구분</label><select id="ce_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="personal" ${c.customer_type!=='business'?'selected':''}>개인</option><option value="business" ${c.customer_type==='business'?'selected':''}>기업</option></select></div>
+      ${micField('ce_name','고객명',c.name||'','')}
+      ${micField('ce_phone','전화번호 *',c.phone||'','')}
+      ${micField('ce_phone2','보조전화',c.phone2||'','')}
+      ${micField('ce_company','회사명',c.company_name||'','')}
+      ${micField('ce_addr','주소',c.address||'','')}
+      ${micField('ce_memo','메모',c.memo||'','')}
+      <button class="btn btn-primary" onclick="saveCustomerEdit(${c.id})">저장</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('ov2').remove()">취소</button>
+    </div></div>`);
+}
+async function saveCustomerEdit(id){
+  const g=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  const phone=g('ce_phone'); if(!phone){ alert('전화번호를 입력하세요'); return; }
+  const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
+  try{
+    const cust=await api('PUT','/customers/'+id,{ name:g('ce_name'), phone, phone2:g('ce_phone2'), customer_type:g('ce_type'), company_name:g('ce_company'), address:g('ce_addr'), memo:g('ce_memo') });
+    const ov=document.getElementById('ov2'); if(ov)ov.remove();
+    if(woState.customerId==id){ woState.customer=cust; renderWoTab(); }
+    engToast('고객정보 수정 완료','#2b8a3e');
+  }catch(e){ alert('저장 실패: '+(e.message||e)); }
   finally{ if(btn) btn.disabled=false; }
 }
 
