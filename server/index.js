@@ -2202,8 +2202,17 @@ async function backfillVatRefund() {
   } catch (e) { console.log('[백필] 매입부가세 환급 오류:', e.message); }
 }
 
+async function cleanupExpiredSchedules() {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const { rowCount } = await pool.query("DELETE FROM schedules WHERE date IS NOT NULL AND date < $1", [today]);
+    if (rowCount) console.log(`[정리] 지난 일정 ${rowCount}건 자동 삭제`);
+  } catch (e) { console.log('[정리] 일정 삭제 오류:', e.message); }
+}
+
 initDB()
   .then(() => { cleanupOldPhotos(); setInterval(cleanupOldPhotos, 24 * 60 * 60 * 1000); })
+  .then(() => { cleanupExpiredSchedules(); setInterval(cleanupExpiredSchedules, 60 * 60 * 1000); })
   .then(() => backfillVatRefund())
   .then(() => app.listen(PORT, () => console.log(`CSEP 서버 실행: http://localhost:${PORT}`)))
   .catch(e => { console.error('DB 초기화 실패:', e.message); app.listen(PORT, () => console.log(`CSEP 서버 실행(DB오류): http://localhost:${PORT}`)); });
