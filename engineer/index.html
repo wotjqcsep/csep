@@ -1170,10 +1170,25 @@ function registerIncoming(id){
   api('DELETE','/incoming-call/'+id).catch(()=>{});
 }
 async function dismissIncomingSms(id){ try{ await api('DELETE','/incoming-sms/'+id);}catch(e){} S.incomingSms=S.incomingSms.filter(s=>s.id!=id); renderIncoming(); }
+function parseSmsMessage(msg){
+  if(!msg) return {};
+  const result={};
+  const addrMatch=msg.match(/((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|충청|전라|경상)[^\n,]*(?:시|군|구|동|읍|면|리|로|길|번지|아파트|빌딩|오피스텔|상가)[^\n,]*)/);
+  if(addrMatch) result.address=addrMatch[1].trim();
+  const lines=msg.split(/[\n,\/]/).map(s=>s.trim()).filter(Boolean);
+  for(const line of lines){
+    if(result.address && line.includes(result.address)) continue;
+    if(/^[가-힣]{2,5}$/.test(line)) result.name=line;
+    else if(/[가-힣a-zA-Z]{2,}(?:컴퓨터|전자|통신|사무|상사|기업|회사|주식회사|㈜|업체|센터|학원|병원|약국|마트|식당|카페|호텔|모텔|공업사|정비|인쇄)/.test(line)||/^㈜/.test(line)){ result.name=line; result.type='business'; }
+  }
+  const remaining=lines.filter(l=> l!==(result.address||'') && l!==(result.name||'')).join(' ');
+  if(remaining) result.memo=remaining;
+  return result;
+}
 function registerIncomingSms(id){
   const s=S.incomingSms.find(x=>x.id==id); if(!s) return;
   if(s.customer){ woEnterWithCustomer(s.customer); }
-  else { openCustomerAdd(s.phone); }
+  else { const parsed=parseSmsMessage(s.message); openCustomerAdd(s.phone, parsed); }
   S.incomingSms=S.incomingSms.filter(x=>x.id!=id); renderIncoming();
   api('DELETE','/incoming-sms/'+id).catch(()=>{});
 }
@@ -1230,14 +1245,15 @@ async function startVoice(targetId, append){
 }
 
 // ── 대표: 현장 고객 등록 ──
-function openCustomerAdd(prefillPhone){
+function openCustomerAdd(prefillPhone, smsData){
+  const pre=smsData||{};
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
     <div class="sheet"><h3>🧑 현장 고객 등록</h3>
-      <div class="fg"><label>고객 구분</label><select id="ca_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="personal">개인</option><option value="business">기업</option></select></div>
-      ${micField('ca_name','고객명 (선택)','','예: 홍길동')}
+      <div class="fg"><label>고객 구분</label><select id="ca_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="personal" ${pre.type==='business'?'':'selected'}>개인</option><option value="business" ${pre.type==='business'?'selected':''}>기업</option></select></div>
+      ${micField('ca_name','고객명 (선택)',pre.name||'','예: 홍길동')}
       ${micField('ca_phone','전화번호 *',prefillPhone||'','')}
-      ${micField('ca_addr','주소','','예: 천안시 서북구...')}
-      ${micField('ca_memo','메모','','증상·특이사항')}
+      ${micField('ca_addr','주소',pre.address||'','예: 천안시 서북구...')}
+      ${micField('ca_memo','메모',pre.memo||'','증상·특이사항')}
       <button class="btn btn-primary" onclick="saveCustomerAdd()">저장 + 작업지시</button>
       <button class="btn btn-ghost" onclick="closeSheet()">취소</button>
     </div></div>`);

@@ -663,10 +663,30 @@ function quickReception(custId, type, itemId){
   if(type==='call') dismissCall(itemId); else if(type==='sms') dismissSms(itemId);
   go('receptions'); openReceptionModal(); pickCust(custId);
 }
+// SMS 메시지에서 주소/이름/상호 자동 추출
+function parseSmsMessage(msg){
+  if(!msg) return {};
+  const result={};
+  const addrMatch=msg.match(/((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|충청|전라|경상)[^\n,]*(?:시|군|구|동|읍|면|리|로|길|번지|아파트|빌딩|오피스텔|상가)[^\n,]*)/);
+  if(addrMatch) result.address=addrMatch[1].trim();
+  const lines=msg.split(/[\n,\/]/).map(s=>s.trim()).filter(Boolean);
+  for(const line of lines){
+    if(result.address && line.includes(result.address)) continue;
+    if(/[가-힣a-zA-Z]{2,}(?:컴퓨터|전자|통신|사무|상사|기업|회사|주식회사|㈜|업체|센터|학원|병원|약국|마트|식당|카페|호텔|모텔|공업사|정비|인쇄)/.test(line)||/^㈜/.test(line)){
+      result.company_name=line; result.customer_type='business';
+    } else if(/^[가-힣]{2,5}$/.test(line) && !result.name) result.name=line;
+  }
+  const remaining=lines.filter(l=> l!==(result.address||'') && l!==(result.name||'') && l!==(result.company_name||'')).join(' ');
+  if(remaining) result.memo=remaining;
+  return result;
+}
 // 미등록 번호 → 전화번호 채운 고객 등록 모달
 function registerFromPopup(phone, type, itemId){
+  const smsItem = type==='sms' ? pendingSms.find(s=>s.id==itemId) : null;
   if(type==='call') dismissCall(itemId); else if(type==='sms') dismissSms(itemId);
-  openCustomerModal(null, { phone });
+  const prefill = { phone };
+  if(smsItem && smsItem.message) Object.assign(prefill, parseSmsMessage(smsItem.message));
+  openCustomerModal(null, prefill);
 }
 
 async function pollPopups(){
