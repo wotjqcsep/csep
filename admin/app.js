@@ -1488,9 +1488,11 @@ function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·
 }
 async function estNewDoc(){ if(estState.savedId && !confirm('현재 견적을 닫고 새 견적서를 작성할까요?'))return;
   estSyncAll();
-  estState.savedId=null;
+  estState.savedId=null; estState.customerId=null;
+  estState.customer=''; estState.phone='';
+  estState.buyerBizno=''; estState.buyerCeo=''; estState.buyerAddr=''; estState.buyerType=''; estState.buyerItem='';
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
-  estState.realCost=''; estState.purchaseDate=''; estState.memo='';
+  estState.realCost=''; estState.purchaseDate=''; estState.memo=''; estState.refundManual=null;
   estState.no=await estNextNo();
   _estForceRender=true; render();
   const st=document.getElementById('est_status'); if(st){st.style.color='#7048e8';st.textContent='새 견적서 — 견적번호 '+estState.no;}
