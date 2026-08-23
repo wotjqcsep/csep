@@ -599,6 +599,14 @@ app.get('/api/customers/:id/receptions', wrap(async (req, res) => {
 // ============================================================
 //  견적서 저장 (estimates) — 저장/검색/불러오기 + 거래처 자동 등록
 // ============================================================
+app.get('/api/estimates/next-no', wrap(async (req, res) => {
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const prefix = 'Q' + today + '-';
+  const { rows } = await pool.query("SELECT no FROM estimates WHERE no LIKE $1 ORDER BY no DESC LIMIT 1", [prefix + '%']);
+  let seq = 1;
+  if (rows[0]) { const m = rows[0].no.match(/-(\d+)$/); if (m) seq = Number(m[1]) + 1; }
+  res.json({ no: prefix + String(seq).padStart(3, '0') });
+}));
 app.get('/api/estimates', wrap(async (req, res) => {
   const q = String((req.query.q || '')).trim();
   let sql = 'SELECT id,no,customer_id,customer_name,phone,company,est_date,total,delivered,field_discount,final_amount,purchase_date,opts,created_at FROM estimates';

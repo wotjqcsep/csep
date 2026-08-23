@@ -1034,10 +1034,11 @@ async function estPurchaseDateChange(val){
   catch(e){ if(st){st.style.color='#e03131';st.textContent='수정 실패';} }
 }
 function estCompanyDefault(){ const st=state.settings||{}; return (st.brand_name&&st.brand_name.trim())||(st.company_name||'')||''; }
-function estInit(){ if(estState) return; const n=new Date(), t=estToday();
+async function estNextNo(){ try{ const r=await api('GET','/estimates/next-no'); return r.no||''; }catch(e){ return ''; } }
+function estInit(){ if(estState) return; const t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
-    buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',   // 공급받는자 사업자정보(명세서·계산서용)
-    no:'Q'+t.replace(/-/g,'')+'-'+String(n.getHours())+String(n.getMinutes()).padStart(2,'0'), memo:'', bulk:0,
+    buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',
+    no:'', memo:'', bulk:0,
     savedId:null, doctype:'estimate', payMethod:'cash', realCost:'', noVat:false, purchaseDate:'',   // 문서 종류 + 결제방법 + 실제 매입가(부가세 환급 계산용) + 부가세 제외 + 매입확정일
     pname:'short', pprice:'total', ptarget:'customer',   // 기본값: 고객용+간략화+총액만
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})) }; }
@@ -1062,6 +1063,7 @@ function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
   const margin=Number(tr.querySelector('.est-margin').value)||0;
   const pe=tr.querySelector('.est-price'); if(pe) pe.value = cost? Number(Math.round(cost*(1+margin/100))).toLocaleString('ko-KR') : ''; }
 function renderEstimates(){ estInit(); const s=estState;
+  if(!s.no && !s.savedId) estNextNo().then(no=>{ if(!estState.no){ estState.no=no; const el=document.getElementById('est_no'); if(el) el.value=no; } });
   const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; const p=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(c*(1+m/100)); return t+p*q; },0);
   const vat=s.noVat?0:Math.round(sub*0.1);
   return `
@@ -1266,7 +1268,7 @@ async function estSave(btn){
   catch(e){ if(btn)btn.disabled=false; if(st){st.style.color='#e03131';st.textContent='저장 실패: '+(e&&e.message?e.message:e);} return; }
   if(btn)btn.disabled=false;
   estState.savedId=r.id;
-  if(st){ st.style.color='#0ca678'; st.textContent=(body.customer_id?'수정':'저장')+'됨'+(r.customer_created?' (거래처 신규 등록됨)':'')+' · 견적 #'+r.id; }
+  if(st){ st.style.color='#0ca678'; st.textContent=(estState.savedId===r.id&&body.no===r.no?'수정':'저장')+'됨'+(r.customer_created?' (거래처 신규 등록됨)':'')+' · 견적번호 '+esc(r.no); }
   await loadAll();   // 거래처 목록 갱신(자동완성 반영)
 }
 // 저장된 견적 검색·목록
@@ -1334,8 +1336,9 @@ async function estToWorkorderSubmit(id){
   closeModal(); showToast('📤 작업지시 전송 완료 — 기사가 완료 처리하면 결산에 등록됩니다'); await loadAll();
 }
 // 새 문서 작성 — 빈 양식 + 문서 종류 지정
-function estNew(dtype){
+async function estNew(dtype){
   estState=null; estInit(); estState.doctype=(dtype||'estimate');
+  estState.no=await estNextNo();
   go('estimates');
 }
 // 문서 종류 전환(견적서 내부 버튼) — 내용 유지, 양식만 변경
@@ -1457,13 +1460,14 @@ function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·
   estState.realCost=''; estState.purchaseDate='';
   _estForceRender=true; render();
 }
-function estNewDoc(){ if(estState.savedId && !confirm('현재 견적을 닫고 새 견적서를 작성할까요?'))return;
+async function estNewDoc(){ if(estState.savedId && !confirm('현재 견적을 닫고 새 견적서를 작성할까요?'))return;
   estSyncAll();
   estState.savedId=null;
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
-  estState.realCost=''; estState.purchaseDate=''; estState.no=''; estState.memo='';
+  estState.realCost=''; estState.purchaseDate=''; estState.memo='';
+  estState.no=await estNextNo();
   _estForceRender=true; render();
-  const st=document.getElementById('est_status'); if(st){st.style.color='#7048e8';st.textContent='새 견적서 — 저장하면 새 번호가 부여됩니다';}
+  const st=document.getElementById('est_status'); if(st){st.style.color='#7048e8';st.textContent='새 견적서 — 견적번호 '+estState.no;}
 }
 // 가져오기: 누를 때마다 기존 부품표를 버리고 새로 받음(중복 누적 방지, 초기화 불필요).
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
