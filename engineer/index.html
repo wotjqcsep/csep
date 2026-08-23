@@ -214,7 +214,7 @@ function render(){
   if(S.tab==='wo'){ content=`<div id="woTab"></div>`; }
   else if(S.tab==='info'){ content=`<div id="infoTab"></div>`; }
   else if(S.tab==='sched'){ content=`<div id="schedInline"></div>`; }
-  else if(S.tab==='done'){ const dl=isAdmin?done:done.filter(r=>r.assigned_engineer_id==myId); content=dl.length?dl.map(cardHtml).join(''):'<div class="empty">완료 작업이 없습니다</div>'; }
+  else if(S.tab==='done'){ const weekAgo=new Date(Date.now()-7*24*60*60*1000).toISOString(); const dl=(isAdmin?done:done.filter(r=>r.assigned_engineer_id==myId)).filter(r=>(r.completed_at||r.received_at||'')>=weekAgo); content=(dl.length?dl.map(cardHtml).join(''):'<div class="empty">최근 1주일 완료 작업이 없습니다</div>')+'<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px">최근 1주일 이력만 표시 · 이전 이력은 📅 일정 탭에서 확인</div>'; }
   else if(isAdmin){
     const f=S.statusFilter||'pending';
     const cntPending=S.receptions.filter(r=>notDone(r)&&!reserved(r)&&r.status!=='in_progress'&&r.status!=='repairing').length;
