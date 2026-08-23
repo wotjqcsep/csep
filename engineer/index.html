@@ -359,11 +359,37 @@ function openSoundPicker(){
 
 // ── 작업 처리 페이지 ──
 async function openProcessing(id){
-  S.processing=id; S.procPhotos=[]; S.procExisting=[];
+  S.processing=id; S.procPhotos=[]; S.procExisting=[]; S.procEstimate=null;
   try{ S.procExisting=await api('GET',`/receptions/${id}/photos`); }catch(e){}
+  const r=S.receptions.find(x=>x.id==id);
+  if(r&&r.estimate_id){ try{ S.procEstimate=await api('GET',`/estimates/${r.estimate_id}`); }catch(e){} }
   render();
 }
-function closeProcessing(){ S.processing=null; render(); window.scrollTo(0,0); }
+function closeProcessing(){ S.processing=null; S.procEstimate=null; render(); window.scrollTo(0,0); }
+function toggleEstDetail(){ const b=document.getElementById('est_detail_box'); if(b) b.style.display=b.style.display==='none'?'block':'none'; }
+function renderEstDetail(){
+  const e=S.procEstimate; if(!e) return '<div style="padding:10px;color:#868e96;font-size:13px">견적서 정보를 불러올 수 없습니다</div>';
+  const items=Array.isArray(e.items)?e.items:[];
+  const o=e.opts||{};
+  let html=`<div class="card" style="margin:8px 0;border:2px solid #7048e8">
+    <div style="font-weight:700;color:#7048e8;margin-bottom:6px">📄 견적서 #${esc(e.no||e.id)}</div>
+    <div style="font-size:12px;color:#868e96;margin-bottom:8px">${esc(e.est_date||'')} · ${esc(e.customer_name||'')} · 결제: ${({'cash':'현금','card':'카드','transfer':'계좌이체','tax':'세금계산서','cashreceipt':'현금영수증'}[o.payMethod])||o.payMethod||'현금'}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f1f3f5"><th style="padding:5px;text-align:left;border-bottom:1px solid #dee2e6">품목</th><th style="padding:5px;text-align:center;border-bottom:1px solid #dee2e6">수량</th><th style="padding:5px;text-align:right;border-bottom:1px solid #dee2e6">금액</th></tr></thead><tbody>`;
+  items.forEach(it=>{
+    if(!it.name) return;
+    const price=Number(it.price)||0, qty=Number(it.qty)||1;
+    html+=`<tr><td style="padding:4px 5px;border-bottom:1px solid #f1f3f5">${esc(it.cat?'['+it.cat+'] ':'')}${esc(it.name)}</td><td style="padding:4px 5px;text-align:center;border-bottom:1px solid #f1f3f5">${qty}</td><td style="padding:4px 5px;text-align:right;border-bottom:1px solid #f1f3f5">${won(price*qty)}</td></tr>`;
+  });
+  const noVat=o.noVat||e.no_vat;
+  html+=`</tbody></table>
+    <div style="text-align:right;margin-top:8px;font-size:13px;font-weight:700">
+      공급가 ${won(e.subtotal||0)}${noVat?'':' + VAT '+won(e.vat||0)} = <span style="color:#7048e8;font-size:15px">${won(e.total||0)}</span>
+    </div>
+    ${e.memo?`<div style="margin-top:6px;font-size:12px;color:#868e96">메모: ${esc(e.memo)}</div>`:''}
+  </div>`;
+  return html;
+}
 function renderProcessing(){
   const r=S.receptions.find(x=>x.id==S.processing); if(!r){ closeProcessing(); return; }
   const done=r.status==='completed'||r.status==='cancelled';
@@ -382,6 +408,7 @@ function renderProcessing(){
         </div>`:''}
       </div>
       <div class="symptom">🔧 ${esc(r.symptom)||'(증상 없음)'}</div>
+      ${r.estimate_id?`<button class="btn" style="background:#7048e8;color:#fff;width:100%;margin:8px 0" onclick="toggleEstDetail()">📄 견적서 내용 보기</button><div id="est_detail_box" style="display:none">${renderEstDetail()}</div>`:''}
       <div class="row2" style="margin-top:8px">
         <button class="btn btn-ghost" onclick="openHistory(${r.customer_id})" style="margin:0;border:1px solid var(--warning);color:var(--warning)">🕘 수리/점검 이력</button>
         <button class="btn btn-ghost" onclick="openCustDevices(${r.customer_id})" style="margin:0;border:1px solid var(--primary);color:var(--primary)">🖥️ 등록 장치 정보</button>
