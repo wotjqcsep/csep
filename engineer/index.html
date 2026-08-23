@@ -81,7 +81,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'list', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], processing:null, statusFilter:'pending', procPhotos:[], procExisting:[], incomingCalls:[], modalRec:null, settings:{} };
+const S={ engineer:null, tab:'list', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], processing:null, statusFilter:'pending', procPhotos:[], procExisting:[], incomingCalls:[], incomingSms:[], modalRec:null, settings:{} };
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString('ko-KR');
@@ -1119,14 +1119,17 @@ async function setupPush(){
 async function pollIncoming(){
   if(!S.engineer||!S.engineer.is_admin) return;
   try{
-    const calls=await api('GET','/incoming-call/pending');
-    if(JSON.stringify(calls)!==JSON.stringify(S.incomingCalls)){ S.incomingCalls=calls; renderIncoming(); }
+    const [calls, sms]=await Promise.all([api('GET','/incoming-call/pending'), api('GET','/incoming-sms/pending')]);
+    let changed=false;
+    if(JSON.stringify(calls)!==JSON.stringify(S.incomingCalls)){ S.incomingCalls=calls; changed=true; }
+    if(JSON.stringify(sms)!==JSON.stringify(S.incomingSms)){ S.incomingSms=sms; changed=true; }
+    if(changed) renderIncoming();
   }catch(e){}
 }
 function renderIncoming(){
   let el=document.getElementById('incomingStack');
   if(!el){ el=document.createElement('div'); el.id='incomingStack'; el.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:500;max-width:520px;margin:0 auto;padding:10px;display:flex;flex-direction:column;gap:8px'; document.body.appendChild(el); }
-  el.innerHTML=(S.incomingCalls||[]).map(c=>{
+  const callCards=(S.incomingCalls||[]).map(c=>{
     const cust=c.customer;
     return `<div style="background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.25);border-left:5px solid var(--primary);overflow:hidden">
       <div style="padding:12px 16px;background:var(--bg);display:flex;justify-content:space-between;align-items:center"><strong>📞 전화 수신</strong><button onclick="dismissIncoming(${c.id})" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--gray-400)">✕</button></div>
@@ -1139,7 +1142,22 @@ function renderIncoming(){
           <button class="btn btn-ghost" style="flex:1;margin:0" onclick="dismissIncoming(${c.id})">취소</button>
         </div>
       </div></div>`;
-  }).join('');
+  });
+  const smsCards=(S.incomingSms||[]).map(s=>{
+    const cust=s.customer;
+    return `<div style="background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.25);border-left:5px solid #20c997;overflow:hidden">
+      <div style="padding:12px 16px;background:var(--bg);display:flex;justify-content:space-between;align-items:center"><strong>💬 문자 수신</strong><button onclick="dismissIncomingSms(${s.id})" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--gray-400)">✕</button></div>
+      <div style="padding:14px 16px">
+        <div style="font-size:18px;font-weight:700">${esc(s.phone)}</div>
+        ${s.message?`<div style="font-size:13px;color:var(--gray-600);margin:6px 0;padding:8px 10px;background:#f8f9fa;border-radius:8px;white-space:pre-wrap">${esc(s.message)}</div>`:''}
+        ${cust?`<div style="margin:4px 0"><span class="badge new">${cust.customer_type==='business'?'기업':'개인'}</span> <strong>${esc(cust.name)||esc(cust.phone)}</strong>${cust.company_name?` · ${esc(cust.company_name)}`:''}</div>${cust.address?`<div style="font-size:13px;color:var(--gray-500)">📍 ${esc(cust.address)}</div>`:''}`:'<div style="color:var(--gray-400);margin:4px 0">미등록 고객</div>'}
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button class="btn btn-primary" style="flex:1;margin:0" onclick="registerIncomingSms(${s.id})">📋 등록 · 배차</button>
+          <button class="btn btn-ghost" style="flex:1;margin:0" onclick="dismissIncomingSms(${s.id})">취소</button>
+        </div>
+      </div></div>`;
+  });
+  el.innerHTML=callCards.concat(smsCards).join('');
 }
 async function dismissIncoming(id){ try{ await api('DELETE','/incoming-call/'+id);}catch(e){} S.incomingCalls=S.incomingCalls.filter(c=>c.id!=id); renderIncoming(); }
 function registerIncoming(id){
@@ -1150,6 +1168,14 @@ function registerIncoming(id){
   // 팝업/서버 정리는 백그라운드로 (실패해도 화면 전환엔 영향 없음)
   S.incomingCalls=S.incomingCalls.filter(x=>x.id!=id); renderIncoming();
   api('DELETE','/incoming-call/'+id).catch(()=>{});
+}
+async function dismissIncomingSms(id){ try{ await api('DELETE','/incoming-sms/'+id);}catch(e){} S.incomingSms=S.incomingSms.filter(s=>s.id!=id); renderIncoming(); }
+function registerIncomingSms(id){
+  const s=S.incomingSms.find(x=>x.id==id); if(!s) return;
+  if(s.customer){ woEnterWithCustomer(s.customer); }
+  else { openCustomerAdd(s.phone); }
+  S.incomingSms=S.incomingSms.filter(x=>x.id!=id); renderIncoming();
+  api('DELETE','/incoming-sms/'+id).catch(()=>{});
 }
 
 // ── 텍스트 입력 필드 (음성입력은 휴대폰 키보드 자체 마이크 사용 — 필드서비스와 동일) ──
@@ -1551,6 +1577,8 @@ function connectSSE(){
     es.addEventListener('reception_new',()=>{ sseLoadReceptions(); });
     es.addEventListener('reception_update',()=>{ sseLoadReceptions(); });
     es.addEventListener('reception_deleted',()=>{ sseLoadReceptions(); });
+    es.addEventListener('incoming_call',()=>{ pollIncoming(); });
+    es.addEventListener('incoming_sms',()=>{ pollIncoming(); });
     es.addEventListener('new_message',e=>{ let d={}; try{d=JSON.parse(e.data);}catch(x){}
       if(S.chatOpen==d.reception_id){ openChat(d.reception_id); }
       else { S.chatUnread[d.reception_id]=(S.chatUnread[d.reception_id]||0)+1; if(!document.getElementById('ov'))render(); if(navigator.vibrate)navigator.vibrate(200); }

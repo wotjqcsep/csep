@@ -590,9 +590,35 @@ async function pollChatUnread(){
 }
 
 // ── 전화 수신 테스트 ──
-async function testCall(){
-  const phone = prompt('테스트할 전화번호:', '01012341234');
-  if(phone) await api('POST','/incoming-call?phone='+encodeURIComponent(phone));
+function testCall(){
+  const engs=(window.S&&S.engineers)||[];
+  const engOpts=engs.map(e=>`<option value="${e.phone||''}">${esc(e.name)}${e.is_admin?' (대표)':' (기사)'} — ${e.phone||'번호없음'}</option>`).join('');
+  const html=`<div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">직접 입력</label>
+      <input id="testPhone" value="01012341234" placeholder="전화번호 입력" style="width:100%;padding:10px;border:1px solid #dee2e6;border-radius:8px;font-size:15px">
+    </div>
+    ${engs.length?`<div style="margin-bottom:16px">
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">또는 등록된 기사/대표 선택</label>
+      <select id="testEngSelect" onchange="document.getElementById('testPhone').value=this.value" style="width:100%;padding:10px;border:1px solid #dee2e6;border-radius:8px;font-size:15px">
+        <option value="">— 선택 —</option>${engOpts}</select>
+    </div>`:''}
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1" onclick="doTestCall('call')">📞 전화 테스트</button>
+      <button class="btn" style="flex:1;background:#20c997;color:#fff" onclick="doTestCall('sms')">💬 문자 테스트</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal()">닫기</button>
+  </div>`;
+  modal('📞 수신 테스트', html);
+}
+async function doTestCall(type){
+  const phone=document.getElementById('testPhone').value.trim();
+  if(!phone){ alert('전화번호를 입력하세요'); return; }
+  try{
+    if(type==='sms') await api('POST','/incoming-sms',{phone, message:'[테스트 문자] '+phone});
+    else await api('POST','/incoming-call?phone='+encodeURIComponent(phone));
+    closeModal();
+  }catch(e){ alert('테스트 실패: '+e.message); }
 }
 
 // ============================================================

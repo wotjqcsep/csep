@@ -120,6 +120,18 @@ function broadcastEngineers(event, data) {
   });
 }
 
+// 대표 기사 SSE에 이벤트 전송 (전화/SMS 수신 알림용)
+async function broadcastBossEngineers(event, data) {
+  try {
+    const rows = (await pool.query('SELECT id FROM engineers WHERE is_admin=TRUE')).rows;
+    const msg = `event: ${event}\ndata: ${JSON.stringify({ id: data.id })}\n\n`;
+    for (const r of rows) {
+      const s = engineerClients.get(String(r.id));
+      if (s) s.forEach(res => { try { res.write(msg); } catch (e) { s.delete(res); } });
+    }
+  } catch (e) {}
+}
+
 // 접수 변경을 PC·기사앱 모두에 동시 반영
 function broadcastReception(event, data) {
   broadcastAdmin(event, data);
@@ -1754,6 +1766,7 @@ app.post('/api/incoming-call', wrap(async (req, res) => {
   incomingCalls.push(call);
   trimIncoming(incomingCalls);
   broadcastAdmin('incoming_call', call);
+  broadcastBossEngineers('incoming_call', call);
   // 대표 폰에 푸시 (백그라운드에서도 알림)
   sendPushToBosses('📞 전화 수신', (matched ? (matched.name || phone) : digits(phone)) + ' — 탭하여 등록', 'incoming_call');
   res.json(call);
@@ -1918,6 +1931,7 @@ app.post('/api/incoming-sms', wrap(async (req, res) => {
   incomingSms.push(sms);
   trimIncoming(incomingSms);
   broadcastAdmin('incoming_sms', sms);
+  broadcastBossEngineers('incoming_sms', sms);
   sendPushToBosses('💬 SMS 수신', (matched ? (matched.name || sms.phone) : sms.phone) + ': ' + (b.message || '').slice(0, 30), 'incoming_sms');
   res.json(sms);
 }));
