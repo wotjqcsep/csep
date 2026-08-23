@@ -303,10 +303,24 @@ function navTmapFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.custome
 function navKakaoFor(id){ const r=S.receptions.find(x=>x.id==id); if(r&&r.customer_address){ markPickup(id); navKakao(r.customer_address); } else alert('주소가 없습니다'); }
 async function navTmap(addr){
   if(!addr) return;
-  try{ const c=await (await fetch(`${API}/geocode?address=${encodeURIComponent(addr)}`)).json();
-    if(c.lon&&c.lat){ window.location.href=`tmap://route?goalname=${encodeURIComponent(addr)}&goalx=${c.lon}&goaly=${c.lat}`; return; }
+  const enc=encodeURIComponent(addr);
+  try{ const c=await (await fetch(`${API}/geocode?address=${enc}`)).json();
+    if(c.lon&&c.lat){
+      const native=window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform();
+      if(native||/android/i.test(navigator.userAgent)){
+        window.location.href=`intent://route?rGoalName=${enc}&rGoalX=${c.lon}&rGoalY=${c.lat}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`;
+      } else {
+        window.location.href=`tmap://route?goalname=${enc}&goalx=${c.lon}&goaly=${c.lat}`;
+      }
+      return;
+    }
   }catch(e){}
-  window.location.href=`tmap://search?keyword=${encodeURIComponent(addr)}`;
+  const native=window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform();
+  if(native||/android/i.test(navigator.userAgent)){
+    window.location.href=`intent://search?keyword=${enc}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`;
+  } else {
+    window.location.href=`tmap://search?keyword=${enc}`;
+  }
 }
 async function navKakao(addr){
   if(!addr) return;
