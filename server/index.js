@@ -580,7 +580,6 @@ app.put('/api/customers/:id', wrap(async (req, res) => {
   const custPhone = c.phone || '';
   const custCompany = c.company_name || '';
   await pool.query('UPDATE estimates SET customer_name=$1, phone=$2, company=$3 WHERE customer_id=$4', [custName, custPhone, custCompany, c.id]);
-  await pool.query('UPDATE receptions SET customer_name=$1, phone=$2 WHERE customer_id=$3', [custName, custPhone, c.id]);
   res.json(c);
 }));
 
