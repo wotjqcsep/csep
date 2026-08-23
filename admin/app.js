@@ -123,7 +123,7 @@ function recCard(r){
       <div class="ws-name">${esc(custName(r.customer_id))} ${r.work_type?woTypeBadge('['+r.work_type+']'):woTypeBadge(r.initial_memo)} <span style="font-size:13px;font-weight:400;color:var(--gray-400)">${ch}</span></div>
       <div style="text-align:right;flex-shrink:0">
         <div style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap">
-          ${r.status==='repairing'?`<span class="ws-pill" style="background:#7048e8">🔧 수거·점검</span>`:(r.picked_up && r.status!=='completed')?`<span class="ws-pill" style="background:#7048e8">수거·견적</span>`:''}
+          ${r.status!=='repairing'&&r.picked_up&&r.status!=='completed'?`<span class="ws-pill" style="background:#7048e8">수거·견적</span>`:''}
           ${r.reserved_date?`<span class="ws-pill" style="background:var(--warning)">예약</span>`:''}
           <span class="ws-pill" style="background:${st.c}">${st.l}</span>
         </div>
