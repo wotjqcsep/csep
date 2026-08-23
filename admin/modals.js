@@ -603,6 +603,10 @@ function testCall(){
       <select id="testEngSelect" onchange="document.getElementById('testPhone').value=this.value" style="width:100%;padding:10px;border:1px solid #dee2e6;border-radius:8px;font-size:15px">
         <option value="">— 선택 —</option>${engOpts}</select>
     </div>`:''}
+    <div style="margin-bottom:12px">
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">문자 내용 (문자 테스트용)</label>
+      <textarea id="testSmsMsg" rows="3" placeholder="예: 서울시 강남구 역삼동 123-4 / 홍길동 / ABC컴퓨터" style="width:100%;padding:10px;border:1px solid #dee2e6;border-radius:8px;font-size:14px;resize:vertical"></textarea>
+    </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1" onclick="doTestCall('call')">📞 전화 테스트</button>
       <button class="btn" style="flex:1;background:#20c997;color:#fff" onclick="doTestCall('sms')">💬 문자 테스트</button>
@@ -615,7 +619,10 @@ async function doTestCall(type){
   const phone=document.getElementById('testPhone').value.trim();
   if(!phone){ alert('전화번호를 입력하세요'); return; }
   try{
-    if(type==='sms') await api('POST','/incoming-sms',{phone, message:'[테스트 문자] '+phone});
+    if(type==='sms'){
+      const msg=document.getElementById('testSmsMsg').value.trim()||phone;
+      await api('POST','/incoming-sms',{phone, message:msg});
+    }
     else await api('POST','/incoming-call?phone='+encodeURIComponent(phone));
     closeModal();
   }catch(e){ alert('테스트 실패: '+e.message); }
