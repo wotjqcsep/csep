@@ -1757,8 +1757,7 @@ function stdReceiptOne(sup,items,total,ctx,memo,copyLabel){
     <table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:8px;border:2px solid #333">
     <colgroup><col style="width:10%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:10%"><col style="width:8%"></colgroup>
     <tr><td colspan="2" style="${B}">NO. ${esc(ctx.no)}</td>
-        <td colspan="5" style="text-align:right;font-size:10px;font-weight:700;padding:3px 4px;${B}">◎${cust}　귀하</td>
-        <td colspan="2" style="${B}"></td></tr>
+        <td colspan="7" style="text-align:right;font-size:10px;font-weight:700;padding:3px 4px;${B}">◎${cust}　귀하</td></tr>
     <tr><td rowspan="4" style="${L};font-weight:700;writing-mode:vertical-lr;letter-spacing:2px;font-size:9px">사업자</td>
         <td colspan="2" style="${L}">등록번호</td><td colspan="6" style="${B}">${sup.bizno}</td></tr>
     <tr><td colspan="2" style="${L}">상호</td><td colspan="3" style="${B}">${sup.nm}</td>
@@ -1835,7 +1834,7 @@ function estPrint(target){
     ${pageCss}
     .copy{}
     .rcpt{font-size:11px}
-    .rcpt-page{width:86mm;min-height:190mm;max-height:190mm;box-sizing:border-box}
+    .rcpt-page{width:86mm;height:190mm;box-sizing:border-box;overflow:hidden}
     .rcpt-page table{width:100%}
     .rcpt-page table td{word-break:break-all;overflow-wrap:break-word}
     .cut{color:#999;text-align:center;font-size:11px;margin:6mm 0;letter-spacing:1px}
