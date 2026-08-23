@@ -1645,11 +1645,11 @@ function stdTaxOrStmt(dtype,sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   if(!isTax) return stdStatementFallback(sup,buy,items,sub,vat,total,ctx,memo,copyLabel);
   return stdTaxInvoice(sup,buy,items,sub,vat,total,ctx,memo,copyLabel);
 }
-function taxDigitCells(num,count,b){
-  const s=String(num||0); const pad=s.padStart(count,' ');
-  return [...pad].map(d=>`<td style="text-align:center;${b}">${d===' '?'':d}</td>`).join('');
+function taxDC(num,count,b){
+  const s=String(num||0).padStart(count,' ');
+  return [...s].map(d=>`<td style="text-align:center;${b}">${d===' '?'':d}</td>`).join('');
 }
-function taxBiznoRow(bizno,b){
+function taxBN(bizno,b){
   const d=String(bizno||'').replace(/[^0-9]/g,'').padEnd(10,' ');
   const c=i=>`<td style="text-align:center;${b}">${d[i]===' '?'':d[i]}</td>`;
   return c(0)+c(1)+c(2)+`<td style="text-align:center;${b}">-</td>`+c(3)+c(4)+`<td style="text-align:center;${b}">-</td>`+c(5)+c(6)+c(7)+c(8)+c(9);
@@ -1657,58 +1657,57 @@ function taxBiznoRow(bizno,b){
 function stdTaxInvoice(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   const dp=String(ctx.date||'').split('-'), yy=dp[0]||'', mm=dp[1]||'', dd=dp[2]||'';
   const b='border:1px solid #333;padding:1px 2px;font-size:9px';
-  const lb='border:1px solid #333;padding:1px 2px;font-size:9px;text-align:center';
-  const stampHtml=(state.settings||{}).stamp_img?'<span style="position:relative;display:inline-block"> (인)<img src="'+((state.settings||{}).stamp_img)+'" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:28px;height:28px;object-fit:contain;opacity:0.85"></span>':' (인)';
-  const subH=['백','십','억','천','백','십','만','천','백','십','일'];
-  const vatH=['십','억','천','백','십','만','천','백','십','일'];
-  const subHdr=subH.map(h=>`<td style="${lb};font-size:7px">${h}</td>`).join('');
-  const vatHdr=vatH.map(h=>`<td style="${lb};font-size:7px">${h}</td>`).join('');
-  const body=items.map(r=>{ const amt=r.amt, tax=Math.round(amt*0.1);
-    return `<tr><td style="text-align:center;${b}">${mm}</td><td style="text-align:center;${b}">${dd}</td>
-      <td colspan="6" style="${b}">${esc(ctx.dispName(r))}</td><td colspan="2" style="${b}"></td><td style="text-align:center;${b}">${r.qty}</td>
-      <td colspan="2" style="text-align:right;${b}">${nfmt(r.price)}</td><td colspan="4" style="text-align:right;${b}">${nfmt(amt)}</td>
-      <td colspan="4" style="text-align:right;${b}">${nfmt(tax)}</td><td colspan="2" style="${b}"></td></tr>`; }).join('');
-  const BLANK=4-items.length;
-  const eRow=`<tr><td style="${b}">&nbsp;</td><td style="${b}"></td><td colspan="6" style="${b}"></td><td colspan="2" style="${b}"></td><td style="${b}"></td><td colspan="2" style="${b}"></td><td colspan="4" style="${b}"></td><td colspan="4" style="${b}"></td><td colspan="2" style="${b}"></td></tr>`;
-  const blanks=Array(Math.max(0,BLANK)).fill(eRow).join('');
-  // 26 columns total
-  return `<div class="tax-invoice" style="width:182mm;height:128mm;box-sizing:border-box;padding:3mm;font-family:'Malgun Gothic',sans-serif;overflow:hidden">
-    <div style="font-size:7px;margin-bottom:1px">[별지 제11호 서식]</div>
-    <table style="border-collapse:collapse;width:100%;table-layout:fixed;border:2px solid #333">
-    <colgroup>${Array(26).fill('<col>').join('')}</colgroup>
-    <!-- 제목 -->
-    <tr><td colspan="18" style="text-align:center;font-size:14px;font-weight:800;letter-spacing:10px;padding:4px;${b}">세 금 계 산 서</td>
-        <td colspan="4" style="text-align:center;font-size:7px;${b}">책 번 호</td><td colspan="2" style="text-align:center;font-size:8px;${b}">권</td><td colspan="2" style="text-align:center;font-size:8px;${b}">호</td></tr>
-    <tr><td colspan="18" style="text-align:center;font-size:8px;padding:1px;${b}">(${esc(copyLabel||'공급받는자 보관용')})</td>
-        <td colspan="4" style="text-align:center;font-size:7px;${b}">일 련 번 호</td><td colspan="4" style="${b}"></td></tr>
-    <!-- 공급자(좌) 등록번호 -->
-    <tr><td rowspan="4" style="text-align:center;font-weight:700;writing-mode:vertical-lr;letter-spacing:4px;font-size:10px;${lb}">공급자</td>
-        <td colspan="2" style="${lb}">등록번호</td>${taxBiznoRow(sup.bizno,b)}
-        <td rowspan="4" style="text-align:center;font-weight:700;writing-mode:vertical-lr;letter-spacing:2px;font-size:9px;${lb}">공급받는자</td>
-        <td style="${lb}">등록번호</td>${taxBiznoRow(buy.bizno,b)}</tr>
-    <!-- 상호·성명 -->
-    <tr><td style="${lb}">상 호<br>(법인명)</td><td colspan="6" style="${b}">${sup.nm}</td><td colspan="2" style="${lb}">성명</td><td colspan="2" style="${b}">${sup.ceo}${stampHtml}</td>
-        <td style="${lb}">상 호<br>(법인명)</td><td colspan="6" style="${b}">${buy.nm}</td><td colspan="2" style="${lb}">성명</td><td style="${b}">${buy.ceo} (인)</td></tr>
-    <!-- 사업장주소 -->
-    <tr><td style="${lb}">사업장<br>주 소</td><td colspan="10" style="${b}">${sup.addr}</td>
-        <td style="${lb}">사업장<br>주 소</td><td colspan="10" style="${b}">${buy.addr}</td></tr>
-    <!-- 업태·종목 -->
-    <tr><td style="${lb}">업 태</td><td colspan="5" style="${b}">${sup.bt}</td><td style="${lb}">종목</td><td colspan="4" style="${b}">${sup.bi}</td>
-        <td style="${lb}">업 태</td><td colspan="5" style="${b}">${buy.bt}</td><td style="${lb}">종목</td><td colspan="4" style="${b}">${buy.bi}</td></tr>
-    <!-- 작성·공급가액·세액 헤더 -->
-    <tr><td colspan="2" style="${lb}">작 성</td><td colspan="2" style="${lb}">공란수</td><td colspan="11" style="text-align:center;font-weight:700;${lb}">공 급 가 액</td><td colspan="10" style="text-align:center;font-weight:700;${lb}">세 액</td><td style="${lb}">비고</td></tr>
-    <!-- 자릿수 헤더 -->
-    <tr><td style="${lb};font-size:7px">년</td><td style="${lb};font-size:7px">월</td><td style="${lb};font-size:7px">일</td><td style="${lb};font-size:7px"></td>${subHdr}${vatHdr}<td style="${b}"></td></tr>
-    <!-- 공급가액·세액 숫자 -->
-    <tr><td style="text-align:center;${b}">${yy}</td><td style="text-align:center;${b}">${mm}</td><td style="text-align:center;${b}">${dd}</td><td style="${b}"></td>${taxDigitCells(sub,11,b)}${taxDigitCells(vat,10,b)}<td style="${b}"></td></tr>
-    <!-- 품목 헤더 -->
-    <tr><td style="${lb}">월</td><td style="${lb}">일</td><td colspan="6" style="${lb}">품 목</td><td colspan="2" style="${lb}">규격</td><td style="${lb}">수량</td><td colspan="2" style="${lb}">단 가</td><td colspan="4" style="${lb}">공 급 가 액</td><td colspan="4" style="${lb}">세 액</td><td colspan="2" style="${lb}">비고</td></tr>
-    ${body}${blanks}
-    <!-- 합계 -->
-    <tr><td colspan="4" style="font-weight:700;text-align:center;${lb}">합계금액</td><td colspan="4" style="text-align:center;${lb}">현 금</td><td colspan="4" style="text-align:center;${lb}">수 표</td><td colspan="3" style="text-align:center;${lb}">어 음</td><td colspan="5" style="text-align:center;${lb}">외상미수금</td><td colspan="6" rowspan="2" style="text-align:center;vertical-align:middle;font-size:9px;${b}">이 금액을 <b>영수<br>청구</b> 함</td></tr>
-    <tr><td colspan="4" style="text-align:center;font-weight:800;font-size:11px;${b}">₩${nfmt(total)}</td><td colspan="4" style="${b}"></td><td colspan="4" style="${b}"></td><td colspan="3" style="${b}"></td><td colspan="5" style="${b}"></td></tr>
-    </table>
-    <div style="display:flex;justify-content:space-between;margin-top:1px;font-size:7px;color:#333"><span>22226-28131일 '96.3.27승인</span><span>인쇄용지(특급)34g/m2 182mm×128mm</span></div>
+  const lb=b+';text-align:center';
+  const su=(state.settings||{}).stamp_img;
+  const stp=su?'<span style="position:relative;display:inline-block">(인)<img src="'+su+'" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px;object-fit:contain;opacity:0.85"></span>':'(인)';
+  const isSupCopy=(copyLabel||'').includes('공급자 보관');
+  const copyType=isSupCopy?'공 급 자':'공급받는자';
+  const subDH=['백','십','억','천','백','십','만','천','백','십','일'].map(h=>`<td style="${lb};font-size:7px">${h}</td>`).join('');
+  const vatDH=['십','억','천','백','십','만','천','백','십','일'].map(h=>`<td style="${lb};font-size:7px">${h}</td>`).join('');
+  const itemRow=(r)=>{ const amt=r.amt, tax=Math.round(amt*0.1);
+    return `<tr><td style="${lb}">${mm}</td><td style="${lb}">${dd}</td>
+      <td colspan="6" style="${b}">${esc(ctx.dispName(r))}</td><td colspan="3" style="${b}"></td><td colspan="3" style="${lb}">${r.qty}</td>
+      <td colspan="5" style="text-align:right;${b}">${nfmt(r.price)}</td><td colspan="6" style="text-align:right;${b}">${nfmt(amt)}</td>
+      <td colspan="5" style="text-align:right;${b}">${nfmt(tax)}</td><td colspan="2" style="${b}"></td></tr>`; };
+  const body=items.map(itemRow).join('');
+  const eR=`<tr><td style="${b}">&nbsp;</td><td style="${b}"></td><td colspan="6" style="${b}"></td><td colspan="3" style="${b}"></td><td colspan="3" style="${b}"></td><td colspan="5" style="${b}"></td><td colspan="6" style="${b}"></td><td colspan="5" style="${b}"></td><td colspan="2" style="${b}"></td></tr>`;
+  const blanks=Array(Math.max(0,4-items.length)).fill(eR).join('');
+  return `<div class="tax-copy" style="width:182mm;height:128mm;box-sizing:border-box;padding:2mm 3mm;overflow:hidden">
+  <div style="font-size:7px;margin-bottom:1px">[별지 제11호 서식]</div>
+  <table style="border-collapse:collapse;width:100%;table-layout:fixed;border:2px solid #333">
+  <colgroup>${Array(32).fill('<col>').join('')}</colgroup>
+  <!-- 제목 -->
+  <tr><td colspan="15" rowspan="2" style="font-size:14px;font-weight:800;letter-spacing:10px;padding:4px;${lb}">세 금 계 산 서</td>
+      <td rowspan="2" style="${lb}">(</td><td colspan="5" style="${lb};font-size:9px">${copyType}</td><td rowspan="2" style="${lb}">)</td>
+      <td colspan="4" style="${lb};font-size:8px">책 번 호</td><td colspan="2" style="${lb}">권</td><td colspan="4" style="${lb}">호</td></tr>
+  <tr><td colspan="5" style="${lb};font-size:8px">보 관 용</td>
+      <td colspan="4" style="${lb};font-size:8px">일련번호</td><td colspan="6" style="${b}"></td></tr>
+  <!-- 공급자 등록번호 -->
+  <tr><td rowspan="4" style="${lb};writing-mode:vertical-lr;letter-spacing:4px;font-weight:700;font-size:10px">공급자</td>
+      <td colspan="3" style="${lb}">등록번호</td>${taxBN(sup.bizno,b)}
+      <td rowspan="4" style="${lb};writing-mode:vertical-lr;letter-spacing:2px;font-weight:700;font-size:8px">공급받는자</td>
+      <td colspan="3" style="${lb}">등록번호</td>${taxBN(buy.bizno,b)}</tr>
+  <!-- 상호·성명 -->
+  <tr><td colspan="3" style="${lb}">상 호<br>(법인명)</td><td colspan="6" style="${b}">${sup.nm}</td><td style="${lb}">성명</td><td colspan="4" style="${b}">${sup.ceo}</td><td style="${lb}">${stp}</td>
+      <td colspan="3" style="${lb}">상 호<br>(법인명)</td><td colspan="6" style="${b}">${buy.nm}</td><td style="${lb}">성명</td><td colspan="4" style="${b}">${buy.ceo}</td><td style="${lb}">(인)</td></tr>
+  <!-- 사업장주소 -->
+  <tr><td colspan="3" style="${lb}">사업장<br>주 소</td><td colspan="12" style="${b}">${sup.addr}</td>
+      <td colspan="3" style="${lb}">사업장<br>주 소</td><td colspan="12" style="${b}">${buy.addr}</td></tr>
+  <!-- 업태·종목 -->
+  <tr><td colspan="3" style="${lb}">업 태</td><td colspan="6" style="${b}">${sup.bt}</td><td style="${lb}">종목</td><td colspan="5" style="${b}">${sup.bi}</td>
+      <td colspan="3" style="${lb}">업 태</td><td colspan="6" style="${b}">${buy.bt}</td><td style="${lb}">종목</td><td colspan="5" style="${b}">${buy.bi}</td></tr>
+  <!-- 작성·공급가액·세액 -->
+  <tr><td colspan="4" style="${lb};font-weight:700">작 성</td><td colspan="13" style="${lb};font-weight:700">공 급 가 액</td><td colspan="10" style="${lb};font-weight:700">세 액</td><td colspan="5" style="${lb}">비 고</td></tr>
+  <tr><td colspan="2" style="${lb};font-size:7px">년</td><td style="${lb};font-size:7px">월</td><td style="${lb};font-size:7px">일</td><td colspan="2" style="${lb};font-size:7px">공란수</td>${subDH}${vatDH}<td colspan="5" style="${b}"></td></tr>
+  <tr><td colspan="2" style="${lb}">${yy}</td><td style="${lb}">${mm}</td><td style="${lb}">${dd}</td><td colspan="2" style="${b}"></td>${taxDC(sub,11,b)}${taxDC(vat,10,b)}<td colspan="5" style="${b}"></td></tr>
+  <!-- 품목 -->
+  <tr><td style="${lb}">월</td><td style="${lb}">일</td><td colspan="6" style="${lb}">품 목</td><td colspan="3" style="${lb}">규격</td><td colspan="3" style="${lb}">수량</td><td colspan="5" style="${lb}">단 가</td><td colspan="6" style="${lb}">공 급 가 액</td><td colspan="5" style="${lb}">세 액</td><td colspan="2" style="${lb}">비고</td></tr>
+  ${body}${blanks}
+  <!-- 합계 -->
+  <tr><td colspan="5" style="${lb};font-weight:700">합계금액</td><td colspan="5" style="${lb}">현 금</td><td colspan="5" style="${lb}">수 표</td><td colspan="5" style="${lb}">어 음</td><td colspan="5" style="${lb}">외상미수금</td><td colspan="4" rowspan="2" style="${lb};vertical-align:middle;font-size:8px">이 금액을</td><td colspan="2" rowspan="2" style="${lb};vertical-align:middle;font-size:9px;font-weight:700">영수<br>청구</td><td rowspan="2" style="${lb};vertical-align:middle;font-size:9px">함</td></tr>
+  <tr><td colspan="5" style="text-align:center;font-weight:800;font-size:10px;${b}">₩${nfmt(total)}</td><td colspan="5" style="${b}"></td><td colspan="5" style="${b}"></td><td colspan="5" style="${b}"></td><td colspan="5" style="${b}"></td></tr>
+  </table>
+  <div style="display:flex;justify-content:space-between;margin-top:1px;font-size:7px;color:#333"><span>22226-28131일 '96.3.27승인</span><span>인쇄용지(특급)34g/m2 182mm×128mm</span></div>
   </div>`;
 }
 function stdStatementFallback(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
