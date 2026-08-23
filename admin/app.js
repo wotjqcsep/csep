@@ -1269,7 +1269,8 @@ async function estSave(btn){
   if(btn)btn.disabled=false;
   estState.savedId=r.id;
   if(st){ st.style.color='#0ca678'; st.textContent=(estState.savedId===r.id&&body.no===r.no?'수정':'저장')+'됨'+(r.customer_created?' (거래처 신규 등록됨)':'')+' · 견적번호 '+esc(r.no); }
-  await loadAll();   // 거래처 목록 갱신(자동완성 반영)
+  await loadAll();
+  const box=document.getElementById('est_saved_box'); if(box){ box.style.display='block'; _estSavedOpen=true; estLoadList(); }
 }
 // 저장된 견적 검색·목록
 async function estLoadList(){

@@ -609,10 +609,10 @@ app.get('/api/estimates/next-no', wrap(async (req, res) => {
 }));
 app.get('/api/estimates', wrap(async (req, res) => {
   const q = String((req.query.q || '')).trim();
-  let sql = 'SELECT id,no,customer_id,customer_name,phone,company,est_date,total,delivered,field_discount,final_amount,purchase_date,opts,created_at FROM estimates';
+  let sql = `SELECT e.id,e.no,e.customer_id,COALESCE(c.name,c.company_name,e.customer_name) as customer_name,COALESCE(c.phone,e.phone) as phone,COALESCE(c.company_name,e.company) as company,e.est_date,e.total,e.delivered,e.field_discount,e.final_amount,e.purchase_date,e.opts,e.created_at FROM estimates e LEFT JOIN customers c ON e.customer_id=c.id`;
   const params = [];
-  if (q) { sql += ' WHERE customer_name ILIKE $1 OR phone ILIKE $1 OR no ILIKE $1 OR company ILIKE $1'; params.push('%' + q + '%'); }
-  sql += ' ORDER BY id DESC LIMIT 300';
+  if (q) { sql += ` WHERE (COALESCE(c.name,c.company_name,e.customer_name) ILIKE $1 OR COALESCE(c.phone,e.phone) ILIKE $1 OR e.no ILIKE $1 OR COALESCE(c.company_name,e.company) ILIKE $1)`; params.push('%' + q + '%'); }
+  sql += ' ORDER BY e.id DESC LIMIT 300';
   res.json((await pool.query(sql, params)).rows);
 }));
 app.get('/api/customers/:id/estimates', wrap(async (req, res) => {
