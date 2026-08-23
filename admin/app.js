@@ -1177,11 +1177,14 @@ function renderEstimates(){ estInit(); const s=estState;
         </label>
       </div>
       <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:var(--card-bg);border:1px solid var(--gray-200)"></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">
+      <div style="border-top:2px solid var(--gray-300);margin-top:14px;padding-top:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--gray-500);margin-bottom:6px">📄 문서 종류 선택</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${[['estimate','견적서'],['statement','거래명세서'],['tax','세금계산서'],['receipt','간이영수증']].map(([k,l])=>{
           const on=(estState.doctype||'estimate')===k;
-          return `<button class="btn" onclick="estSetDoc('${k}')" style="${on?'':'background:var(--gray-100);color:var(--gray-600)'};font-weight:${on?'800':'600'}">${on?'● ':''}${l}</button>`;
+          return `<button class="btn" onclick="estSetDoc('${k}')" style="${on?'background:#1971c2;color:#fff':'background:var(--gray-100);color:var(--gray-600)'};font-weight:${on?'800':'600'}">${on?'● ':''}${l}</button>`;
         }).join('')}
+        </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn" onclick="estPrint(estState.ptarget)">🖨️ 이 상태로 인쇄</button>
