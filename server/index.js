@@ -2212,7 +2212,7 @@ async function cleanupExpiredSchedules() {
 
 initDB()
   .then(() => { cleanupOldPhotos(); setInterval(cleanupOldPhotos, 24 * 60 * 60 * 1000); })
-  .then(() => { cleanupExpiredSchedules(); setInterval(cleanupExpiredSchedules, 60 * 60 * 1000); })
+  .then(() => { cleanupExpiredSchedules(); setInterval(cleanupExpiredSchedules, 24 * 60 * 60 * 1000); })
   .then(() => backfillVatRefund())
   .then(() => app.listen(PORT, () => console.log(`CSEP 서버 실행: http://localhost:${PORT}`)))
   .catch(e => { console.error('DB 초기화 실패:', e.message); app.listen(PORT, () => console.log(`CSEP 서버 실행(DB오류): http://localhost:${PORT}`)); });
