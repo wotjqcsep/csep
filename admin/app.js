@@ -1182,7 +1182,7 @@ function renderEstimates(){ estInit(); const s=estState;
         <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${[['estimate','견적서'],['statement','거래명세서'],['tax','세금계산서'],['receipt','간이영수증']].map(([k,l])=>{
           const on=(estState.doctype||'estimate')===k;
-          return `<button class="btn" onclick="estSetDoc('${k}')" style="${on?'background:#1971c2;color:#fff':'background:var(--gray-100);color:var(--gray-600)'};font-weight:${on?'800':'600'}">${on?'● ':''}${l}</button>`;
+          return `<button class="btn" onclick="estSetDoc('${k}')" style="${on?'background:#c2410c;color:#fff':'background:var(--gray-100);color:var(--gray-600)'};font-weight:${on?'800':'600'}">${on?'● ':''}${l}</button>`;
         }).join('')}
         </div>
       </div>
