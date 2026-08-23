@@ -1738,43 +1738,44 @@ function stdStatementFallback(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
 }
 function stdReceiptOne(sup,items,total,ctx,memo,copyLabel){
   const B='border:1px solid #333;padding:1px 2px;font-size:8px';
-  const L='border:1px solid #333;padding:1px 2px;font-size:8px;text-align:center';
+  const L=B+';text-align:center';
   const dp=String(ctx.date||'').split('-'), yy=dp[0]||'', mm=dp[1]||'', dd=dp[2]||'';
   const cust=esc(estState.customer||'');
+  const ov='white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0';
   const itemRows=items.map(r=>`<tr>
-    <td style="text-align:center;${B}">${mm}.${dd}</td>
-    <td colspan="5" style="${B}">${esc(ctx.dispName(r))}</td>
-    <td style="text-align:center;${B}">${r.qty}</td>
+    <td style="${L}">${mm}/${dd}</td>
+    <td colspan="3" style="${B};${ov}">${esc(ctx.dispName(r))}</td>
+    <td style="${L}">${r.qty}</td>
     <td style="text-align:right;${B}">${nfmt(r.price)}</td>
-    <td colspan="3" style="text-align:right;${B}">${nfmt(r.amt)}</td></tr>`).join('');
-  const BLANK_ROWS=10;
-  const emptyCount=Math.max(0,BLANK_ROWS-items.length);
-  const blanks=Array(emptyCount).fill(`<tr>
-    <td style="${B}">&nbsp;</td><td colspan="5" style="${B}"></td>
-    <td style="${B}"></td><td style="${B}"></td><td colspan="3" style="${B}"></td></tr>`).join('');
+    <td colspan="2" style="text-align:right;${B}">${nfmt(r.amt)}</td></tr>`).join('');
+  const BLANK=10;
+  const blanks=Array(Math.max(0,BLANK-items.length)).fill(`<tr>
+    <td style="${B}">&nbsp;</td><td colspan="3" style="${B}"></td>
+    <td style="${B}"></td><td style="${B}"></td><td colspan="2" style="${B}"></td></tr>`).join('');
   return `<div style="text-align:center;font-size:13px;font-weight:800;letter-spacing:8px;padding:4px 0 1px">영 수 증</div>
-    <div style="text-align:center;font-size:7px;color:#555;margin-bottom:2px">(${esc(copyLabel)})</div>
+    <div style="text-align:center;font-size:8px;color:#555;margin-bottom:2px">(${esc(copyLabel)})</div>
     <table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:8px;border:2px solid #333">
-    <colgroup><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"></colgroup>
-    <tr><td colspan="3" style="${B}">No. ${esc(ctx.no)}</td>
-        <td colspan="6" style="${B}"></td>
-        <td colspan="2" style="${B}">${cust} 귀하</td></tr>
-    <tr><td rowspan="4" style="text-align:center;font-weight:700;${B};writing-mode:vertical-lr;letter-spacing:2px">공급자</td>
-        <td colspan="2" style="${L}">등록번호</td><td colspan="8" style="${B}">${sup.bizno}</td></tr>
-    <tr><td colspan="2" style="${L}">상호</td><td colspan="4" style="${B}">${sup.nm}</td>
-        <td style="${L}">성명</td><td colspan="3" style="${B}">${sup.ceo}${stampImg(18)}</td></tr>
-    <tr><td colspan="2" style="${L}">사업장<br>소재지</td><td colspan="8" style="${B}">${sup.addr}</td></tr>
-    <tr><td colspan="2" style="${L}">업태</td><td colspan="3" style="${B}">${sup.bt}</td>
-        <td style="${L}">종목</td><td colspan="4" style="${B}">${sup.bi}</td></tr>
-    <tr><td colspan="3" style="${L}">작성년월일</td><td colspan="5" style="${L}">금　액</td><td colspan="3" style="${L}">비고</td></tr>
-    <tr><td colspan="3" style="text-align:center;padding:3px 2px;${B}">${yy}.${mm}.${dd}</td>
-        <td colspan="5" style="text-align:center;font-weight:800;font-size:10px;padding:3px 2px;${B}">${nfmt(total)}</td>
-        <td colspan="3" style="padding:3px 2px;${B}">${memo||''}</td></tr>
-    <tr><td colspan="11" style="text-align:center;font-weight:700;font-size:9px;padding:2px 0;${B}">위 금액을 영수(청구)함</td></tr>
-    <tr><td style="${L}">월일</td><td colspan="5" style="${L}">품　목</td>
-        <td style="${L}">수량</td><td style="${L}">단가</td><td colspan="3" style="${L}">금　액</td></tr>
+    <colgroup><col style="width:10%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:10%"><col style="width:8%"></colgroup>
+    <tr><td colspan="2" style="${B}">NO. ${esc(ctx.no)}</td>
+        <td colspan="5" style="text-align:right;font-size:10px;font-weight:700;padding:3px 4px;${B}">◎${cust}　귀하</td>
+        <td colspan="2" style="${B}"></td></tr>
+    <tr><td rowspan="4" style="${L};font-weight:700;writing-mode:vertical-lr;letter-spacing:2px;font-size:9px">사업자</td>
+        <td colspan="2" style="${L}">등록번호</td><td colspan="6" style="${B}">${sup.bizno}</td></tr>
+    <tr><td colspan="2" style="${L}">상호</td><td colspan="3" style="${B}">${sup.nm}</td>
+        <td style="${L}">대표자</td><td colspan="2" style="${B}">${sup.ceo}${stampImg(18)}</td></tr>
+    <tr><td colspan="2" style="${L}">사업장<br>소재지</td><td colspan="6" style="${B}">${sup.addr}</td></tr>
+    <tr><td colspan="2" style="${L}">업태</td><td colspan="2" style="${B}">${sup.bt}</td>
+        <td colspan="2" style="${L}">종목</td><td colspan="2" style="${B}">${sup.bi}</td></tr>
+    <tr><td colspan="2" style="${L}">작성일</td><td colspan="3" style="${L}">공급가 총액</td><td colspan="4" style="${L}">비고</td></tr>
+    <tr><td colspan="2" style="text-align:center;padding:3px 2px;${B}">${yy}.${mm}.${dd}</td>
+        <td colspan="3" style="text-align:center;font-weight:800;font-size:10px;padding:3px 2px;${B}">₩${nfmt(total)}</td>
+        <td colspan="4" style="padding:3px 2px;${B}">${memo||''}</td></tr>
+    <tr><td colspan="9" style="text-align:center;font-weight:700;font-size:9px;padding:2px 0;${B}">위 금액을 영수(청구)함.</td></tr>
+    <tr><td style="${L}">월일</td><td colspan="3" style="${L}">품　목</td>
+        <td style="${L}">수량</td><td style="${L}">단 가</td><td colspan="2" style="${L}">공급가액</td></tr>
     ${itemRows}${blanks}
-    <tr><td style="padding:3px 2px;${B}"></td><td colspan="10" style="text-align:right;padding:3px 2px;${B}"></td></tr>
+    <tr><td colspan="3" style="text-align:center;font-weight:700;padding:3px 2px;${B}">합　계</td>
+        <td style="${L}">₩</td><td colspan="5" style="text-align:right;font-weight:800;font-size:10px;padding:3px 2px;${B}">${nfmt(total)}</td></tr>
   </table>`;
 }
 function stdReceipt(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
