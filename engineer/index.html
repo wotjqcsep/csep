@@ -551,7 +551,12 @@ function renderWoTab(){
       </div>`).join('')}`:''}
     <div class="sec-label">📋 작업 지시</div>
     ${comps.length?`<div class="fg"><label>작업 대상 장비 (선택)</label><select id="woT_comp" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>`:''}
-    <div class="fg"><label>작업 구분 (선택사항)</label><select id="woT_type" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="출장">출장</option><option value="납품">납품</option><option value="견적서 납품">견적서 납품</option></select></div>
+    <div class="fg"><label>작업 구분 (선택사항)</label><select id="woT_type" onchange="woTypeChanged()" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"><option value="출장">출장</option><option value="납품">납품</option><option value="견적서 납품">견적서 납품</option></select></div>
+    <div id="woT_est_box" style="display:none">
+      <div class="fg"><label>📄 납품할 견적서 선택 *</label><select id="woT_est" onchange="woEstSelected()" style="width:100%;padding:11px;border:1px solid #7048e8;border-radius:9px;background:#f8f0ff"></select></div>
+      <div id="woT_est_detail" style="margin-bottom:8px"></div>
+      <div class="fg"><label>📅 장비 실제 결제 날짜</label><input id="woT_purchasedate" type="date" style="width:100%;padding:11px;border:1px solid #dee2e6;border-radius:9px"></div>
+    </div>
     <div class="fg"><label>작업 내용 / 증상</label>
       <div style="display:flex;gap:6px;align-items:flex-start"><textarea id="woT_symptom" placeholder="작업 지시 내용" style="flex:1" oninput="woState.symptom=this.value">${esc(woState.symptom||'')}</textarea>${micBtn('woT_symptom')}</div>
     </div>
@@ -847,18 +852,64 @@ function woEnterWithCustomer(cust, symptom){
   woState={customerId:String(cust.id),customer:cust,search:'',results:[],comps:[],symptom:symptom||'',searchSeq:(woState&&woState.searchSeq)||0};
   S.tab='wo'; render(); woLoadComps(cust.id);
 }
+async function woTypeChanged(){
+  const t=(document.getElementById('woT_type')||{}).value;
+  const box=document.getElementById('woT_est_box'); if(!box) return;
+  if(t==='견적서 납품'){
+    box.style.display='block';
+    const sel=document.getElementById('woT_est'); if(!sel) return;
+    sel.innerHTML='<option value="">불러오는 중…</option>';
+    try{
+      const cid=woState.customerId;
+      const list=cid? await api('GET','/customers/'+cid+'/estimates') : await api('GET','/estimates');
+      if(!list.length){ sel.innerHTML='<option value="">저장된 견적이 없습니다</option>'; return; }
+      sel.innerHTML='<option value="">선택하세요</option>'+list.map(e=>`<option value="${e.id}">${esc(e.no)||('#'+e.id)} · ${won(e.total)} · ${esc(e.est_date)||''}</option>`).join('');
+    }catch(e){ sel.innerHTML='<option value="">견적 불러오기 실패</option>'; }
+  } else { box.style.display='none'; }
+}
+async function woEstSelected(){
+  const estId=(document.getElementById('woT_est')||{}).value;
+  const detail=document.getElementById('woT_est_detail'); if(!detail) return;
+  if(!estId){ detail.innerHTML=''; return; }
+  try{
+    const e=await api('GET','/estimates/'+estId);
+    woState._selectedEst=e;
+    const items=Array.isArray(e.items)?e.items.filter(i=>i.name):[];
+    const o=e.opts||{};
+    const payLabel={'cash':'현금','card':'카드','transfer':'계좌이체','tax':'세금계산서','cashreceipt':'현금영수증'}[o.payMethod]||'현금';
+    detail.innerHTML=`<div style="background:#f8f0ff;border:1px solid #d0bfff;border-radius:9px;padding:10px 12px;font-size:12px">
+      <div style="font-weight:700;color:#7048e8;margin-bottom:4px">📄 ${esc(e.no||'')} — ${payLabel} · 합계 ${won(e.total)}</div>
+      ${items.slice(0,5).map(i=>`<div style="color:#495057">${esc(i.cat?'['+i.cat+'] ':'')}${esc(i.name)} ×${i.qty||1} = ${won((Number(i.price)||0)*(Number(i.qty)||1))}</div>`).join('')}
+      ${items.length>5?`<div style="color:#868e96">… 외 ${items.length-5}건</div>`:''}
+    </div>`;
+  }catch(e){ detail.innerHTML='<div style="color:#e03131;font-size:12px">견적 불러오기 실패</div>'; }
+}
 async function submitWoTab(){
   const typeEl=document.getElementById('woT_type'); const wtype=typeEl?typeEl.value:'';
+  const isDeliver=(wtype==='견적서 납품');
+  let est=null;
+  if(isDeliver){
+    const estId=(document.getElementById('woT_est')||{}).value;
+    if(!estId){ engToast('납품할 견적서를 선택하세요','#e03131'); return; }
+    try{ est=await api('GET','/estimates/'+estId); }catch(e){ engToast('견적 불러오기 실패','#e03131'); return; }
+  }
   let symptom=document.getElementById('woT_symptom').value.trim();
+  if(isDeliver && !symptom) symptom='[견적서 납품] '+(est.no||'견적')+' — '+((Array.isArray(est.items)?est.items:[]).slice(0,3).map(i=>i.name).filter(Boolean).join(', ')||'PC 납품');
   if(!symptom) symptom=wtype||'출장';
   const engId=document.getElementById('woT_eng').value; if(!engId){ alert('담당 기사를 선택하세요'); return; }
   const compEl=document.getElementById('woT_comp'); const cid=compEl&&compEl.value?Number(compEl.value):null;
   const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
   try{
-    const wmemo=wtype?`[${wtype}]`:'';
-    const rec=await api('POST','/receptions',{customer_id:Number(woState.customerId),computer_id:cid,reception_channel:'direct',symptom,initial_memo:wmemo||null,work_type:wtype||null});
+    const wmemo=[wtype?`[${wtype}]`:'', isDeliver?`합계 ${won(est.total)}`:''].filter(Boolean).join(' ');
+    const rec=await api('POST','/receptions',{customer_id:Number(woState.customerId),computer_id:cid,reception_channel:isDeliver?'estimate':'direct',symptom,initial_memo:wmemo||null,work_type:wtype||null});
     await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${engId}`);
-    woState={customerId:'',customer:null,search:'',results:[],comps:[],symptom:'',searchSeq:(woState.searchSeq||0)}; engToast('작업지시 완료','#2b8a3e'); S.tab='all'; await loadReceptions();
+    if(isDeliver){
+      const pm=(est.opts&&est.opts.payMethod)||'cash';
+      const purchaseDate=(document.getElementById('woT_purchasedate')||{}).value||'';
+      if(est.id){ try{ await api('PUT',`/estimates/${est.id}/purchase-date`,{purchase_date:purchaseDate}); }catch(e){} }
+      await api('PUT',`/receptions/${rec.id}/payment`,{parts_fee:Number(est.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(est.total)||0, estimate_id:est.id});
+    }
+    woState={customerId:'',customer:null,search:'',results:[],comps:[],symptom:'',searchSeq:(woState.searchSeq||0)}; engToast(isDeliver?'📤 견적서 납품 작업지시 완료':'작업지시 완료','#2b8a3e'); S.tab='all'; await loadReceptions();
   }catch(e){ engToast('작업지시 전송 실패: '+(e.message||e),'#e03131'); }
   finally{ if(btn) btn.disabled=false; }
 }
