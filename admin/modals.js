@@ -215,6 +215,16 @@ async function saveCustomer(id){
   if(id){ data.outstanding_amount = Number(v('c_outstanding'))||0; await api('PUT','/customers/'+id, data); }
   else await api('POST','/customers', data);
   closeModal(); await loadAll();
+  if(id && typeof estState!=='undefined' && estState && estState.customerId==id){
+    estState.customer=data.name||data.company_name||'';
+    estState.phone=data.phone||'';
+    estState.buyerCeo=data.ceo_name||data.contact_person||'';
+    estState.buyerAddr=[data.address,data.address_detail].filter(Boolean).join(' ');
+    estState.buyerBizno=data.biz_no||'';
+    estState.buyerType=data.biz_type||'';
+    estState.buyerItem=data.biz_item||'';
+    if(typeof _estForceRender!=='undefined'){_estForceRender=true; render();}
+  }
 }
 
 // ── 장비 추가/수정 ──
