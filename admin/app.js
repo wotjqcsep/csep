@@ -1119,6 +1119,7 @@ function renderEstimates(){ estInit(); const s=estState;
     </div>
     <div id="est_url_box" style="display:none;margin-bottom:10px">
       <div style="display:flex;gap:6px"><input id="est_url" placeholder="컴퓨존 [URL 공유] 링크 붙여넣기" style="flex:1;padding:9px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
+        <button class="btn btn-sm" onclick="navigator.clipboard.readText().then(t=>{document.getElementById('est_url').value=t}).catch(()=>showToast('클립보드 권한을 허용해주세요','#e68900'))" title="클립보드에서 붙여넣기">📋 붙여넣기</button>
         <button class="btn btn-sm" onclick="estUrlImport(this)">가져오기</button></div>
       <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 페이지에 적힌 부품명·가격을 그대로 가져옵니다 (AI 미사용 — 이름 축약·OS 지어냄 없음). 가장 정확한 방식입니다.</div>
     </div>
