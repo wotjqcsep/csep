@@ -1178,7 +1178,7 @@ function parseSmsMessage(msg){
   const lines=msg.split(/[\n,\/]/).map(s=>s.trim()).filter(Boolean);
   for(const line of lines){
     if(result.address && line.includes(result.address)) continue;
-    if(/^[가-힣]{2,5}$/.test(line)) result.name=line;
+    if(/^[가-힣]{2,4}$/.test(line) && /^(?:김|이|박|최|정|강|조|윤|장|임|한|오|서|신|권|황|안|송|류|유|전|홍|고|문|양|손|배|백|허|남|심|노|하|곽|성|차|주|우|구|민|진|지|채|원|천|방|공|현|함|변|추|도|석|소|설|선|마|길|연|위|표|명|기|반|라|왕|금|옥|육|인|맹|제|모|탁|국|어|은|편|용|예|경|봉|사|부|가|복|태|목|피|감|당|탕|점)/.test(line) && !/^(?:안녕|감사|부탁|연락|문의|고장|수리|방문|확인|예약|접수|상담|주문|배송|결제|취소|요청|답변|처리|완료|진행|대기|긴급|참고|전달)/.test(line)) result.name=line;
     else if(/[가-힣a-zA-Z]{2,}(?:컴퓨터|전자|통신|사무|상사|기업|회사|주식회사|㈜|업체|센터|학원|병원|약국|마트|식당|카페|호텔|모텔|공업사|정비|인쇄)/.test(line)||/^㈜/.test(line)){ result.name=line; result.type='business'; }
   }
   const remaining=lines.filter(l=> l!==(result.address||'') && l!==(result.name||'')).join(' ');
