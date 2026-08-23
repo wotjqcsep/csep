@@ -1189,6 +1189,7 @@ function renderEstimates(){ estInit(); const s=estState;
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn" onclick="estPrint(estState.ptarget)">🖨️ 이 상태로 인쇄</button>
         <button class="btn btn-secondary" onclick="estReset()">초기화</button>
+        <button class="btn" style="background:#7048e8;color:#fff" onclick="estNewDoc()">＋ 새 견적서</button>${estState.savedId?` <span style="font-size:11px;color:var(--gray-400)">📝 견적 #${estState.savedId} 수정 중</span>`:''}
       </div>
       <div style="font-size:12px;color:var(--gray-400);margin-top:8px">※ 내부용은 품명·금액 옵션과 무관하게 항상 전체 표시. 옵션은 출력물에만 적용되고 위 표 데이터는 그대로입니다.</div>
       <div style="display:flex;align-items:center;gap:8px;margin:12px 0 6px">
@@ -1454,7 +1455,15 @@ function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·
   estSyncAll();
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
   estState.realCost=''; estState.purchaseDate='';
-  _estForceRender=true; render();   // 화면 전체 다시 그려 입력칸까지 초기화
+  _estForceRender=true; render();
+}
+function estNewDoc(){ if(estState.savedId && !confirm('현재 견적을 닫고 새 견적서를 작성할까요?'))return;
+  estSyncAll();
+  estState.savedId=null;
+  estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
+  estState.realCost=''; estState.purchaseDate=''; estState.no=''; estState.memo='';
+  _estForceRender=true; render();
+  const st=document.getElementById('est_status'); if(st){st.style.color='#7048e8';st.textContent='새 견적서 — 저장하면 새 번호가 부여됩니다';}
 }
 // 가져오기: 누를 때마다 기존 부품표를 버리고 새로 받음(중복 누적 방지, 초기화 불필요).
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
