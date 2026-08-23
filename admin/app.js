@@ -1376,6 +1376,8 @@ async function openVendorDocs(customerId){
 async function estDeleteSaved(id){
   if(!confirm('이 저장된 견적을 삭제할까요?')) return;
   try{ await api('DELETE','/estimates/'+id); }catch(e){ showToast('삭제 실패: '+(e&&e.message?e.message:e),'#e03131'); return; }
+  if(estState && estState.savedId==id) estState.savedId=null;
+  document.body.focus();
   estLoadList();
 }
 // DOM → estState (값 동기화만, 계산 없음)
