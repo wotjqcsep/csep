@@ -1068,12 +1068,6 @@ function renderEstimates(){ estInit(); const s=estState;
   <div oninput="estSyncLazy()">
   <div class="page-header"><h2>📄 문서 작성 <span style="font-size:13px;color:var(--gray-500)">— 문서 종류를 골라 작성·인쇄 (같은 내용으로 종류만 전환)</span></h2></div>
   ${s.delivered?`<div style="background:#e6fcf5;border:1px solid #63e6be;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px">✅ <b>납품완료</b>${(Number(s.fieldDiscount)||0)>0?` · <span style="color:#e8590c;font-weight:700">현장할인 ${won(s.fieldDiscount)}</span>`:''}${s.finalAmount!=null?` · 실납품액 <b>${won(s.finalAmount)}</b>`:''}</div>`:''}
-  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-    ${[['estimate','견적서'],['statement','거래명세서'],['tax','세금계산서'],['receipt','간이영수증']].map(([k,l])=>{
-      const on=(s.doctype||'estimate')===k;
-      return `<button class="btn" onclick="estSetDoc('${k}')" style="${on?'':'background:var(--gray-100);color:var(--gray-600)'};font-weight:${on?'800':'600'}">${on?'● ':''}${l}</button>`;
-    }).join('')}
-  </div>
   <div class="vd-card" style="margin-bottom:14px">
     <div style="font-size:13px;font-weight:700;margin-bottom:6px">공급받는자 <span style="font-size:11px;color:var(--gray-400);font-weight:400">— 고객/거래처 정보</span></div>
     <div class="form-row">
@@ -1183,7 +1177,13 @@ function renderEstimates(){ estInit(); const s=estState;
         </label>
       </div>
       <div id="est_fee" style="margin-top:8px;font-size:13px;padding:8px 10px;border-radius:8px;background:var(--card-bg);border:1px solid var(--gray-200)"></div>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">
+        ${[['estimate','견적서'],['statement','거래명세서'],['tax','세금계산서'],['receipt','간이영수증']].map(([k,l])=>{
+          const on=(estState.doctype||'estimate')===k;
+          return `<button class="btn" onclick="estSetDoc('${k}')" style="${on?'':'background:var(--gray-100);color:var(--gray-600)'};font-weight:${on?'800':'600'}">${on?'● ':''}${l}</button>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn" onclick="estPrint(estState.ptarget)">🖨️ 이 상태로 인쇄</button>
         <button class="btn btn-secondary" onclick="estReset()">초기화</button>
       </div>
