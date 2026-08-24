@@ -386,6 +386,20 @@ async function initDB() {
       status TEXT DEFAULT 'pending',
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS app_logs (
+      id SERIAL PRIMARY KEY,
+      platform TEXT NOT NULL,
+      level TEXT DEFAULT 'info',
+      tag TEXT,
+      message TEXT,
+      detail TEXT,
+      user_agent TEXT,
+      ip TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_app_logs_platform ON app_logs(platform);
+    CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level);
+    CREATE INDEX IF NOT EXISTS idx_app_logs_created ON app_logs(created_at DESC);
   `);
   // 결과 프리셋 기본값 시드 (비어있을 때만)
   const pc = await pool.query('SELECT count(*) FROM result_presets');
@@ -2202,6 +2216,50 @@ app.put('/api/engineer/receptions/:id/reserve', wrap(async (req, res) => {
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
 }));
+
+// ============================================================
+//  앱 로그 API (모니터링용)
+// ============================================================
+app.post('/api/logs', async (req, res) => {
+  try {
+    const { platform, level, tag, message, detail } = req.body;
+    if (!platform || !message) return res.status(400).json({ error: 'platform, message 필수' });
+    const ua = req.headers['user-agent'] || '';
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    await pool.query(
+      'INSERT INTO app_logs (platform, level, tag, message, detail, user_agent, ip) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [platform, level || 'info', tag || null, message, detail || null, ua, ip]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/logs', async (req, res) => {
+  try {
+    const { platform, level, tag, from, to, limit: lim } = req.query;
+    const conds = [];
+    const vals = [];
+    let idx = 1;
+    if (platform) { conds.push(`platform=$${idx++}`); vals.push(platform); }
+    if (level)    { conds.push(`level=$${idx++}`); vals.push(level); }
+    if (tag)      { conds.push(`tag ILIKE $${idx++}`); vals.push(`%${tag}%`); }
+    if (from)     { conds.push(`created_at >= $${idx++}`); vals.push(from); }
+    if (to)       { conds.push(`created_at <= $${idx++}`); vals.push(to); }
+    const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+    const n = Math.min(parseInt(lim) || 500, 2000);
+    const { rows } = await pool.query(`SELECT * FROM app_logs ${where} ORDER BY created_at DESC LIMIT ${n}`, vals);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/logs', async (req, res) => {
+  try {
+    const { before } = req.query;
+    if (!before) return res.status(400).json({ error: 'before 날짜 필수' });
+    const { rowCount } = await pool.query('DELETE FROM app_logs WHERE created_at < $1', [before]);
+    res.json({ ok: true, deleted: rowCount });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // ============================================================
 //  SPA 폴백 + 서버 시작
