@@ -514,6 +514,7 @@ async function submitWorkorder(customerId, siteId){
     const purchaseDate=v('wo_purchasedate')||'';
     if(est.id) { try{ await api('PUT',`/estimates/${est.id}/purchase-date`,{ purchase_date:purchaseDate }); }catch(e){} }
     await api('PUT',`/receptions/${rec.id}/payment`,{ parts_fee:Number(est.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(est.total)||0, estimate_id:est.id }); }
+  csepLog('info','WORKORDER','PC 작업지시 전송 #'+rec.id,symptom);
   closeModal(); showToast(isDeliver?'📤 견적서 납품 작업지시 전송 완료':'📤 작업지시를 전송했습니다'); await loadAll();
 }
 
@@ -853,6 +854,7 @@ function renderEngineers(){
   </div>`;
 }
 async function resetSystem(){
+  csepLog('warn','SYSTEM','시스템 초기화 시도');
   const targets=[];
   if(document.getElementById('rst_receptions')?.checked) targets.push('receptions');
   if(document.getElementById('rst_customers')?.checked) targets.push('customers');
@@ -1274,6 +1276,7 @@ async function estSave(btn){
   catch(e){ if(btn)btn.disabled=false; if(st){st.style.color='#e03131';st.textContent='저장 실패: '+(e&&e.message?e.message:e);} return; }
   if(btn)btn.disabled=false;
   const wasEdit=!!estState.savedId;
+  csepLog('info','ESTIMATE','PC 견적 '+(wasEdit?'수정':'저장')+' '+esc(r.no));
   if(st){ st.style.color='#0ca678'; st.textContent=(wasEdit?'수정':'저장')+'됨'+(r.customer_created?' (거래처 신규 등록됨)':'')+' · 견적번호 '+esc(r.no); }
   if(wasEdit){ estState.savedId=r.id; }
   else { estState.savedId=null; estState.no=await estNextNo(); const el=document.getElementById('est_no'); if(el) el.value=estState.no; }

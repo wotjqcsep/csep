@@ -118,14 +118,25 @@ function pickPay(inputId, val){
 const ENG_PALETTE=['#1971c2','#2f9e44','#e8590c','#6741d9','#0c8599','#c2255c','#5c940d','#1098ad'];
 function engColor(e){ if(!e) return '#868e96'; if(e.is_admin) return '#e03131'; return ENG_PALETTE[(Number(e.id)||0)%ENG_PALETTE.length]; }
 function engColorById(id){ return engColor((S.engineers||[]).find(x=>x.id==id)); }
+// ── 로그 전송 (모니터링용 — fire-and-forget) ──
+function csepLog(level,tag,message,detail){
+  try{
+    const plat=(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())?'android':'web';
+    const body=JSON.stringify({platform:plat,level:level||'info',tag:tag||null,message:String(message).slice(0,500),detail:detail?String(detail).slice(0,2000):null});
+    navigator.sendBeacon(API+'/logs',new Blob([body],{type:'application/json'}));
+  }catch(e){}
+}
+window.onerror=function(msg,src,line,col,err){ csepLog('error','JS_ERROR',msg,(src||'')+':'+line+':'+col+'\n'+(err&&err.stack||'')); };
+window.addEventListener('unhandledrejection',function(e){ csepLog('error','PROMISE',String(e.reason),(e.reason&&e.reason.stack)||''); });
+
 async function api(m,u,b){
   const headers={'Content-Type':'application/json'};
   const token=localStorage.getItem('authToken');
   if(token) headers['Authorization']='Bearer '+token;
   const o={method:m,headers};if(b)o.body=JSON.stringify(b);
   const r=await fetch(API+u,o);
-  if(r.status===401){ localStorage.removeItem('authToken'); localStorage.removeItem('csep_eng'); location.reload(); throw new Error('인증 만료'); }
-  if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||r.status);
+  if(r.status===401){ csepLog('warn','AUTH','인증 만료 — 재로그인',u); localStorage.removeItem('authToken'); localStorage.removeItem('csep_eng'); location.reload(); throw new Error('인증 만료'); }
+  if(!r.ok){ const errMsg=(await r.json().catch(()=>({}))).error||r.status; csepLog('error','API_ERROR',m+' '+u+' → '+r.status,String(errMsg)); throw new Error(errMsg); }
   return r.json();
 }
 
@@ -147,10 +158,11 @@ async function login(id,hasPassword,locked){
     const e=await api('POST','/engineer-login',{engineer_id:id,password});
     S.engineer=e; localStorage.setItem('csep_eng',JSON.stringify(e));
     if(e.token) localStorage.setItem('authToken', e.token);
+    csepLog('info','AUTH','기사 로그인: '+(e.name||id));
     connectSSE(); loadReceptions(true); setupPush(); setNativeRole(); pollIncoming();
-  }catch(err){ alert(err.message); renderLogin(); }
+  }catch(err){ csepLog('error','AUTH','기사 로그인 실패',err.message); alert(err.message); renderLogin(); }
 }
-function logout(){ localStorage.removeItem('csep_eng'); localStorage.removeItem('authToken'); S.engineer=null; clearNativeRole(); renderLogin(); }
+function logout(){ csepLog('info','AUTH','기사 로그아웃'); localStorage.removeItem('csep_eng'); localStorage.removeItem('authToken'); S.engineer=null; clearNativeRole(); renderLogin(); }
 // 네이티브(APK) 전화감지 게이팅용 역할 저장 (대표만 감지)
 function setNativeRole(){
   try{ const P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Preferences;
@@ -189,7 +201,7 @@ async function loadReceptions(showLoading){
       try{ S.stats = await api('GET','/stats'); }catch(e){}
     }
     if(showLoading || !isEditing()) render();   // 편집 중(음성·작성)엔 화면 안 지움
-  }catch(e){ if(showLoading)document.getElementById('app').innerHTML='<div class="empty">서버 연결 실패</div>'; }
+  }catch(e){ csepLog('error','LOAD_FAIL','데이터 로딩 실패',e.message||e); if(showLoading)document.getElementById('app').innerHTML='<div class="empty">서버 연결 실패</div>'; }
   finally{ _engLoadRunning=false; }
 }
 // 편집 중이면 배경 새로고침이 화면을 다시 그리지 않게
@@ -283,7 +295,7 @@ function markPickup(id){ const r=S.receptions.find(x=>x.id==id); if(r && (r.stat
 async function engCancel(id){
   if(!confirm('비용 미청구로 콜을 취소하시겠습니까?\n(금액 청구 없음 · 내역은 기록에 남습니다)')) return;
   const reason=prompt('취소 사유 (선택):','')||'';
-  try{ await api('PUT',`/receptions/${id}/cancel`,{reason}); }catch(e){ alert('취소 실패'); return; }
+  try{ await api('PUT',`/receptions/${id}/cancel`,{reason}); csepLog('info','CANCEL','콜 취소 #'+id,reason); }catch(e){ csepLog('error','CANCEL','콜 취소 실패 #'+id,e.message||e); alert('취소 실패'); return; }
   S.processing=null; loadReceptions();
 }
 // 대표: 비용청구 (콜 취소) — 콜은 취소하되 출장비 청구. 결제수단 선택 모달
@@ -483,8 +495,9 @@ async function submitProcessing(id){
   try{
     await api('PUT',`/engineer/receptions/${id}/complete`,{ work_description:desc, parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req'), cost_parts:moneyVal('p_cparts'), cost_labor:moneyVal('p_clabor'), payment_method:g('p_paymethod'), tax_invoice:(g('p_paymethod')==='tax') });
     await uploadProcPhotos(id);
+    csepLog('info','COMPLETE','작업 완료 처리 #'+id,desc);
     S.processing=null; await loadReceptions(); engToast('처리 완료','#2b8a3e');
-  }catch(e){ engToast('처리 실패: '+(e.message||e),'#e03131'); }
+  }catch(e){ csepLog('error','COMPLETE','작업 완료 실패 #'+id,e.message||e); engToast('처리 실패: '+(e.message||e),'#e03131'); }
   finally{ if(btn) btn.disabled=false; }
 }
 async function submitReserve(id){
@@ -496,8 +509,9 @@ async function submitReserve(id){
   try{
     await api('PUT',`/engineer/receptions/${id}/reserve`,{ reserved_date:date, work_description:g('p_desc'), parts_used:g('p_parts'), next_visit_parts:g('p_next'), customer_request:g('p_req') });
     await uploadProcPhotos(id);
+    csepLog('info','RESERVE','예약 처리 #'+id,date);
     S.processing=null; await loadReceptions(); engToast('예약 처리 완료','#2b8a3e');
-  }catch(e){ engToast('예약 저장 실패: '+(e.message||e),'#e03131'); }
+  }catch(e){ csepLog('error','RESERVE','예약 처리 실패 #'+id,e.message||e); engToast('예약 저장 실패: '+(e.message||e),'#e03131'); }
   finally{ if(btn) btn.disabled=false; }
 }
 async function submitCollect(id){
@@ -505,8 +519,9 @@ async function submitCollect(id){
   const btn=document.activeElement; if(btn&&btn.tagName==='BUTTON') btn.disabled=true;
   try{
     await api('PUT',`/receptions/${id}/collect`,{work_description:'장비 수거'});
+    csepLog('info','COLLECT','장비 수거 #'+id);
     S.processing=null; await loadReceptions(); engToast('장비수거 처리 완료. 수리 후 [처리 완료]를 눌러주세요.','#1971c2');
-  }catch(e){ engToast('장비수거 처리 실패: '+(e.message||e),'#e03131'); }
+  }catch(e){ csepLog('error','COLLECT','장비수거 실패 #'+id,e.message||e); engToast('장비수거 처리 실패: '+(e.message||e),'#e03131'); }
   finally{ if(btn) btn.disabled=false; }
 }
 let _ehHist=[];
@@ -909,8 +924,9 @@ async function submitWoTab(){
       if(est.id){ try{ await api('PUT',`/estimates/${est.id}/purchase-date`,{purchase_date:purchaseDate}); }catch(e){} }
       await api('PUT',`/receptions/${rec.id}/payment`,{parts_fee:Number(est.total)||0, payment_method:pm, tax_invoice:(pm==='tax'), estimate_amount:Number(est.total)||0, estimate_id:est.id});
     }
+    csepLog('info','WORKORDER','기사앱 작업지시 #'+rec.id,symptom);
     woState={customerId:'',customer:null,search:'',results:[],comps:[],symptom:'',searchSeq:(woState.searchSeq||0)}; engToast(isDeliver?'📤 견적서 납품 작업지시 완료':'작업지시 완료','#2b8a3e'); S.tab='all'; await loadReceptions();
-  }catch(e){ engToast('작업지시 전송 실패: '+(e.message||e),'#e03131'); }
+  }catch(e){ csepLog('error','WORKORDER','기사앱 작업지시 실패',e.message||e); engToast('작업지시 전송 실패: '+(e.message||e),'#e03131'); }
   finally{ if(btn) btn.disabled=false; }
 }
 
@@ -1191,8 +1207,8 @@ async function setupPush(){
       await PN.addListener('pushNotificationReceived', ()=>{ if(navigator.vibrate)navigator.vibrate([300,100,300]); loadReceptions(); pollIncoming(); });
       await PN.addListener('pushNotificationActionPerformed', ()=>{ loadReceptions(); pollIncoming(); });
       await PN.register();
-      console.log('네이티브 FCM 등록 요청 완료');
-    }catch(e){ console.log('네이티브 푸시 실패:', e.message); }
+      csepLog('info','PUSH','네이티브 FCM 등록 완료');
+    }catch(e){ csepLog('error','PUSH','네이티브 푸시 실패',e.message); }
     return;
   }
   // ② 웹 푸시 (브라우저)
@@ -1205,14 +1221,14 @@ async function setupPush(){
     fcmMessaging = firebase.messaging();
     const reg = await navigator.serviceWorker.register('/engineer/firebase-messaging-sw.js', { scope:'/engineer/' });
     const token = await fcmMessaging.getToken({ vapidKey:FCM_VAPID, serviceWorkerRegistration:reg });
-    if(token){ await api('POST','/fcm-token',{ engineer_id:S.engineer.id, fcm_token:token }); console.log('FCM 토큰 등록 완료'); }
+    if(token){ await api('POST','/fcm-token',{ engineer_id:S.engineer.id, fcm_token:token }); csepLog('info','PUSH','웹 FCM 토큰 등록 완료'); }
     fcmMessaging.onMessage(payload=>{
       const d=payload.data||{};
       if(navigator.vibrate)navigator.vibrate([300,100,300]);
       try{ new Notification(d.title||'CSEP', { body:d.body||'' }); }catch(e){}
       loadReceptions(); pollIncoming();
     });
-  }catch(e){ console.log('푸시 설정 실패:', e.message); }
+  }catch(e){ csepLog('error','PUSH','웹 푸시 설정 실패',e.message); }
 }
 
 // ── 대표: 전화 수신 팝업 (통화 종료 후) ──
@@ -1719,6 +1735,7 @@ function connectSSE(){
   if(!S.engineer)return;
   if(_currentES){ try{_currentES.close();}catch(e){} _currentES=null; }
   try{
+    csepLog('info','SSE','기사앱 SSE 연결 시도');
     const es=new EventSource(`${API}/engineer-stream/${S.engineer.id}?token=${encodeURIComponent(localStorage.getItem('authToken')||'')}`);
     _currentES=es;
     es.addEventListener('new_assignment',()=>{ sseLoadReceptions(); playEngNotification(); if(navigator.vibrate)navigator.vibrate(400); });
@@ -1732,8 +1749,8 @@ function connectSSE(){
       if(S.chatOpen==d.reception_id){ openChat(d.reception_id); }
       else { S.chatUnread[d.reception_id]=(S.chatUnread[d.reception_id]||0)+1; if(!document.getElementById('ov'))render(); if(navigator.vibrate)navigator.vibrate(200); }
     });
-    es.onerror=()=>{ es.close(); setTimeout(connectSSE,5000); };
-  }catch(e){}
+    es.onerror=()=>{ csepLog('warn','SSE','기사앱 SSE 연결 끊김 — 재연결'); es.close(); setTimeout(connectSSE,5000); };
+  }catch(e){ csepLog('error','SSE','기사앱 SSE 초기화 실패',e.message); }
 }
 
 // ── 안드로이드 하드웨어 뒤로가기 → 이전 화면 ──
@@ -2569,7 +2586,8 @@ function renderInfoTab(){
 (function init(){
   setupBackButton();
   const saved=localStorage.getItem('csep_eng');
-  if(saved){ try{ S.engineer=JSON.parse(saved); connectSSE(); loadReceptions(true); setupPush(); setNativeRole(); pollIncoming(); return; }catch(e){} }
+  if(saved){ try{ S.engineer=JSON.parse(saved); csepLog('info','STARTUP','기사앱 시작: '+(S.engineer.name||'')); connectSSE(); loadReceptions(true); setupPush(); setNativeRole(); pollIncoming(); return; }catch(e){} }
+  csepLog('info','STARTUP','기사앱 시작 — 로그인 필요');
   renderLogin();
 })();
 setInterval(()=>{ if(S.engineer)loadReceptions(); }, 15000);

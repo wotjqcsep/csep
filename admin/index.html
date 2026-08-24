@@ -410,8 +410,9 @@ async function doAdminLogin(){
     sessionStorage.setItem('authToken', d.token);
     localStorage.setItem('csep_has_logged_in','1');
     document.getElementById('loginScreen').style.display='none';
+    csepLog('info','AUTH','PC 관리자 로그인');
     startApp();
-  }catch(e){ errEl.textContent='서버 연결 실패'; errEl.style.display='block'; }
+  }catch(e){ csepLog('error','AUTH','PC 로그인 실패',e.message); errEl.textContent='서버 연결 실패'; errEl.style.display='block'; }
 }
 async function checkAuth(){
   const token = sessionStorage.getItem('authToken');
@@ -429,13 +430,23 @@ async function checkAuth(){
   document.getElementById('loginScreen').style.display='flex';
 }
 
+// ── 로그 전송 (모니터링용 — fire-and-forget) ──
+function csepLog(level, tag, message, detail){
+  try{
+    const body=JSON.stringify({ platform:'pc', level:level||'info', tag:tag||null, message:String(message).slice(0,500), detail:detail?String(detail).slice(0,2000):null });
+    navigator.sendBeacon(API+'/logs', new Blob([body],{type:'application/json'}));
+  }catch(e){}
+}
+window.onerror=function(msg,src,line,col,err){ csepLog('error','JS_ERROR',msg,(src||'')+':'+line+':'+col+'\n'+(err&&err.stack||'')); };
+window.addEventListener('unhandledrejection',function(e){ csepLog('error','PROMISE',String(e.reason),(e.reason&&e.reason.stack)||''); });
+
 // ── API 헬퍼 ──
 async function api(method, url, body){
   const opt = { method, headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+(sessionStorage.getItem('authToken')||'')} };
   if(body) opt.body = JSON.stringify(body);
   const r = await fetch(API+url, opt);
-  if(r.status === 401){ sessionStorage.removeItem('authToken'); document.getElementById('loginScreen').style.display='flex'; throw new Error('인증 만료'); }
-  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || r.status);
+  if(r.status === 401){ csepLog('warn','AUTH','인증 만료 — 재로그인',url); sessionStorage.removeItem('authToken'); document.getElementById('loginScreen').style.display='flex'; throw new Error('인증 만료'); }
+  if(!r.ok){ const errMsg=(await r.json().catch(()=>({}))).error||r.status; csepLog('error','API_ERROR',method+' '+url+' → '+r.status,String(errMsg)); throw new Error(errMsg); }
   return r.json();
 }
 const digits = s => (s||'').replace(/\D/g,'');

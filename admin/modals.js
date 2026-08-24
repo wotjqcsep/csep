@@ -470,6 +470,7 @@ async function saveReception(){
   const rec = await api('POST','/receptions', { customer_id:customerId, reception_channel:v('r_channel'), reception_phone:v('r_phone'), symptom, initial_memo:v('r_memo') });
   const eng = v('r_eng');
   if(eng) await api('PUT',`/receptions/${rec.id}/assign?engineer_id=${eng}`);   // 작업지시: 바로 배정
+  csepLog('info','RECEPTION','PC 접수 생성 #'+rec.id,symptom);
   closeModal(); await loadAll();
 }
 
@@ -809,6 +810,7 @@ function initCompletionTracking(){
 }
 function connectSSE(){
   try{
+    csepLog('info','SSE','PC SSE 연결 시도');
     const es = new EventSource(API+'/admin-stream?token='+(sessionStorage.getItem('authToken')||''));
     const reloadEvents = ['reception_new','reception_deleted','job_update','engineer_update'];
     reloadEvents.forEach(ev=>es.addEventListener(ev, ()=>loadAll()));
@@ -832,14 +834,15 @@ function connectSSE(){
       if(adminChatOpen==d.reception_id){ openAdminChat(d.reception_id); }
       else { adminChatUnread[d.reception_id]=(adminChatUnread[d.reception_id]||0)+1; if(!document.querySelector('.modal-overlay'))renderInto(); }
     });
-    es.onerror = ()=>{ if(es.readyState === EventSource.CLOSED){ setTimeout(connectSSE, 3000); } };
-  }catch(e){}
+    es.onerror = ()=>{ if(es.readyState === EventSource.CLOSED){ csepLog('warn','SSE','PC SSE 연결 끊김 — 재연결'); setTimeout(connectSSE, 3000); } };
+  }catch(e){ csepLog('error','SSE','PC SSE 초기화 실패',e.message); }
 }
 
 // ============================================================
 //  초기화
 // ============================================================
 function startApp(){
+  csepLog('info','STARTUP','PC 관리자 앱 시작');
   renderNav();
   loadAll(true);
   setInterval(()=>loadAll(false), 30000);
