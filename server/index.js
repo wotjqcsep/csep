@@ -1050,7 +1050,8 @@ const CZ_CAT = {
   'CPU': 'CPU', '메인보드': '메인보드', '메모리': '메모리', 'RAM': '메모리', 'MEMORY': '메모리',
   '그래픽카드': '그래픽카드', 'VGA': '그래픽카드', 'SSD': 'SSD',
   'HDD': 'HDD', '케이스': '케이스', '파워': '파워', 'POWER': '파워', '쿨러': '쿨러/튜닝', '모니터': '모니터',
-  '유선키보드+마우스': '주변기기', '키보드': '주변기기', '마우스': '주변기기',
+  '유선키보드+마우스': '입력장치', '키보드': '입력장치', '마우스': '입력장치',
+  '공유기': '공유기', '라우터': '공유기', 'NAS': 'NAS', '나스': 'NAS',
   '운영체제(OS)': '소프트웨어', 'OS': '소프트웨어', '소프트웨어': '소프트웨어',
   '조립비': '조립비/AS', '서비스': '조립비/AS',
 };
@@ -1076,7 +1077,10 @@ function guessCatFromName(name) {
   if (/쿨러|공랭|수랭|방열/i.test(n)) return '쿨러/튜닝';
   if (/모니터|디스플레이/i.test(n) && !/그래픽/.test(n)) return '모니터';
   if (/윈도우|Windows|오피스|Office|한글과/i.test(n)) return '소프트웨어';
-  if (/키보드|마우스|헤드셋|스피커|웹캠|마이크/i.test(n)) return '주변기기';
+  if (/키보드|마우스|데스크탑세트/i.test(n)) return '입력장치';
+  if (/공유기|라우터|Router|Wi-?Fi.*AP/i.test(n)) return '공유기';
+  if (/\bNAS\b|나스|시놀로지|Synology|QNAP/i.test(n)) return 'NAS';
+  if (/헤드셋|스피커|웹캠|마이크/i.test(n)) return '주변기기';
   return '';
 }
 // 컴퓨존 "소스코드 공유" 온라인견적서 HTML 표 → 부품 직접 파싱 (붙여넣기, AI 불필요)
@@ -1176,7 +1180,7 @@ async function fetchCompuzoneSpec(pno) {
       );
       const specMap = {};
       pnos.forEach((p, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) specMap[p] = specResults[i].value; });
-      const noSpec = /조립비|서비스|주변기기|키보드|마우스/;
+      const noSpec = /조립비|서비스|주변기기|입력장치|키보드|마우스/;
       items.forEach(it => { if (it._pno && specMap[it._pno] && !noSpec.test(it.cat)) it.spec = specMap[it._pno]; delete it._pno; });
     } else {
       if (spec) items[0].spec = spec;

@@ -1027,7 +1027,7 @@ async function submitStoreSale(){
 }
 
 // ── 견적서 (컴퓨존식 부품 분류, 상태보존 estState) ── 매입가·마진 내부용, 인쇄엔 판매가만.
-const EST_CATS=['CPU','메인보드','메모리','그래픽카드','SSD','HDD','케이스','파워','쿨러/튜닝','모니터','소프트웨어','주변기기','조립비/AS'];
+const EST_CATS=['CPU','메인보드','메모리','그래픽카드','SSD','HDD','케이스','파워','쿨러/튜닝','모니터','소프트웨어','입력장치','공유기','NAS','주변기기','조립비/AS'];
 let estState=null;
 function estToday(){ const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
 // 제품 결제날자 기본값 — 보통 납품 2일 전쯤 매입 결제하므로 오늘 -2일 제안 (수정 가능)
