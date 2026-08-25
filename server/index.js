@@ -919,7 +919,7 @@ async function groqParse(ocrText) {
 async function geminiParse(ocrText) {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) throw new Error('GEMINI_API_KEY 미설정');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${key}`;
   const resp = await fetch(url, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts: [{ text: biosAiPrompt(ocrText) }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }),
@@ -996,7 +996,7 @@ async function aiJsonFromText(prompt) {
   }
   const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (gemKey) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gemKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${gemKey}`;
     const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }) });
     const data = await resp.json();
     if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
@@ -1010,7 +1010,7 @@ async function geminiVisionEstimate(b64, mimeType) {
   const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!gemKey) throw new Error('GEMINI_API_KEY 미설정');
   const prompt = estimatePrompt('(이미지에서 직접 부품 목록을 읽어 추출하세요)');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gemKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${gemKey}`;
   const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts: [
       { text: prompt },
