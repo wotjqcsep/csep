@@ -1062,8 +1062,24 @@ function czMapCat(t) {
   for (const k in CZ_CAT) if (t.indexOf(k) >= 0) return CZ_CAT[k];
   return '';
 }
+function guessCatFromName(name) {
+  const n = String(name || '');
+  if (/라이젠|Ryzen|i[3579][-\s]|셀러론|펜티엄|Celeron|Pentium|Core\s*(Ultra|i)|Athlon|트레드리퍼/i.test(n)) return 'CPU';
+  if (/메인보드|마더보드|Motherboard|B[0-9]{3}[A-Z]|X[0-9]{3}[A-Z]|Z[0-9]{3}|H[0-9]{3}|A[0-9]{3}M/i.test(n)) return '메인보드';
+  if (/DDR[45]|메모리|\bRAM\b/i.test(n)) return '메모리';
+  if (/지포스|라데온|GeForce|Radeon|RTX\s*[2-9]|GTX|RX\s*[0-9]/i.test(n)) return '그래픽카드';
+  if (/\bSSD\b|NVMe|M\.2.*[TG]B/i.test(n)) return 'SSD';
+  if (/\bHDD\b|하드디스크|바라쿠다|Barracuda/i.test(n)) return 'HDD';
+  if (/케이스/i.test(n) && !/쿨러|파워/.test(n)) return '케이스';
+  if (/파워|PSU|전원공급/i.test(n)) return '파워';
+  if (/쿨러|공랭|수랭|방열/i.test(n)) return '쿨러/튜닝';
+  if (/모니터|디스플레이/i.test(n) && !/그래픽/.test(n)) return '모니터';
+  if (/윈도우|Windows|오피스|Office|한글과/i.test(n)) return '소프트웨어';
+  if (/키보드|마우스|헤드셋|스피커|웹캠|마이크/i.test(n)) return '주변기기';
+  return '';
+}
 // 컴퓨존 "소스코드 공유" 온라인견적서 HTML 표 → 부품 직접 파싱 (붙여넣기, AI 불필요)
-// 각 <tr> 셀 = [번호, 분류, 제품명, 판매가, 수량, 합계]. 번호가 "1-1" 형태(구성부품)인 행만.
+// 각 <tr> 셀 = [번호, 분류, 제품명, 판매가, 수량, 합계]. 단일부품(1) 또는 완성품 구성(1-1).
 function parseCompuzoneShareText(text) {
   const items = [];
   const trs = String(text || '').split(/<tr[\s>]/i).slice(1);
@@ -1072,12 +1088,27 @@ function parseCompuzoneShareText(text) {
     while ((m = re.exec(tr))) cells.push(m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim());
     if (cells.length < 6) continue;
     const [no, cat, name, sale, qty] = cells;
-    if (!/^\d+\s*-\s*\d+$/.test(no)) continue;   // 1-1, 1-2 …(완성품 헤더행/합계행 제외)
+    if (!/^\d+(\s*-\s*\d+)?$/.test(no)) continue;   // 1(단일부품) 또는 1-1, 1-2(완성품 구성부품)
     if (!name) continue;
     const price = Number((sale.match(/[\d,]+/) || [''])[0].replace(/,/g, '')) || '';
     const q = Number((qty.match(/\d+/) || ['1'])[0]) || 1;
     const nm = name.replace(/\s*-\s*\d{4,}\s*$/, '').trim();   // 끝의 상품번호 제거
     items.push({ cat: czMapCat(cat), name: nm, price, qty: q });
+  }
+  return items;
+}
+// 컴퓨존 텍스트 공유 포맷 파싱 — "[N] 제품명 * 수량 N개 = 가격원" (AI 불필요)
+function parseCompuzoneQuoteText(text) {
+  const items = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const m = line.match(/^\s*\[(\d+)\]\s+(.+?)\s*\*\s*수량\s*(\d+)\s*개\s*=\s*([\d,]+)\s*원/);
+    if (!m) continue;
+    const name = m[2].trim();
+    const qty = Number(m[3]) || 1;
+    const price = Number(m[4].replace(/,/g, '')) || '';
+    const cat = guessCatFromName(name);
+    items.push({ cat, name, price, qty });
   }
   return items;
 }
@@ -1098,9 +1129,32 @@ function parseCompuzoneSpec(html) {
   }
   return items;
 }
+// 컴퓨존 단일 상품 상세 페이지 HTML → 부품 1개 파싱 (spec 테이블 없는 단일 부품)
+function parseCompuzoneProductPage(html) {
+  const h = String(html || '');
+  let name = '';
+  const titleM = h.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (titleM) {
+    name = titleM[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ')
+      .replace(/\s*[-|:]\s*컴퓨존.*$/i, '').replace(/\s+/g, ' ').trim();
+  }
+  if (!name) return [];
+  let price = 0;
+  const pp = [/produc_price\s*=\s*"?(\d+)/i, /regularPrice:\s*(\d+)/i,
+    /CardPrice=(\d+)/i, /id\s*=\s*["']?prc_sell["']?[^>]*>([\d,]+)/i,
+    /판매가[\s\S]{0,300}?>([\d,]{4,})\s*원?/i];
+  for (const p of pp) { const m = h.match(p); if (m) { price = Number(String(m[1]).replace(/,/g, '')) || 0; if (price > 0) break; } }
+  let cat = '';
+  const bcM = h.match(/product_list\.htm\?BigDivNo=\d+(?:&amp;|&)MediumDivNo=\d+["'][^>]*>([^<]+)/i);
+  if (bcM) cat = czMapCat(bcM[1].replace(/&amp;/g, '&').trim());
+  if (!cat) cat = guessCatFromName(name);
+  return [{ cat, name, price: price || '', qty: 1 }];
+}
 async function fetchCompuzoneSpec(pno) {
   const html = await fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + pno);
-  return parseCompuzoneSpec(html);
+  const items = parseCompuzoneSpec(html);
+  if (items.length) return items;
+  return parseCompuzoneProductPage(html);
 }
 // 컴퓨존 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
@@ -1123,6 +1177,9 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
     // 컴퓨존 "소스코드 공유" HTML 표가 있으면 직접 파싱(AI 불필요, Groq 한도 무관)
     const direct = parseCompuzoneShareText(textIn);
     if (direct.length) return res.json({ items: direct, _src: 'compuzone-share' });
+    // 컴퓨존 텍스트 공유 포맷: [N] 제품명 * 수량 N개 = 가격원
+    const textDirect = parseCompuzoneQuoteText(textIn);
+    if (textDirect.length) return res.json({ items: textDirect, _src: 'compuzone-text' });
     try { const out = await aiJsonFromText(estimatePrompt(textIn)); return res.json({ items: Array.isArray(out.items) ? out.items : [], _src: 'text' }); }
     catch (e) { console.log('[견적붙여넣기] AI 오류:', e.message); return res.status(502).json({ error: 'AI 분석 실패: ' + e.message }); }
   }
