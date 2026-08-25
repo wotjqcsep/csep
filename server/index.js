@@ -1121,12 +1121,14 @@ function parseCompuzoneSpec(html) {
     const tit = (row.match(/<td class="tit">([^<]+)<\/td>/) || [])[1];
     if (!tit) continue;
     const nameCell = (row.match(/<td class="name">([\s\S]*?)<\/td>/) || [])[1] || '';
+    const aHref = (nameCell.match(/<a[^>]*href=["']([^"']*)["']/i) || [])[1] || '';
     const a = (nameCell.match(/<a[^>]*>([\s\S]*?)<\/a>/) || [])[1] || '';
     const name = a.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
-    if (!name || /선택하세요|선택 안|미선택/.test(name)) continue;  // 미선택(옵션을 선택하세요 등) 제외 → OS 지어냄 방지
+    if (!name || /선택하세요|선택 안|미선택/.test(name)) continue;
     const price = Number((row.match(/prm_def_ori="(\d+)"/) || [])[1]) || '';
     const qty = Number((row.match(/prm_ori_num="(\d+)"/) || [])[1]) || 1;
-    items.push({ cat: czMapCat(tit), name, price, qty });
+    const pnoM = aHref.match(/ProductNo=(\d+)/i);
+    items.push({ cat: czMapCat(tit), name, price, qty, _pno: pnoM ? pnoM[1] : '' });
   }
   return items;
 }
@@ -1164,7 +1166,21 @@ async function fetchCompuzoneSpec(pno) {
   const html = await fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + pno);
   const spec = extractSpecText(html);
   const items = parseCompuzoneSpec(html);
-  if (items.length) { if (spec) items[0].spec = spec; return items; }
+  if (items.length) {
+    const pnos = items.map(it => it._pno).filter(Boolean);
+    if (pnos.length) {
+      const specResults = await Promise.allSettled(
+        pnos.map(p => fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + p).then(extractSpecText))
+      );
+      const specMap = {};
+      pnos.forEach((p, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) specMap[p] = specResults[i].value; });
+      items.forEach(it => { if (it._pno && specMap[it._pno]) it.spec = specMap[it._pno]; delete it._pno; });
+    } else {
+      if (spec) items[0].spec = spec;
+      items.forEach(it => delete it._pno);
+    }
+    return items;
+  }
   const singles = parseCompuzoneProductPage(html);
   if (singles.length && spec) singles[0].spec = spec;
   return singles;
