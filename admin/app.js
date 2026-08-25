@@ -1064,7 +1064,7 @@ function estRowHtml(x,i){ x=x||{};
     <td class="est-amt" style="text-align:right;font-weight:800">${won(amt)}</td>
     <td><button class="btn btn-sm btn-danger" onclick="estDelRow(this)">×</button></td>
   </tr>
-  <tr class="est-spec-row" data-i="${i}" style="display:${hasSpec?'table-row':'none'}">
+  <tr class="est-spec-row" data-i="${i}" style="display:${showSpec?'table-row':'none'}">
     <td colspan="8" style="padding:0 0 4px 0;border-top:none">
       <div style="display:flex;align-items:center;gap:4px;padding:2px 4px;background:var(--gray-50);border-radius:0 0 6px 6px;font-size:11px">
         <label style="cursor:pointer;color:var(--gray-500);white-space:nowrap" title="견적서에 사양 표시/숨김"><input type="checkbox" class="est-spec-show" ${showSpec?'checked':''} onchange="estToggleSpec(this)" style="vertical-align:middle"> 사양</label>
@@ -1073,7 +1073,7 @@ function estRowHtml(x,i){ x=x||{};
     </td>
   </tr>`;
 }
-function estToggleSpec(cb){ const tr=cb.closest('.est-spec-row'); if(!tr) return; const i=Number(tr.dataset.i); if(estState&&estState.rows[i]) estState.rows[i].showSpec=cb.checked; }
+function estToggleSpec(cb){ const tr=cb.closest('.est-spec-row'); if(!tr) return; const i=Number(tr.dataset.i); if(estState&&estState.rows[i]) estState.rows[i].showSpec=cb.checked; tr.style.display=cb.checked?'table-row':'none'; }
 function estSpecAll(on){ estSyncAll(); estState.rows.forEach(r=>{ if(r.spec) r.showSpec=on; }); estBody(); }
 // 매입가·마진 입력 시 판매단가 자동계산(직접 입력하면 그 값 유지)
 function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
