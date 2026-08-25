@@ -1064,6 +1064,7 @@ function czMapCat(t) {
 }
 function guessCatFromName(name) {
   const n = String(name || '');
+  if (/데스크탑|데스크톱|노트북|일체형|올인원|브랜드PC|완제품/i.test(n)) return '';
   if (/라이젠|Ryzen|i[3579][-\s]|셀러론|펜티엄|Celeron|Pentium|Core\s*(Ultra|i)|Athlon|트레드리퍼/i.test(n)) return 'CPU';
   if (/메인보드|마더보드|Motherboard|B[0-9]{3}[A-Z]|X[0-9]{3}[A-Z]|Z[0-9]{3}|H[0-9]{3}|A[0-9]{3}M/i.test(n)) return '메인보드';
   if (/DDR[45]|메모리|\bRAM\b/i.test(n)) return '메모리';
@@ -1136,7 +1137,9 @@ function parseCompuzoneProductPage(html) {
   const titleM = h.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   if (titleM) {
     name = titleM[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ')
-      .replace(/\s*[-|:]\s*컴퓨존.*$/i, '').replace(/\s+/g, ' ').trim();
+      .replace(/\s*[-|:]\s*컴퓨존.*$/i, '')
+      .replace(/[▶►▷].*?[◀◄◁]/g, '')
+      .replace(/\s+/g, ' ').trim();
   }
   if (!name) return [];
   let price = 0;
