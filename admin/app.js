@@ -1074,6 +1074,7 @@ function estRowHtml(x,i){ x=x||{};
   </tr>`;
 }
 function estToggleSpec(cb){ const tr=cb.closest('.est-spec-row'); if(!tr) return; const i=Number(tr.dataset.i); if(estState&&estState.rows[i]) estState.rows[i].showSpec=cb.checked; }
+function estSpecAll(on){ estSyncAll(); estState.rows.forEach(r=>{ if(r.spec) r.showSpec=on; }); estBody(); }
 // 매입가·마진 입력 시 판매단가 자동계산(직접 입력하면 그 값 유지)
 function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
   const cost=Number(String(tr.querySelector('.est-cost').value||'').replace(/[^\d]/g,''))||0;
@@ -1133,18 +1134,23 @@ function renderEstimates(){ estInit(); const s=estState;
     <div id="est_url_box" style="display:none;margin-bottom:10px">
       <div style="display:flex;gap:6px"><input id="est_url" placeholder="컴퓨존 [URL 공유] 링크 붙여넣기" style="flex:1;padding:9px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
         <button class="btn btn-sm" onclick="navigator.clipboard.readText().then(t=>{document.getElementById('est_url').value=t}).catch(()=>showToast('클립보드 권한을 허용해주세요','#e68900'))" title="클립보드에서 붙여넣기">📋 붙여넣기</button>
-        <button class="btn btn-sm" onclick="estUrlImport(this)">가져오기</button></div>
-      <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 페이지에 적힌 부품명·가격을 그대로 가져옵니다 (AI 미사용 — 이름 축약·OS 지어냄 없음). 가장 정확한 방식입니다.</div>
+        <button class="btn btn-sm" onclick="estUrlImport(this,'replace')">가져오기</button>
+        <button class="btn btn-sm btn-secondary" onclick="estUrlImport(this,'append')" title="기존 품목을 유지하고 추가">+ 추가</button></div>
+      <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 페이지에 적힌 부품명·가격을 그대로 가져옵니다 (AI 미사용). <b>가져오기</b>=교체, <b>+ 추가</b>=기존 유지하고 뒤에 추가</div>
     </div>
     <div id="est_paste_box" style="display:none;margin-bottom:10px">
       <textarea id="est_paste" placeholder="컴퓨존 '소스코드 공유'의 내용을 붙여넣으세요 — 커스텀 조립 견적도 정확히 가져옵니다 (AI 미사용)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
-      <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this)">📋 이 내용 가져오기</button></div>
+      <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this,'replace')">📋 이 내용 가져오기</button> <button class="btn btn-sm btn-secondary" onclick="estPasteImport(this,'append')">+ 추가</button></div>
     </div>
     <div class="table-container"><table class="table">
       <thead><tr><th>분류</th><th>품명</th><th>수량</th><th>매입가</th><th>마진</th><th>판매단가</th><th>금액</th><th></th></tr></thead>
       <tbody id="est_body">${s.rows.map((r,i)=>estRowHtml(r,i)).join('')}</tbody>
     </table></div>
-    <button class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="estAddRow()">+ 항목 추가</button>
+    <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+      <button class="btn btn-sm btn-secondary" onclick="estAddRow()">+ 항목 추가</button>
+      <button class="btn btn-sm btn-secondary" onclick="estSpecAll(true)" style="font-size:11px">사양 전체표시</button>
+      <button class="btn btn-sm btn-secondary" onclick="estSpecAll(false)" style="font-size:11px">사양 전체숨김</button>
+    </div>
     <div style="margin-top:14px;display:flex;justify-content:flex-end">
       <table style="min-width:300px">
         <tr><td style="padding:4px 14px;color:var(--gray-600)">공급가액 <span style="font-size:11px;color:var(--gray-400)">(수정 시 마진 역산)</span></td>
@@ -1515,10 +1521,10 @@ async function estNewDoc(){ if(estState.savedId && !confirm('현재 견적을 �
 }
 // 가져오기: 누를 때마다 기존 부품표를 버리고 새로 받음(중복 누적 방지, 초기화 불필요).
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
-function estAddItems(items){ estSyncAll();
-  estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
+function estAddItems(items, mode){ estSyncAll();
+  if(mode!=='append') estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
   (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1), spec=(it.spec||'');
-    const empty=estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
+    const empty=mode!=='append' && estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
     if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.price=''; empty.margin=estState.bulk; if(spec){ empty.spec=spec; empty.showSpec=true; } }
     else estState.rows.push({cat,name,qty,cost,price:'',margin:estState.bulk,spec,showSpec:!!spec}); });
   estBody();
@@ -1932,35 +1938,36 @@ async function estAiImport(input){
   estAddItems(items);
   showToast(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
 }
-async function estPasteImport(btn){
+async function estPasteImport(btn,mode){
   const t=(v('est_paste')||'').trim();
   if(!t){ showToast('붙여넣은 내용이 없습니다. 컴퓨존 견적서 소스복사의 [텍스트]를 붙여넣으세요.','#e68900'); return; }
+  const origText=btn?btn.textContent:'';
   if(btn){ btn.disabled=true; btn.textContent='⏳ 분석 중…'; }
   let r;
   try{ r=await api('POST','/estimate/scan',{text:t}); }
-  catch(e){ showToast('가져오기 실패: '+(e&&e.message?e.message:e),'#e03131'); if(btn){btn.disabled=false;btn.textContent='📋 이 내용 가져오기';} return; }
-  if(btn){ btn.disabled=false; btn.textContent='📋 이 내용 가져오기'; }
+  catch(e){ showToast('가져오기 실패: '+(e&&e.message?e.message:e),'#e03131'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
+  if(btn){ btn.disabled=false; btn.textContent=origText; }
   const items=(r&&r.items)||[];
   if(!items.length){ showToast('부품을 인식하지 못했습니다. 붙여넣은 내용을 확인해주세요.','#e68900'); return; }
-  estAddItems(items);
+  estAddItems(items, mode);
   const box=document.getElementById('est_paste_box'); if(box)box.style.display='none';
   const ta=document.getElementById('est_paste'); if(ta)ta.value='';
-  showToast(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
+  showToast(items.length+'개 항목을 '+(mode==='append'?'추가':'가져오기')+'했습니다. 매입가·마진 확인 후 인쇄하세요.');
 }
-async function estUrlImport(btn){
+async function estUrlImport(btn,mode){
   const u=(v('est_url')||'').trim();
   if(!u){ showToast('컴퓨존 URL 공유 링크를 입력하세요.','#e68900'); return; }
+  const origText=btn?btn.textContent:'';
   if(btn){ btn.disabled=true; btn.textContent='⏳'; }
   let r;
   try{ r=await api('POST','/estimate/scan',{url:u}); }
-  catch(e){ showToast('URL 가져오기 실패: '+(e&&e.message?e.message:e),'#e03131'); if(btn){btn.disabled=false;btn.textContent='가져오기';} return; }
-  if(btn){ btn.disabled=false; btn.textContent='가져오기'; }
+  catch(e){ showToast('URL 가져오기 실패: '+(e&&e.message?e.message:e),'#e03131'); if(btn){btn.disabled=false;btn.textContent=origText;} return; }
+  if(btn){ btn.disabled=false; btn.textContent=origText; }
   const items=(r&&r.items)||[];
   if(!items.length){ showToast('부품을 인식하지 못했습니다. 소스·텍스트나 캡처 방식을 이용해보세요.','#e68900'); return; }
-  estAddItems(items);
-  const box=document.getElementById('est_url_box'); if(box)box.style.display='none';
+  estAddItems(items, mode);
   const el=document.getElementById('est_url'); if(el)el.value='';
-  showToast(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
+  showToast(items.length+'개 항목을 '+(mode==='append'?'추가':'가져오기')+'했습니다. 매입가·마진 확인 후 인쇄하세요.');
 }
 
 // ── 재고 관리 ──
