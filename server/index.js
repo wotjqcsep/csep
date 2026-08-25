@@ -1127,8 +1127,10 @@ function parseCompuzoneSpec(html) {
     if (!name || /선택하세요|선택 안|미선택/.test(name)) continue;
     const price = Number((row.match(/prm_def_ori="(\d+)"/) || [])[1]) || '';
     const qty = Number((row.match(/prm_ori_num="(\d+)"/) || [])[1]) || 1;
-    const pnoM = aHref.match(/ProductNo=(\d+)/i);
-    items.push({ cat: czMapCat(tit), name, price, qty, _pno: pnoM ? pnoM[1] : '' });
+    let pno = (aHref.match(/ProductNo=(\d+)/i) || [])[1] || '';
+    if (!pno) pno = (nameCell.match(/change_product\[(\d+)\]/) || [])[1] || '';
+    if (!pno) pno = (nameCell.match(/showRecomOptionArea\((\d+)\)/) || [])[1] || '';
+    items.push({ cat: czMapCat(tit), name, price, qty, _pno: pno });
   }
   return items;
 }
