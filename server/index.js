@@ -1005,6 +1005,22 @@ async function aiJsonFromText(prompt) {
   }
   throw new Error('AI 키(GROQ_API_KEY 또는 GEMINI_API_KEY) 미설정');
 }
+// Gemini Vision: 이미지를 직접 분석해 견적 부품 추출 (Google Vision OCR 불필요)
+async function geminiVisionEstimate(b64, mimeType) {
+  const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!gemKey) throw new Error('GEMINI_API_KEY 미설정');
+  const prompt = estimatePrompt('(이미지에서 직접 부품 목록을 읽어 추출하세요)');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gemKey}`;
+  const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [
+      { text: prompt },
+      { inline_data: { mime_type: mimeType || 'image/png', data: b64 } }
+    ] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }) });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
+  let t = ''; try { t = data.candidates[0].content.parts.map(p => p.text || '').join(''); } catch (e) {}
+  return extractJson(t);
+}
 // 컴퓨존 견적 텍스트/HTML → AI 파싱 프롬프트
 function estimatePrompt(txt) {
   return [
@@ -1185,27 +1201,37 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
   }
   const image = req.body && req.body.image;
   if (!image) return res.status(400).json({ error: '이미지 또는 텍스트가 없습니다' });
-  const key = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) return res.status(503).json({ error: 'OCR 키(GOOGLE_VISION_API_KEY)가 없습니다.' });
   const m = String(image).match(/^data:(image\/[^;]+);base64,(.*)$/s);
+  const mimeType = m ? m[1] : 'image/png';
   const b64 = m ? m[2] : String(image);
+  // 1) Google Vision OCR 시도
+  const vKey = process.env.GOOGLE_VISION_API_KEY;
+  if (vKey) {
+    try {
+      const resp = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${vKey}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: [{ image: { content: b64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        const r = data.responses && data.responses[0];
+        const ocrText = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
+        if (ocrText) {
+          const out = await aiJsonFromText(estimatePrompt(ocrText));
+          const items = Array.isArray(out.items) ? out.items : [];
+          return res.json({ items, _ocr: ocrText.slice(0, 2000), _src: 'vision-ocr' });
+        }
+      } else { console.log('[견적스캔] Vision OCR 실패, Gemini Vision 폴백:', (data.error && data.error.message) || resp.status); }
+    } catch (e) { console.log('[견적스캔] Vision OCR 오류, Gemini Vision 폴백:', e.message); }
+  }
+  // 2) Gemini Vision 폴백 — 이미지를 직접 분석 (OCR 불필요)
   try {
-    const resp = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests: [{ image: { content: b64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) return res.status(502).json({ error: 'OCR 실패: ' + ((data.error && data.error.message) || resp.status) });
-    const r = data.responses && data.responses[0];
-    const ocrText = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
-    let out = { items: [] };
-    try { out = await aiJsonFromText(estimatePrompt(ocrText)); }
-    catch (e) { console.log('[견적스캔] AI 오류:', e.message); return res.status(502).json({ error: 'AI 분석 실패: ' + e.message }); }
+    const out = await geminiVisionEstimate(b64, mimeType);
     const items = Array.isArray(out.items) ? out.items : [];
-    res.json({ items, _ocr: ocrText.slice(0, 2000) });
+    res.json({ items, _src: 'gemini-vision' });
   } catch (e) {
-    console.log('[견적스캔] 오류:', e.message);
-    res.status(500).json({ error: '스캔 중 오류: ' + e.message });
+    console.log('[견적스캔] Gemini Vision 오류:', e.message);
+    res.status(502).json({ error: '이미지 분석 실패: ' + e.message });
   }
 }));
 
