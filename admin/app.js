@@ -1053,6 +1053,7 @@ function estRowHtml(x,i){ x=x||{};
   const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:0)||0, qty=Number(x.qty)||1;
   const price=(x.price!=null&&x.price!=='')?(Number(String(x.price).replace(/[^\d]/g,''))||0):(cost?Math.round(cost*(1+margin/100)):0);
   const amt=price*qty, fc=n=>n?Number(n).toLocaleString('ko-KR'):'';
+  const spec=x.spec||'', hasSpec=!!spec, showSpec=x.showSpec!==false&&hasSpec;
   return `<tr class="est-row" data-i="${i}">
     <td><input class="est-cat" value="${esc(x.cat)||''}" placeholder="분류" style="width:92px;font-weight:600;background:var(--gray-50)"></td>
     <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [AMD] 라이젠5 라파엘 7500F (6코어/12스레드/3.7GHz) 쿨러포함)" style="width:100%;min-width:340px"></td>
@@ -1062,8 +1063,17 @@ function estRowHtml(x,i){ x=x||{};
     <td><input class="est-price" type="text" inputmode="numeric" value="${fc(price)}" oninput="estFmtCost(this)" placeholder="판매단가" style="width:100px;text-align:right;font-weight:700"></td>
     <td class="est-amt" style="text-align:right;font-weight:800">${won(amt)}</td>
     <td><button class="btn btn-sm btn-danger" onclick="estDelRow(this)">×</button></td>
+  </tr>
+  <tr class="est-spec-row" data-i="${i}" style="display:${hasSpec?'table-row':'none'}">
+    <td colspan="8" style="padding:0 0 4px 0;border-top:none">
+      <div style="display:flex;align-items:center;gap:4px;padding:2px 4px;background:var(--gray-50);border-radius:0 0 6px 6px;font-size:11px">
+        <label style="cursor:pointer;color:var(--gray-500);white-space:nowrap" title="견적서에 사양 표시/숨김"><input type="checkbox" class="est-spec-show" ${showSpec?'checked':''} onchange="estToggleSpec(this)" style="vertical-align:middle"> 사양</label>
+        <input class="est-spec" value="${esc(spec)}" placeholder="사양 정보" style="flex:1;border:1px solid var(--gray-200);border-radius:4px;padding:2px 6px;font-size:11px;color:var(--gray-600)">
+      </div>
+    </td>
   </tr>`;
 }
+function estToggleSpec(cb){ const tr=cb.closest('.est-spec-row'); if(!tr) return; const i=Number(tr.dataset.i); if(estState&&estState.rows[i]) estState.rows[i].showSpec=cb.checked; }
 // 매입가·마진 입력 시 판매단가 자동계산(직접 입력하면 그 값 유지)
 function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
   const cost=Number(String(tr.querySelector('.est-cost').value||'').replace(/[^\d]/g,''))||0;
@@ -1405,7 +1415,10 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
     const cost=Number(String(q('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(q('.est-margin').value)||0;
     const priceRaw=String(q('.est-price').value||'').replace(/[^\d]/g,''), auto=cost?Math.round(cost*(1+margin/100)):0;
     const price=(priceRaw===''||Number(priceRaw)===auto)?'':priceRaw;
-    return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(cost||''), margin, price }; });
+    const idx=Number(tr.dataset.i), specRow=document.querySelector(`.est-spec-row[data-i="${idx}"]`);
+    const spec=specRow?specRow.querySelector('.est-spec')?.value||'':'';
+    const showSpec=specRow?specRow.querySelector('.est-spec-show')?.checked??false:false;
+    return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(cost||''), margin, price, spec, showSpec }; });
 }
 // oninput 래퍼 디바운스 — 입력 즉시 반응, 계산·미리보기는 500ms 후 한 번만
 let _estSyncTimer;
@@ -1504,15 +1517,15 @@ async function estNewDoc(){ if(estState.savedId && !confirm('현재 견적을 �
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
 function estAddItems(items){ estSyncAll();
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
-  (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1);
+  (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1), spec=(it.spec||'');
     const empty=estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
-    if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.price=''; empty.margin=estState.bulk; }
-    else estState.rows.push({cat,name,qty,cost,price:'',margin:estState.bulk}); });
+    if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.price=''; empty.margin=estState.bulk; if(spec){ empty.spec=spec; empty.showSpec=true; } }
+    else estState.rows.push({cat,name,qty,cost,price:'',margin:estState.bulk,spec,showSpec:!!spec}); });
   estBody();
 }
 function estRows(){ return estState? estState.rows.map(r=>{ const cost=Number(r.cost)||0, margin=Number(r.margin)||0, qty=Number(r.qty)||0;
   const price=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(cost*(1+margin/100));
-  return { cat:(r.cat||'').trim(), name:(r.name||'').trim(), qty, cost, margin, price, amt:price*qty }; }) : []; }
+  return { cat:(r.cat||'').trim(), name:(r.name||'').trim(), qty, cost, margin, price, amt:price*qty, spec:r.spec||'', showSpec:!!r.showSpec }; }) : []; }
 // 품명 간략화: [브랜드]·(스펙)·끝의 상품번호·벌크/포함미포함 등을 떼고 핵심 모델명만
 function czShortName(name){
   let s=String(name||'');
@@ -1558,7 +1571,8 @@ function estDocInner(target, copyLabel, overrideRows, isLastPage){
   const thead = cols.map(c=>`<th${thW[c]?` style="width:${thW[c]}"`:''}>${c}</th>`).join('');
   const body = rows.map((r,i)=>{
     const cells = [`<td style="text-align:center">${i+1}</td>`, `<td style="text-align:center;color:#666">${esc(r.cat)||''}</td>`];
-    if(showName) cells.push(`<td>${esc(dispName(r))}</td>`);
+    const specLine = (r.showSpec && r.spec) ? `<div style="font-size:10px;color:#888;margin-top:2px">${esc(r.spec)}</div>` : '';
+    if(showName) cells.push(`<td>${esc(dispName(r))}${specLine}</td>`);
     cells.push(`<td style="text-align:center">${r.qty}</td>`);
     if(internal){ cells.push(`<td style="text-align:right;color:#888">${won(r.cost)}</td>`, `<td style="text-align:center;color:#888">${r.margin}%</td>`); }
     if(showEach){ cells.push(`<td style="text-align:right">${won(r.price)}</td>`, `<td style="text-align:right">${won(r.amt)}</td>`); }

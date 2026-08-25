@@ -1153,11 +1153,21 @@ function parseCompuzoneProductPage(html) {
   if (!cat) cat = guessCatFromName(name);
   return [{ cat, name, price: price || '', qty: 1 }];
 }
+function extractSpecText(html) {
+  const m = html.match(/<meta\s+name=["']keywords["']\s+content=["']([^"']*?)["']/i);
+  if (!m) return '';
+  return m[1].replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ')
+    .replace(/\s*\/\s*용도\s*[:：].*$/i, '')
+    .replace(/\s+/g, ' ').trim();
+}
 async function fetchCompuzoneSpec(pno) {
   const html = await fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + pno);
+  const spec = extractSpecText(html);
   const items = parseCompuzoneSpec(html);
-  if (items.length) return items;
-  return parseCompuzoneProductPage(html);
+  if (items.length) { if (spec) items[0].spec = spec; return items; }
+  const singles = parseCompuzoneProductPage(html);
+  if (singles.length && spec) singles[0].spec = spec;
+  return singles;
 }
 // 컴퓨존 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
