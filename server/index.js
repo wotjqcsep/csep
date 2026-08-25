@@ -1174,7 +1174,8 @@ async function fetchCompuzoneSpec(pno) {
       );
       const specMap = {};
       pnos.forEach((p, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) specMap[p] = specResults[i].value; });
-      items.forEach(it => { if (it._pno && specMap[it._pno]) it.spec = specMap[it._pno]; delete it._pno; });
+      const noSpec = /조립비|서비스|주변기기|키보드|마우스/;
+      items.forEach(it => { if (it._pno && specMap[it._pno] && !noSpec.test(it.cat)) it.spec = specMap[it._pno]; delete it._pno; });
     } else {
       if (spec) items[0].spec = spec;
       items.forEach(it => delete it._pno);
