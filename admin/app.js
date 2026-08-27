@@ -1139,7 +1139,7 @@ function renderEstimates(){ estInit(); const s=estState;
       <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 컴퓨존·아싸컴 등 페이지에서 부품명·가격을 그대로 가져옵니다 (AI 미사용). <b>가져오기</b>=교체, <b>+ 추가</b>=기존 유지하고 뒤에 추가</div>
     </div>
     <div id="est_paste_box" style="display:none;margin-bottom:10px">
-      <textarea id="est_paste" placeholder="컴퓨존 '소스코드 공유'의 내용을 붙여넣으세요 — 커스텀 조립 견적도 정확히 가져옵니다 (AI 미사용)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
+      <textarea id="est_paste" placeholder="컴퓨존 '소스코드 공유' 또는 아싸컴 페이지 소스(Ctrl+U → 전체 복사)를 붙여넣으세요 (AI 미사용)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
       <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this,'replace')">📋 이 내용 가져오기</button> <button class="btn btn-sm btn-secondary" onclick="estPasteImport(this,'append')">+ 추가</button></div>
     </div>
     <div class="table-container"><table class="table">

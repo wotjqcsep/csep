@@ -1245,14 +1245,33 @@ function parseAssacomProduct(html) {
   const cat = guessCatFromName(name);
   return [{ cat, name, qty: 1, price, spec }];
 }
-async function fetchAssacom(url) {
-  // 아싸컴 ex.htm은 유효한 ctime 파라미터가 없으면 JS redirect를 하므로 현재 시각으로 설정
+async function fetchAssacomHtml(url) {
   let fetchUrl = url;
   if (/ex\.htm\b/i.test(url)) {
     fetchUrl = url.replace(/[?&]ctime=\d*/gi, '');
     fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + 'ctime=' + Math.floor(Date.now() / 1000);
   }
-  const html = await fetchHtmlDecoded(fetchUrl);
+  const resp = await fetch(fetchUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Referer': 'https://www.assacom.com/',
+    },
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  let charset = '';
+  const ct = resp.headers.get('content-type') || '';
+  const m1 = ct.match(/charset=["']?([\w-]+)/i);
+  if (m1) charset = m1[1];
+  else { const head = buf.slice(0, 3000).toString('latin1'); const m2 = head.match(/charset=["']?([\w-]+)/i); if (m2) charset = m2[1]; }
+  charset = (charset || 'utf-8').toLowerCase().replace('ks_c_5601-1987', 'euc-kr').replace('cp949', 'euc-kr').replace('utf8', 'utf-8');
+  try { return new TextDecoder(charset).decode(buf); }
+  catch (e) { try { return new TextDecoder('euc-kr').decode(buf); } catch (e2) { return buf.toString('utf-8'); } }
+}
+async function fetchAssacom(url) {
+  const html = await fetchAssacomHtml(url);
   if (/ex\.htm\b.*seq=/i.test(url) || /<table\s[^>]*class=["']pro_table["']/i.test(html)) {
     const { items, totalPrice } = parseAssacomSpec(html);
     return { items, totalPrice };
@@ -1280,7 +1299,10 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
       try {
         const r = await fetchAssacom(url);
         if (r.items.length) return res.json({ items: r.items, _src: 'assacom-spec', _totalPrice: r.totalPrice || undefined });
-      } catch (e) { console.log('[견적URL] 아싸컴 파싱 실패, AI 폴백:', e.message); }
+      } catch (e) {
+        console.log('[견적URL] 아싸컴 파싱 실패:', e.message);
+        if (/403|forbidden/i.test(e.message)) return res.status(403).json({ error: '아싸컴이 서버 접근을 차단합니다. [소스·텍스트] 버튼을 눌러 아싸컴 페이지 소스(Ctrl+U → 전체 선택 → 복사)를 붙여넣으세요.' });
+      }
     }
     const pno = /compuzone\.co\.kr/i.test(url) ? compuzonePno(url) : '';
     if (pno) {
@@ -1293,6 +1315,11 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
     catch (e) { return res.status(502).json({ error: 'URL에서 견적을 불러오지 못했습니다: ' + e.message + ' (텍스트 복사나 캡처를 이용해보세요)' }); }
   }
   if (typeof textIn === 'string' && textIn.trim()) {
+    // 아싸컴 페이지 소스 붙여넣기 — pro_table이 있으면 직접 파싱
+    if (/pro_table/i.test(textIn) && /assacom|아싸컴/i.test(textIn)) {
+      const { items, totalPrice } = parseAssacomSpec(textIn);
+      if (items.length) return res.json({ items, _src: 'assacom-paste', _totalPrice: totalPrice || undefined });
+    }
     // 컴퓨존 "소스코드 공유" HTML 표가 있으면 직접 파싱(AI 불필요, Groq 한도 무관)
     const direct = parseCompuzoneShareText(textIn);
     if (direct.length) return res.json({ items: direct, _src: 'compuzone-share' });
