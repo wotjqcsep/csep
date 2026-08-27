@@ -1356,6 +1356,36 @@ function parseJoyzenProduct(html) {
   if (!cat) cat = guessCatFromName(name);
   return [{ cat, name, price: price || '', qty: 1, spec: spec || undefined }];
 }
+function parseJoyzenCart(html) {
+  const items = [];
+  let totalPrice = 0;
+  const JOYZEN_UID = {
+    '38': 'CPU', '39': '메인보드', '40': '메모리', '42': '그래픽카드',
+    '43': 'SSD', '44': 'HDD', '45': '케이스', '46': '파워',
+    '47': '쿨러/튜닝', '48': '소프트웨어', '279': 'SSD', '280': 'SSD',
+    '281': 'HDD', '145': '조립비',
+  };
+  const re = /class="cart_list_(\d+)"[\s\S]*?<\/tr>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const row = m[0];
+    const nameM = row.match(/cart_name[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i);
+    let name = nameM ? nameM[1].replace(/<[^>]*>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim() : '';
+    if (!name) continue;
+    const priceM = row.match(/id="price_\d+"\s*value="(\d+)"/i);
+    let price = priceM ? Number(priceM[1]) : 0;
+    if (!price) { const dp = row.match(/t14_4d_b[^>]*>([\d,]+)/i); if (dp) price = Number(dp[1].replace(/,/g, '')) || 0; }
+    const qtyM = row.match(/id="qty_\d+"\s*value="(\d+)"/i);
+    const qty = qtyM ? parseInt(qtyM[1]) : 1;
+    const uidM = row.match(/data-uid="(\d+)"/i);
+    const uid = uidM ? uidM[1] : '';
+    let cat = JOYZEN_UID[uid] || '';
+    if (!cat) cat = guessCatFromName(name);
+    totalPrice += price * qty;
+    items.push({ cat: cat || '기타', name, price: price || '', qty });
+  }
+  return { items, totalPrice };
+}
 async function fetchJoyzenHtml(url) {
   const resp = await fetch(url, {
     headers: {
@@ -1402,7 +1432,9 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
   const html = req.body && req.body.html;
   if (!html) return res.status(400).json({ error: 'html required' });
   let items = [], totalPrice = 0, src = '';
-  if (/spec_item/i.test(html) && /joyzen/i.test(html)) {
+  if (/cart_list_\d+/i.test(html) && /joyzen/i.test(html)) {
+    const r = parseJoyzenCart(html); items = r.items; totalPrice = r.totalPrice; src = 'joyzen';
+  } else if (/spec_item/i.test(html) && /joyzen/i.test(html)) {
     const r = parseJoyzenSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'joyzen';
   } else if (/product_name/i.test(html) && /joyzen/i.test(html)) {
     items = parseJoyzenProduct(html); src = 'joyzen';
