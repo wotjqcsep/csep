@@ -1081,7 +1081,7 @@ function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
   const margin=Number(tr.querySelector('.est-margin').value)||0;
   const pe=tr.querySelector('.est-price'); if(pe) pe.value = cost? Number(Math.round(cost*(1+margin/100))).toLocaleString('ko-KR') : ''; }
 function renderEstimates(){ estInit(); const s=estState;
-  if(window._pendingEstImport){ const d=window._pendingEstImport; window._pendingEstImport=null; setTimeout(()=>{ estAddItems(d.items,'replace'); showToast('📋 북마클릿: '+d.items.length+'개 항목 가져옴'+(d.totalPrice?' (업체 판매가 '+Number(d.totalPrice).toLocaleString()+'원)':'')); renderInto(); },100); }
+  if(window._pendingEstImport){ const d=window._pendingEstImport; window._pendingEstImport=null; setTimeout(()=>{ estAddItems(d.items,'append'); showToast('📋 북마클릿: '+d.items.length+'개 항목 추가'+(d.totalPrice?' (업체 판매가 '+Number(d.totalPrice).toLocaleString()+'원)':'')); renderInto(); },100); }
   if(!s.no && !s.savedId) estNextNo().then(no=>{ if(!estState.no){ estState.no=no; const el=document.getElementById('est_no'); if(el) el.value=no; } });
   const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; const p=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(c*(1+m/100)); return t+p*q; },0);
   const vat=s.noVat?0:Math.round(sub*0.1);

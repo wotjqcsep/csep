@@ -836,7 +836,7 @@ function connectSSE(){
         if(d.items&&d.items.length){
           window._pendingEstImport=d;
           if(typeof estState!=='undefined'&&estState&&typeof estAddItems==='function'){
-            estAddItems(d.items,'replace');
+            estAddItems(d.items,'append');
             window._pendingEstImport=null;
             const tp=d.totalPrice;
             showToast('📋 북마클릿: '+d.items.length+'개 항목 가져옴'+(tp?' (업체 판매가 '+Number(tp).toLocaleString()+'원)':''));
