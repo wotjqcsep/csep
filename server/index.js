@@ -1230,6 +1230,33 @@ function parseAssacomSpec(html) {
     || html.match(/value=["'](\d+)["'][^>]*name=["']t_price["']/i);
   return { items, totalPrice: priceM ? Number(priceM[1]) : 0 };
 }
+function parseAssacomCart(html) {
+  const items = [];
+  let totalPrice = 0;
+  const re = /class="list__item\s+item--acc"[\s\S]*?<\/li>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const block = m[0];
+    const nameM = block.match(/class="name--text"[^>]*>([\s\S]*?)<\/div>/i);
+    let name = nameM ? nameM[1].replace(/<[^>]+>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim() : '';
+    if (!name) continue;
+    const priceBlocks = block.match(/class="price__total"[\s\S]*?class="price--data"[^>]*>([\s\S]*?)<\/div>/i);
+    let price = 0;
+    if (priceBlocks) price = Number(priceBlocks[1].replace(/[^\d]/g, '')) || 0;
+    const qtyBlock = block.match(/class="price__qty"[\s\S]*?class="price--data"[^>]*>([\s\S]*?)<\/div>/i);
+    const qty = qtyBlock ? (parseInt(qtyBlock[1].replace(/[^\d]/g, '')) || 1) : 1;
+    const cat = guessCatFromName(name);
+    const specM = block.match(/data-spec="([^"]+)"/i);
+    const spec = specM ? specM[1].replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').trim() : '';
+    totalPrice += price * qty;
+    items.push({ cat: cat || '기타', name, price: price || '', qty, spec: spec || undefined });
+  }
+  if (!totalPrice) {
+    const tm = html.match(/총\s*결제금액[\s\S]{0,100}?([\d,]+)\s*원/i);
+    if (tm) totalPrice = Number(tm[1].replace(/,/g, '')) || 0;
+  }
+  return { items, totalPrice };
+}
 function parseAssacomProduct(html) {
   let name = '';
   const nameM = html.match(/<[^>]+class=["'][^"']*info--name[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|span)>/i);
@@ -1272,6 +1299,10 @@ async function fetchAssacomHtml(url) {
 }
 async function fetchAssacom(url) {
   const html = await fetchAssacomHtml(url);
+  if (/cart\.htm/i.test(url) || /cart__list/i.test(html)) {
+    const { items, totalPrice } = parseAssacomCart(html);
+    if (items.length) return { items, totalPrice };
+  }
   if (/ex\.htm\b.*seq=/i.test(url) || /<table\s[^>]*class=["']pro_table["']/i.test(html)) {
     const { items, totalPrice } = parseAssacomSpec(html);
     return { items, totalPrice };
@@ -1440,6 +1471,8 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
     const r = parseJoyzenSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'joyzen';
   } else if (/product_name/i.test(html) && /joyzen/i.test(html)) {
     items = parseJoyzenProduct(html); src = 'joyzen';
+  } else if (/cart__list/i.test(html) && /assacom/i.test(html)) {
+    const r = parseAssacomCart(html); items = r.items; totalPrice = r.totalPrice; src = 'assacom';
   } else if (/pro_table/i.test(html) && /assacom/i.test(html)) {
     const r = parseAssacomSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'assacom';
   } else if (/info--name/i.test(html) && /assacom/i.test(html)) {
