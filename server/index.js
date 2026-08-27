@@ -1287,13 +1287,104 @@ async function fetchAssacom(url) {
   return { items: [], totalPrice: 0 };
 }
 
+// ── 조이젠(joyzen.co.kr) 파서 ──
+const JOYZEN_CAT = {
+  'CPU': 'CPU', '메모리': '메모리', '메인보드': '메인보드',
+  '그래픽카드': '그래픽카드', 'SSD': 'SSD', 'HDD': 'HDD',
+  '케이스': '케이스', '파워': '파워', '쿨러': '쿨러/튜닝',
+  '운영체제': '소프트웨어', '주변기기': '주변기기',
+  '모니터': '모니터', '키보드': '입력장치', '마우스': '입력장치',
+  '스피커': '주변기기', '헤드폰': '주변기기', '헤드셋': '주변기기',
+  '조립비': '조립비',
+};
+function joyzenMapCat(t) {
+  const s = (t || '').trim();
+  if (JOYZEN_CAT[s]) return JOYZEN_CAT[s];
+  return guessCatFromName(s) || '';
+}
+function parseJoyzenSpec(html) {
+  const items = [];
+  let totalPrice = 0;
+  const tpM = html.match(/dp_total_price[^>]*>([\d,]+)/);
+  if (tpM) totalPrice = Number(tpM[1].replace(/,/g, '')) || 0;
+  const rows = String(html).split(/<tr[\s>]/i).slice(1);
+  for (const row of rows) {
+    const catM = row.match(/<td\s+class="spec_item[^"]*"[^>]*>([^<]+)/i);
+    if (!catM) continue;
+    const catText = catM[1].trim();
+    const cat = joyzenMapCat(catText);
+    let name = '', price = 0;
+    const hiddenM = row.match(/value="[BSE]\|[YN]\|\d+\|\d+\|([^|]+)\|[^|]*\|(\d+)"/);
+    if (hiddenM) { name = hiddenM[1].trim(); price = Number(hiddenM[2]) || 0; }
+    if (!name) {
+      const firstOpt = row.match(/<option\s+value="[BSE]\|[YN]\|\d+\|\d+\|([^|]+)\|[^|]*\|(\d+)"/);
+      if (firstOpt) { name = firstOpt[1].trim(); price = Number(firstOpt[2]) || 0; }
+    }
+    if (!name) {
+      const spanM = row.match(/<div\s+id="(?:base|extra)_\d+_product"[^>]*>[\s\S]*?<span[^>]*>([^<]+)/i);
+      if (spanM) name = spanM[1].trim();
+    }
+    if (!price) {
+      const priceM = row.match(/<td\s+class="spec_price[^"]*"[^>]*>\s*([\d,]+)/i);
+      if (priceM) price = Number(priceM[1].replace(/,/g, '')) || 0;
+    }
+    name = name.replace(/^\[기본\]\s*/, '').trim();
+    if (!name || /선택하세요|선택 안|미선택|내장 그래픽|구매하지 않|추가할 제품/.test(name)) continue;
+    if (/^사은품$|^멀티탭$|^마우스패드$|^출장서비스$/.test(catText)) continue;
+    if (!price && !name) continue;
+    items.push({ cat: cat || catText, name, price: price || '', qty: 1 });
+  }
+  return { items, totalPrice };
+}
+function parseJoyzenProduct(html) {
+  const h = String(html || '');
+  let name = '';
+  const nameM = h.match(/<div\s+class="product_name"[^>]*>[\s\S]*?<h2>([^<]+)/i);
+  if (nameM) name = nameM[1].replace(/\s+/g, ' ').trim();
+  if (!name) { const titleM = h.match(/<title[^>]*>([\s\S]*?)<\/title>/i); if (titleM) name = titleM[1].replace(/\s*[-|:]\s*조이젠.*$/i, '').replace(/\s+/g, ' ').trim(); }
+  if (!name) return [];
+  let price = 0;
+  const rpM = h.match(/id=["']r_price["'][^>]*value=["'](\d+)["']/i);
+  if (rpM) price = Number(rpM[1]) || 0;
+  if (!price) { const spM = h.match(/sale_price[^>]*>([\d,]+)/); if (spM) price = Number(spM[1].replace(/,/g, '')) || 0; }
+  let spec = '';
+  const overM = h.match(/<div\s+class="overview"[^>]*title="([^"]+)"/i);
+  if (overM) spec = overM[1].replace(/\s+/g, ' ').trim();
+  let cat = '';
+  const bcM = h.match(/location_menu[\s\S]*?<a\s+href="#">([^<]+)/i);
+  if (bcM) cat = joyzenMapCat(bcM[1].replace(/<[^>]*>/g, '').trim());
+  if (!cat) cat = guessCatFromName(name);
+  return [{ cat, name, price: price || '', qty: 1, spec: spec || undefined }];
+}
+async function fetchJoyzen(url) {
+  const html = await fetchHtmlDecoded(url);
+  if (/jInfo\.html/i.test(url) || /spec_item/i.test(html)) {
+    const { items, totalPrice } = parseJoyzenSpec(html);
+    if (items.length) return { items, totalPrice };
+  }
+  if (/sInfo\.html/i.test(url) || /product_name/i.test(html)) {
+    const items = parseJoyzenProduct(html);
+    return { items, totalPrice: 0 };
+  }
+  const { items, totalPrice } = parseJoyzenSpec(html);
+  if (items.length) return { items, totalPrice };
+  const single = parseJoyzenProduct(html);
+  return { items: single, totalPrice: 0 };
+}
+
 // 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
   // 텍스트/URL(소스복사·URL공유) 우선 — OCR 불필요, 더 정확
   let textIn = req.body && (req.body.text || req.body.url);
   if (typeof textIn === 'string' && /^https?:\/\//i.test(textIn.trim())) {
     const url = textIn.trim();
-    // 컴퓨존 완성품 URL이면 상품상세의 기본사양표를 직접 파싱(AI 불필요, 100% 정확 — 이름 축약·OS 지어냄 없음)
+    // 조이젠 URL → 전용 파서(AI 불필요)
+    if (/joyzen\.co\.kr/i.test(url)) {
+      try {
+        const r = await fetchJoyzen(url);
+        if (r.items.length) return res.json({ items: r.items, _src: 'joyzen-spec', _totalPrice: r.totalPrice || undefined });
+      } catch (e) { console.log('[견적URL] 조이젠 파싱 실패, AI 폴백:', e.message); }
+    }
     // 아싸컴 URL → 전용 파서(AI 불필요)
     if (/assacom\.com/i.test(url)) {
       try {
@@ -1315,6 +1406,11 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
     catch (e) { return res.status(502).json({ error: 'URL에서 견적을 불러오지 못했습니다: ' + e.message + ' (텍스트 복사나 캡처를 이용해보세요)' }); }
   }
   if (typeof textIn === 'string' && textIn.trim()) {
+    // 조이젠 페이지 소스 붙여넣기 — spec_item이 있으면 직접 파싱
+    if (/spec_item/i.test(textIn) && /joyzen|조이젠/i.test(textIn)) {
+      const { items, totalPrice } = parseJoyzenSpec(textIn);
+      if (items.length) return res.json({ items, _src: 'joyzen-paste', _totalPrice: totalPrice || undefined });
+    }
     // 아싸컴 페이지 소스 붙여넣기 — pro_table이 있으면 직접 파싱
     if (/pro_table/i.test(textIn) && /assacom|아싸컴/i.test(textIn)) {
       const { items, totalPrice } = parseAssacomSpec(textIn);

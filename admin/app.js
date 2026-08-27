@@ -1132,14 +1132,14 @@ function renderEstimates(){ estInit(); const s=estState;
         <button class="btn btn-sm btn-secondary" onclick="estApplyBulk()">전체 적용</button></div>
     </div>
     <div id="est_url_box" style="display:none;margin-bottom:10px">
-      <div style="display:flex;gap:6px"><input id="est_url" placeholder="견적 URL 붙여넣기 (컴퓨존·아싸컴 등)" style="flex:1;padding:9px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
+      <div style="display:flex;gap:6px"><input id="est_url" placeholder="견적 URL 붙여넣기 (컴퓨존·아싸컴·조이젠 등)" style="flex:1;padding:9px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px">
         <button class="btn btn-sm" onclick="navigator.clipboard.readText().then(t=>{document.getElementById('est_url').value=t}).catch(()=>showToast('클립보드 권한을 허용해주세요','#e68900'))" title="클립보드에서 붙여넣기">📋 붙여넣기</button>
         <button class="btn btn-sm" onclick="estUrlImport(this,'replace')">가져오기</button>
         <button class="btn btn-sm btn-secondary" onclick="estUrlImport(this,'append')" title="기존 품목을 유지하고 추가">+ 추가</button></div>
-      <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 컴퓨존·아싸컴 등 페이지에서 부품명·가격을 그대로 가져옵니다 (AI 미사용). <b>가져오기</b>=교체, <b>+ 추가</b>=기존 유지하고 뒤에 추가</div>
+      <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 컴퓨존·아싸컴·조이젠 등 페이지에서 부품명·가격을 그대로 가져옵니다 (AI 미사용). <b>가져오기</b>=교체, <b>+ 추가</b>=기존 유지하고 뒤에 추가</div>
     </div>
     <div id="est_paste_box" style="display:none;margin-bottom:10px">
-      <textarea id="est_paste" placeholder="컴퓨존 '소스코드 공유' 또는 아싸컴 페이지 소스(Ctrl+U → 전체 복사)를 붙여넣으세요 (AI 미사용)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
+      <textarea id="est_paste" placeholder="컴퓨존 '소스코드 공유' 또는 아싸컴·조이젠 페이지 소스(Ctrl+U → 전체 복사)를 붙여넣으세요 (AI 미사용)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
       <div style="margin-top:6px"><button class="btn btn-sm" onclick="estPasteImport(this,'replace')">📋 이 내용 가져오기</button> <button class="btn btn-sm btn-secondary" onclick="estPasteImport(this,'append')">+ 추가</button></div>
     </div>
     <div class="table-container"><table class="table">
@@ -1545,9 +1545,9 @@ function czShortName(name){
 // 고객용 금지어 제거 — 매입처가 드러나는 '컴퓨존'·'아이웍스'는 고객에게 절대 노출 금지(실수 방지)
 function custClean(s){
   let t=String(s||'');
-  t=t.replace(/\[[^\]]*(컴퓨존|아이웍스|아싸컴)[^\]]*\]/g,' ');   // [컴퓨존] [아싸컴] 등 태그 통째 제거
+  t=t.replace(/\[[^\]]*(컴퓨존|아이웍스|아싸컴|조이젠)[^\]]*\]/g,' ');   // [컴퓨존] [아싸컴] [조이젠] 등 태그 통째 제거
   t=t.replace(/아이웍스\s*[0-9]*(?:-[0-9A-Za-z]+)?/g,' ');  // 아이웍스 / 아이웍스3 / 아이웍스5-5207
-  t=t.replace(/컴퓨존|아싸컴/g,' ');
+  t=t.replace(/컴퓨존|아싸컴|조이젠/g,' ');
   t=t.replace(/\s{2,}/g,' ').replace(/^[\s\-·/,]+|[\s\-·/,]+$/g,'').trim();
   return t;
 }
@@ -1956,7 +1956,7 @@ async function estPasteImport(btn,mode){
 }
 async function estUrlImport(btn,mode){
   const u=(v('est_url')||'').trim();
-  if(!u){ showToast('견적 URL을 입력하세요 (컴퓨존·아싸컴 등).','#e68900'); return; }
+  if(!u){ showToast('견적 URL을 입력하세요 (컴퓨존·아싸컴·조이젠 등).','#e68900'); return; }
   const origText=btn?btn.textContent:'';
   if(btn){ btn.disabled=true; btn.textContent='⏳'; }
   let r;
