@@ -1356,8 +1356,28 @@ function parseJoyzenProduct(html) {
   if (!cat) cat = guessCatFromName(name);
   return [{ cat, name, price: price || '', qty: 1, spec: spec || undefined }];
 }
+async function fetchJoyzenHtml(url) {
+  const resp = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Referer': 'https://www.joyzen.co.kr/',
+    },
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  let charset = '';
+  const ct = resp.headers.get('content-type') || '';
+  const m1 = ct.match(/charset=["']?([\w-]+)/i);
+  if (m1) charset = m1[1];
+  else { const head = buf.slice(0, 3000).toString('latin1'); const m2 = head.match(/charset=["']?([\w-]+)/i); if (m2) charset = m2[1]; }
+  charset = (charset || 'utf-8').toLowerCase().replace('ks_c_5601-1987', 'euc-kr').replace('cp949', 'euc-kr').replace('utf8', 'utf-8');
+  try { return new TextDecoder(charset).decode(buf); }
+  catch (e) { try { return new TextDecoder('euc-kr').decode(buf); } catch (e2) { return buf.toString('utf-8'); } }
+}
 async function fetchJoyzen(url) {
-  const html = await fetchHtmlDecoded(url);
+  const html = await fetchJoyzenHtml(url);
   if (/jInfo\.html/i.test(url) || /spec_item/i.test(html)) {
     const { items, totalPrice } = parseJoyzenSpec(html);
     if (items.length) return { items, totalPrice };
@@ -1383,7 +1403,10 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
       try {
         const r = await fetchJoyzen(url);
         if (r.items.length) return res.json({ items: r.items, _src: 'joyzen-spec', _totalPrice: r.totalPrice || undefined });
-      } catch (e) { console.log('[견적URL] 조이젠 파싱 실패, AI 폴백:', e.message); }
+      } catch (e) {
+        console.log('[견적URL] 조이젠 파싱 실패:', e.message);
+        if (/403|forbidden|fetch failed|ECONNREFUSED|ENOTFOUND/i.test(e.message)) return res.status(403).json({ error: '조이젠이 서버 접근을 차단합니다. [소스·텍스트] 버튼을 눌러 조이젠 페이지 소스(Ctrl+U → 전체 선택 → 복사)를 붙여넣으세요.' });
+      }
     }
     // 아싸컴 URL → 전용 파서(AI 불필요)
     if (/assacom\.com/i.test(url)) {
