@@ -1192,13 +1192,96 @@ async function fetchCompuzoneSpec(pno) {
   if (singles.length && spec) singles[0].spec = spec;
   return singles;
 }
-// 컴퓨존 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
+// ── 아싸컴(assacom.com) 파서 ──
+const ASSA_CAT = {
+  'CPU': 'CPU', '쿨러': '쿨러/튜닝', '메인보드': '메인보드',
+  '메모리[RAM]': '메모리', '메모리': '메모리', '그래픽[VGA]': '그래픽카드',
+  'HDD': 'HDD', 'SSD': 'SSD', '파워': '파워', '케이스': '케이스',
+  '윈도우[OS]': '소프트웨어', '모니터': '모니터', '모니터[LED]': '모니터',
+  '키보드': '입력장치', '마우스': '입력장치', '음향기기': '주변기기',
+  '프린터/복합기': '주변기기', '공유기/허브': '공유기', '주변기기': '주변기기',
+};
+const ASSA_SKIP = new Set(['랜/사운드', 'DVD/리더기', '사은품']);
+function assaMapCat(t) {
+  t = String(t || '').trim();
+  if (ASSA_SKIP.has(t)) return null;
+  if (ASSA_CAT[t]) return ASSA_CAT[t];
+  for (const k in ASSA_CAT) if (t.indexOf(k) >= 0) return ASSA_CAT[k];
+  return guessCatFromName(t) || '';
+}
+function parseAssacomSpec(html) {
+  const items = [];
+  const tableM = html.match(/<table\s[^>]*class=["']pro_table["'][\s\S]*?<\/table>/i);
+  if (!tableM) return { items, totalPrice: 0 };
+  const trs = tableM[0].split(/<tr[\s>]/i).slice(1);
+  for (const tr of trs) {
+    const catM = tr.match(/<td\s[^>]*class=["']pro_table_title["'][^>]*>([\s\S]*?)<\/td>/i);
+    const nameM = tr.match(/<td\s[^>]*class=["']pro_table_no1["'][^>]*>[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/i);
+    if (!catM || !nameM) continue;
+    const rawCat = catM[1].replace(/<[^>]+>/g, '').trim();
+    const cat = assaMapCat(rawCat);
+    if (cat === null) continue;
+    let name = nameM[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim();
+    name = name.replace(/추가하기|바로가기|패키지용\s*본체로\s*가기/g, '').trim();
+    if (!name || /미포함$|선택하세요|모델로\s*구입/.test(name)) continue;
+    items.push({ cat, name, qty: 1, price: '' });
+  }
+  const priceM = html.match(/name=["']t_price["'][^>]*value=["'](\d+)["']/i)
+    || html.match(/value=["'](\d+)["'][^>]*name=["']t_price["']/i);
+  return { items, totalPrice: priceM ? Number(priceM[1]) : 0 };
+}
+function parseAssacomProduct(html) {
+  let name = '';
+  const nameM = html.match(/<[^>]+class=["'][^"']*info--name[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|span)>/i);
+  if (nameM) name = nameM[1].replace(/<[^>]+>/g, '').trim();
+  if (!name) { const titleM = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i); if (titleM) name = titleM[1].replace(/아싸컴.*$/i, '').replace(/조립PC.*$/i, '').trim(); }
+  let price = '';
+  const priceM = html.match(/class=["'][^"']*org-price[^"']*["'][^>]*>([\s\S]*?)<\/span>/i);
+  if (priceM) price = Number((priceM[1].match(/[\d,]+/) || [''])[0].replace(/,/g, '')) || '';
+  let spec = '';
+  const specM = html.match(/class=["'][^"']*template__spec[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+  if (specM) spec = specM[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+  if (!name) return [];
+  const cat = guessCatFromName(name);
+  return [{ cat, name, qty: 1, price, spec }];
+}
+async function fetchAssacom(url) {
+  // 아싸컴 ex.htm은 유효한 ctime 파라미터가 없으면 JS redirect를 하므로 현재 시각으로 설정
+  let fetchUrl = url;
+  if (/ex\.htm\b/i.test(url)) {
+    fetchUrl = url.replace(/[?&]ctime=\d*/gi, '');
+    fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + 'ctime=' + Math.floor(Date.now() / 1000);
+  }
+  const html = await fetchHtmlDecoded(fetchUrl);
+  if (/ex\.htm\b.*seq=/i.test(url) || /<table\s[^>]*class=["']pro_table["']/i.test(html)) {
+    const { items, totalPrice } = parseAssacomSpec(html);
+    return { items, totalPrice };
+  }
+  if (/acc_view\.htm/i.test(url)) {
+    const items = parseAssacomProduct(html);
+    return { items, totalPrice: 0 };
+  }
+  const { items, totalPrice } = parseAssacomSpec(html);
+  if (items.length) return { items, totalPrice };
+  const single = parseAssacomProduct(html);
+  if (single.length) return { items: single, totalPrice: 0 };
+  return { items: [], totalPrice: 0 };
+}
+
+// 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
   // 텍스트/URL(소스복사·URL공유) 우선 — OCR 불필요, 더 정확
   let textIn = req.body && (req.body.text || req.body.url);
   if (typeof textIn === 'string' && /^https?:\/\//i.test(textIn.trim())) {
     const url = textIn.trim();
     // 컴퓨존 완성품 URL이면 상품상세의 기본사양표를 직접 파싱(AI 불필요, 100% 정확 — 이름 축약·OS 지어냄 없음)
+    // 아싸컴 URL → 전용 파서(AI 불필요)
+    if (/assacom\.com/i.test(url)) {
+      try {
+        const r = await fetchAssacom(url);
+        if (r.items.length) return res.json({ items: r.items, _src: 'assacom-spec', _totalPrice: r.totalPrice || undefined });
+      } catch (e) { console.log('[견적URL] 아싸컴 파싱 실패, AI 폴백:', e.message); }
+    }
     const pno = /compuzone\.co\.kr/i.test(url) ? compuzonePno(url) : '';
     if (pno) {
       try {
