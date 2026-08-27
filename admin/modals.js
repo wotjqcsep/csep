@@ -830,6 +830,22 @@ function connectSSE(){
 
     es.addEventListener('incoming_call', e=>{ const c=JSON.parse(e.data); pendingCalls.push(c); renderPopups(); });
     es.addEventListener('incoming_sms', e=>{ const s=JSON.parse(e.data); pendingSms.push(s); renderPopups(); });
+    es.addEventListener('estimate_import', e=>{
+      try{
+        const d=JSON.parse(e.data);
+        if(d.items&&d.items.length){
+          window._pendingEstImport=d;
+          if(typeof estState!=='undefined'&&estState&&typeof estAddItems==='function'){
+            estAddItems(d.items,'replace');
+            window._pendingEstImport=null;
+            const tp=d.totalPrice;
+            showToast('📋 북마클릿: '+d.items.length+'개 항목 가져옴'+(tp?' (업체 판매가 '+Number(tp).toLocaleString()+'원)':''));
+          } else {
+            showToast('📋 견적 '+d.items.length+'개 부품 수신 — 견적 페이지에서 확인하세요','#1971c2');
+          }
+        }
+      }catch(x){}
+    });
     es.addEventListener('new_message', e=>{ let d={}; try{d=JSON.parse(e.data);}catch(x){}
       if(adminChatOpen==d.reception_id){ openAdminChat(d.reception_id); }
       else { adminChatUnread[d.reception_id]=(adminChatUnread[d.reception_id]||0)+1; if(!document.querySelector('.modal-overlay'))renderInto(); }

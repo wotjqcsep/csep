@@ -1392,6 +1392,28 @@ async function fetchJoyzen(url) {
   return { items: single, totalPrice: 0 };
 }
 
+// 북마클릿 견적 가져오기 — 사용자 브라우저에서 직접 HTML을 보내면 파싱 후 SSE로 관리자에 전달
+app.options('/api/estimate/import', (req, res) => {
+  res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' });
+  res.sendStatus(204);
+});
+app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  const html = req.body && req.body.html;
+  if (!html) return res.status(400).json({ error: 'html required' });
+  let items = [], totalPrice = 0, src = '';
+  if (/spec_item/i.test(html) && /joyzen/i.test(html)) {
+    const r = parseJoyzenSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'joyzen';
+  } else if (/pro_table/i.test(html) && /assacom/i.test(html)) {
+    const r = parseAssacomSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'assacom';
+  } else if (/compuzone/i.test(html)) {
+    items = parseCompuzoneSpec(html); src = 'compuzone';
+  }
+  if (!items.length) return res.status(422).json({ error: '부품을 찾을 수 없습니다' });
+  broadcastAdmin('estimate_import', { items, totalPrice, src });
+  res.json({ ok: true, count: items.length, totalPrice, src });
+});
+
 // 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
   // 텍스트/URL(소스복사·URL공유) 우선 — OCR 불필요, 더 정확

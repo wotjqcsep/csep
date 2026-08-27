@@ -1081,6 +1081,7 @@ function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
   const margin=Number(tr.querySelector('.est-margin').value)||0;
   const pe=tr.querySelector('.est-price'); if(pe) pe.value = cost? Number(Math.round(cost*(1+margin/100))).toLocaleString('ko-KR') : ''; }
 function renderEstimates(){ estInit(); const s=estState;
+  if(window._pendingEstImport){ const d=window._pendingEstImport; window._pendingEstImport=null; setTimeout(()=>{ estAddItems(d.items,'replace'); showToast('📋 북마클릿: '+d.items.length+'개 항목 가져옴'+(d.totalPrice?' (업체 판매가 '+Number(d.totalPrice).toLocaleString()+'원)':'')); renderInto(); },100); }
   if(!s.no && !s.savedId) estNextNo().then(no=>{ if(!estState.no){ estState.no=no; const el=document.getElementById('est_no'); if(el) el.value=no; } });
   const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; const p=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(c*(1+m/100)); return t+p*q; },0);
   const vat=s.noVat?0:Math.round(sub*0.1);
@@ -1136,7 +1137,8 @@ function renderEstimates(){ estInit(); const s=estState;
         <button class="btn btn-sm" onclick="navigator.clipboard.readText().then(t=>{document.getElementById('est_url').value=t}).catch(()=>showToast('클립보드 권한을 허용해주세요','#e68900'))" title="클립보드에서 붙여넣기">📋 붙여넣기</button>
         <button class="btn btn-sm" onclick="estUrlImport(this,'replace')">가져오기</button>
         <button class="btn btn-sm btn-secondary" onclick="estUrlImport(this,'append')" title="기존 품목을 유지하고 추가">+ 추가</button></div>
-      <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 컴퓨존·아싸컴·조이젠 등 페이지에서 부품명·가격을 그대로 가져옵니다 (AI 미사용). <b>가져오기</b>=교체, <b>+ 추가</b>=기존 유지하고 뒤에 추가</div>
+      <div style="font-size:11px;color:#0ca678;margin-top:4px">✅ 컴퓨존 등 URL 가져오기 (AI 미사용). <b>가져오기</b>=교체, <b>+ 추가</b>=기존 유지하고 뒤에 추가</div>
+      <div style="font-size:11px;color:#1971c2;margin-top:3px">💡 아싸컴·조이젠 등 차단 사이트 → <a href="javascript:void(fetch('${location.origin}/api/estimate/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({html:document.documentElement.outerHTML})}).then(r=>r.json()).then(d=>d.ok?alert('CSEP 전송 완료: '+d.count+'개 부품'):alert('실패: '+(d.error||'알수없음'))).catch(e=>alert('전송 실패: '+e.message)))" onclick="event.preventDefault();showToast('이 링크를 즐겨찾기 바로 드래그하세요!','#1971c2');return false;" style="font-weight:700;background:#e7f5ff;padding:2px 8px;border-radius:4px;text-decoration:none">⭐ CSEP 가져오기</a> ← 즐겨찾기 바에 드래그하여 등록. 견적 페이지에서 클릭하면 자동 전송됩니다.</div>
     </div>
     <div id="est_paste_box" style="display:none;margin-bottom:10px">
       <textarea id="est_paste" placeholder="컴퓨존 '소스코드 공유' 또는 아싸컴·조이젠 페이지 소스(Ctrl+U → 전체 복사)를 붙여넣으세요 (AI 미사용)" style="width:100%;height:110px;padding:10px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px"></textarea>
