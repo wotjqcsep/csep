@@ -1404,10 +1404,15 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
   let items = [], totalPrice = 0, src = '';
   if (/spec_item/i.test(html) && /joyzen/i.test(html)) {
     const r = parseJoyzenSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'joyzen';
+  } else if (/product_name/i.test(html) && /joyzen/i.test(html)) {
+    items = parseJoyzenProduct(html); src = 'joyzen';
   } else if (/pro_table/i.test(html) && /assacom/i.test(html)) {
     const r = parseAssacomSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'assacom';
+  } else if (/info--name/i.test(html) && /assacom/i.test(html)) {
+    items = parseAssacomProduct(html); src = 'assacom';
   } else if (/compuzone/i.test(html)) {
     items = parseCompuzoneSpec(html); src = 'compuzone';
+    if (!items.length) items = parseCompuzoneProductPage(html);
   }
   if (!items.length) return res.status(422).json({ error: '부품을 찾을 수 없습니다' });
   broadcastAdmin('estimate_import', { items, totalPrice, src });
