@@ -1381,8 +1381,10 @@ function parseJoyzenCart(html) {
     const uid = uidM ? uidM[1] : '';
     let cat = JOYZEN_UID[uid] || '';
     if (!cat) cat = guessCatFromName(name);
+    const specM = row.match(/data-spec="([^"]+)"/i);
+    const spec = specM ? specM[1].replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').trim() : '';
     totalPrice += price * qty;
-    items.push({ cat: cat || '기타', name, price: price || '', qty });
+    items.push({ cat: cat || '기타', name, price: price || '', qty, spec: spec || undefined });
   }
   return { items, totalPrice };
 }
