@@ -1852,6 +1852,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       const r = parseMypcshopCart(html); items = r.items; totalPrice = r.totalPrice; src = 'mypcshop';
     }
   }
+  items = items.filter(it => !/조립비|조립 비/i.test(it.cat));
   if (!items.length) return res.status(422).json({ error: '부품을 찾을 수 없습니다' });
   broadcastAdmin('estimate_import', { items, totalPrice, src });
   res.json({ ok: true, count: items.length, totalPrice, src });

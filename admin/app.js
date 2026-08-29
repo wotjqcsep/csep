@@ -1537,7 +1537,7 @@ async function estNewDoc(){ if(estState.savedId && !confirm('현재 견적을 �
 // 헤더(회사·고객·일자 등)는 보존하고 표만 교체.
 function estAddItems(items, mode){ estSyncAll();
   if(mode!=='append') estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
-  (items||[]).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1), spec=(it.spec||'');
+  (items||[]).filter(it=>!/조립비/i.test(it.cat||'')).forEach(it=>{ const cat=(it.cat||'').trim(), name=(it.name||'').trim(), cost=(Number(it.price)||''), qty=(Number(it.qty)||1), spec=(it.spec||'');
     const empty=estState.rows.find(r=>r.cat===cat && !String(r.name).trim());
     if(empty){ empty.name=name; empty.qty=qty; empty.cost=cost; empty.price=''; empty.margin=estState.bulk; if(spec){ empty.spec=spec; empty.showSpec=true; } }
     else estState.rows.push({cat,name,qty,cost,price:'',margin:estState.bulk,spec,showSpec:!!spec}); });
