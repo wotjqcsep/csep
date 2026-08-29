@@ -1608,6 +1608,14 @@ async function fetchDanawaHtml(url) {
   try { return new TextDecoder(charset).decode(buf); }
   catch (e) { return buf.toString('utf-8'); }
 }
+async function fetchDanawaSpecByName(productName) {
+  try {
+    const q = encodeURIComponent(productName.replace(/\s*\([^)]*\)\s*$/, '').trim());
+    const html = await fetchDanawaHtml('https://search.danawa.com/dsearch.php?query=' + q + '&tab=goods');
+    const m = html.match(/class="spec_list"[^>]*>([\s\S]*?)<\/div>/i);
+    return m ? m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim() : '';
+  } catch (e) { return ''; }
+}
 async function fetchDanawa(url) {
   const html = await fetchDanawaHtml(url);
   if (/productRegisterAreaSeq/i.test(html)) {
@@ -1803,13 +1811,10 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       items = parseDanawaProduct(html); src = 'danawa';
     } else {
       const r = parseDanawaCart(html); items = r.items; totalPrice = r.totalPrice; src = 'danawa';
-      const needSpec = items.filter(it => it._goodsSeq && !it.spec);
+      const needSpec = items.filter(it => !it.spec);
       if (needSpec.length) {
         try {
-          const specResults = await Promise.allSettled(
-            needSpec.map(it => fetchDanawaHtml('https://shop.danawa.com/virtualEstimate/?goodsSeq=' + it._goodsSeq)
-              .then(ph => { const sm = ph.match(/class="spec_list"[^>]*>([\s\S]*?)<\/ul>/i); return sm ? sm[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : ''; }))
-          );
+          const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name)));
           needSpec.forEach((it, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) it.spec = specResults[i].value; });
         } catch (e) { console.log('[다나와장바구니] spec 조회 실패:', e.message); }
       }
@@ -1861,6 +1866,9 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
     }
     // 다나와 URL → 전용 파서
     if (/danawa\.com/i.test(url)) {
+      if (/buyer\.danawa\.com\/cart/i.test(url)) {
+        return res.status(422).json({ error: '다나와 장바구니는 로그인이 필요합니다. 북마클릿(CSEP 가져오기)을 사용해 주세요.' });
+      }
       try {
         const r = await fetchDanawa(url);
         if (r.items.length) return res.json({ items: r.items, _src: 'danawa', _totalPrice: r.totalPrice || undefined });
