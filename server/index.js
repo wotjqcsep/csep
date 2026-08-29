@@ -1153,6 +1153,31 @@ function parseCompuzoneSpec(html) {
   }
   return items;
 }
+function parseCompuzoneCart(html) {
+  const items = [];
+  let totalPrice = 0;
+  const rows = String(html).split(/<tr[\s>]/i).slice(1);
+  const seen = new Set();
+  for (const row of rows) {
+    const linkM = row.match(/<a[^>]*href=["'][^"']*ProductNo=(\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
+    if (!linkM) continue;
+    const pno = linkM[1];
+    if (seen.has(pno)) continue;
+    seen.add(pno);
+    let name = linkM[2].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+    if (!name || name.length < 3 || /선택하세요|미선택|장바구니|담기/i.test(name)) continue;
+    const priceAll = [...row.matchAll(/([\d,]{4,})\s*원?/g)].map(m => Number(m[1].replace(/,/g, '')));
+    const price = priceAll.length ? priceAll[0] : 0;
+    const qtyM = row.match(/name=["'][^"']*[Qq]ty[^"']*["'][^>]*value=["'](\d+)["']/i)
+      || row.match(/name=["'][^"']*[Nn]um[^"']*["'][^>]*value=["'](\d+)["']/i)
+      || row.match(/class=["'][^"']*qty[^"']*["'][^>]*value=["'](\d+)["']/i);
+    const qty = qtyM ? parseInt(qtyM[1]) : 1;
+    const cat = guessCatFromName(name);
+    totalPrice += price * qty;
+    items.push({ cat: cat || '기타', name, price: price || '', qty, _pno: pno });
+  }
+  return { items, totalPrice };
+}
 // 컴퓨존 단일 상품 상세 페이지 HTML → 부품 1개 파싱 (spec 테이블 없는 단일 부품)
 function parseCompuzoneProductPage(html) {
   const h = String(html || '');
@@ -1803,6 +1828,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
     items = parseAssacomProduct(html); src = 'assacom';
   } else if (/compuzone/i.test(html)) {
     items = parseCompuzoneSpec(html); src = 'compuzone';
+    if (!items.length) { const cr = parseCompuzoneCart(html); items = cr.items; totalPrice = cr.totalPrice; }
     if (!items.length) items = parseCompuzoneProductPage(html);
     const czPnos = items.filter(it => it._pno).map(it => it._pno);
     if (czPnos.length) {
