@@ -1754,21 +1754,32 @@ function parseIcodaCart(html) {
 function parseIcodaNewCart(html) {
   const items = [];
   let totalPrice = 0;
-  const blocks = html.split(/class="[^"]*상품목록[^"]*"/i);
-  for (let i = 1; i < blocks.length; i++) {
-    const block = blocks[i].substring(0, 5000);
-    const nameM = block.match(/<a[^>]*class="상품명"[^>]*href="[^"]*\/item\/view\/(\d+)"[^>]*>([\s\S]*?)<\/a>/i);
+  const ckRe = /<input[^>]*name="ck_row\[[^\]]*\]"[^>]*>/gi;
+  let m;
+  while ((m = ckRe.exec(html)) !== null) {
+    const tag = m[0];
+    const nameM = tag.match(/\s상품명="([^"]*)"/i);
     if (!nameM) continue;
-    const pno = nameM[1];
-    let name = nameM[2].replace(/<[^>]+>/g, '').replace(/^\[\d+\]\s*/, '').replace(/\s+/g, ' ').trim();
+    const name = nameM[1].trim();
     if (!name || name.length < 3) continue;
-    const priceM = block.match(/장바구니합계금액[^>]*>([\d,]+)<\/span>/i);
-    const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
-    const qtyM = block.match(/원\s*x\s*(?:<[^>]*>)?\s*(\d+)\s*(?:<[^>]*>)?\s*개/i);
-    const qty = qtyM ? parseInt(qtyM[1]) : 1;
+    const pnoM = tag.match(/\spno="(\d+)"/i);
+    const pno = pnoM ? pnoM[1] : '';
     const cat = guessCatFromName(name);
-    totalPrice += price;
-    items.push({ cat: cat || '기타', name, price: price || '', qty, _pno: pno });
+    items.push({ cat: cat || '기타', name, price: '', qty: 1, _pno: pno });
+  }
+  const prRe = /<span[^>]*장바구니합계금액[^>]*>/gi;
+  let pi = 0;
+  while ((m = prRe.exec(html)) !== null && pi < items.length) {
+    const cardM = m[0].match(/카드가="(\d+)"/i);
+    if (cardM) { const p = Number(cardM[1]) || 0; items[pi].price = p || ''; totalPrice += p; }
+    pi++;
+  }
+  const qRe = /<input[^>]*name="단일수량"[^>]*>/gi;
+  let qi = 0;
+  while ((m = qRe.exec(html)) !== null && qi < items.length) {
+    const valM = m[0].match(/value="(\d+)"/i);
+    if (valM) items[qi].qty = parseInt(valM[1]) || 1;
+    qi++;
   }
   return { items, totalPrice };
 }
