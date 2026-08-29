@@ -1580,8 +1580,12 @@ function parseDanawaCart(html) {
       const price = priceM ? Number(priceM[1]) : 0;
       const qtyM = row.match(/class="input_qnt"[^>]*value="(\d+)"/i);
       const qty = qtyM ? parseInt(qtyM[1]) : 1;
+      const seqM = row.match(/id="goodsName_(\d+)"/i);
+      const optM = row.match(/class="[^"]*opt_list[^"]*"[^>]*>([\s\S]*?)<\/ul>/i)
+        || row.match(/class="[^"]*option_txt[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div|span)>/i);
+      let spec = optM ? optM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
       totalPrice += price * qty;
-      items.push({ cat: cat || '기타', name, price: price || '', qty });
+      items.push({ cat: cat || '기타', name, price: price || '', qty, _goodsSeq: seqM ? seqM[1] : '', spec: spec || undefined });
     }
   }
   return { items, totalPrice };
@@ -1771,7 +1775,7 @@ app.options('/api/estimate/import', (req, res) => {
   res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' });
   res.sendStatus(204);
 });
-app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
+app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   const html = req.body && req.body.html;
   if (!html) return res.status(400).json({ error: 'html required' });
@@ -1799,6 +1803,17 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
       items = parseDanawaProduct(html); src = 'danawa';
     } else {
       const r = parseDanawaCart(html); items = r.items; totalPrice = r.totalPrice; src = 'danawa';
+      const needSpec = items.filter(it => it._goodsSeq && !it.spec);
+      if (needSpec.length) {
+        try {
+          const specResults = await Promise.allSettled(
+            needSpec.map(it => fetchDanawaHtml('https://shop.danawa.com/virtualEstimate/?goodsSeq=' + it._goodsSeq)
+              .then(ph => { const sm = ph.match(/class="spec_list"[^>]*>([\s\S]*?)<\/ul>/i); return sm ? sm[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : ''; }))
+          );
+          needSpec.forEach((it, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) it.spec = specResults[i].value; });
+        } catch (e) { console.log('[다나와장바구니] spec 조회 실패:', e.message); }
+      }
+      items.forEach(it => delete it._goodsSeq);
     }
   } else if (/icoda\.co\.kr/i.test(html)) {
     if (/view_name/i.test(html)) {
@@ -1816,7 +1831,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
   if (!items.length) return res.status(422).json({ error: '부품을 찾을 수 없습니다' });
   broadcastAdmin('estimate_import', { items, totalPrice, src });
   res.json({ ok: true, count: items.length, totalPrice, src });
-});
+}));
 
 // 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
