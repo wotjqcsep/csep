@@ -1804,6 +1804,22 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
   } else if (/compuzone/i.test(html)) {
     items = parseCompuzoneSpec(html); src = 'compuzone';
     if (!items.length) items = parseCompuzoneProductPage(html);
+    const czPnos = items.filter(it => it._pno).map(it => it._pno);
+    if (czPnos.length) {
+      try {
+        const specResults = await Promise.allSettled(
+          czPnos.map(p => fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + p).then(extractSpecText))
+        );
+        const specMap = {};
+        czPnos.forEach((p, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) specMap[p] = specResults[i].value; });
+        const noSpec = /조립비|서비스|주변기기|입력장치|키보드|마우스/;
+        items.forEach(it => { if (it._pno && specMap[it._pno] && !noSpec.test(it.cat)) it.spec = specMap[it._pno]; delete it._pno; });
+      } catch (e) { console.log('[컴퓨존] spec 조회 실패:', e.message); }
+    } else {
+      const czSpec = extractSpecText(html);
+      if (czSpec && items.length) items[0].spec = czSpec;
+    }
+    items.forEach(it => delete it._pno);
   } else if (/danawa\.com/i.test(html)) {
     src = 'danawa';
     if (/productRegisterAreaSeq_\d/i.test(html)) {
