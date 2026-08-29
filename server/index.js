@@ -1891,7 +1891,13 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       items.forEach((it, i) => { if ((it._mtype && /조립/i.test(it._mtype)) || /^샵다나와\s*조립\s*PC/i.test(it.name)) if (it._goodsSeq) buildPcIdxs.push(i); });
       if (buildPcIdxs.length) {
         try {
-          const details = await Promise.allSettled(buildPcIdxs.map(i => fetchDanawaHtml('https://shop.danawa.com/shopmain/?controller=goodsLoadingBridge&methods=index&goodsSeq=' + items[i]._goodsSeq)));
+          const fetchBuildDetail = async (gsq) => {
+            let h = await fetchDanawaHtml('https://shop.danawa.com/shopmain/?controller=goodsLoadingBridge&methods=index&goodsSeq=' + gsq);
+            const redir = h.match(/document\.location\.href\s*=\s*"([^"]+)"/i);
+            if (redir) h = await fetchDanawaHtml(redir[1]);
+            return h;
+          };
+          const details = await Promise.allSettled(buildPcIdxs.map(i => fetchBuildDetail(items[i]._goodsSeq)));
           for (let k = buildPcIdxs.length - 1; k >= 0; k--) {
             const idx = buildPcIdxs[k];
             if (details[k].status !== 'fulfilled') continue;
