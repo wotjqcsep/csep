@@ -1705,7 +1705,8 @@ function parseIcodaProduct(html) {
       if (!partName) continue;
       let cat = rawCat.replace(/운영체제\s*SSD/i, 'SSD');
       cat = guessCatFromName(cat) || cat;
-      items.push({ cat, name: partName, price: '', qty: 1 });
+      const spec = /내장\s*그래픽/i.test(partName) ? partName : undefined;
+      items.push({ cat, name: partName, price: '', qty: 1, spec });
     }
     if (items.length >= 3) return items;
   }
