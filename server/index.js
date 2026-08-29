@@ -1660,29 +1660,38 @@ async function fetchDanawaHtml(url) {
   catch (e) { return buf.toString('utf-8'); }
 }
 async function fetchDanawaSpecByName(productName, expectedCat) {
-  try {
-    const q = encodeURIComponent(productName.replace(/\[[\d×xX]+\]\s*/g, '').replace(/[\[\]]/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/^Nvidia\s+/i, '').replace(/GEN\d+\s*/gi, '').replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '').replace(/\bD4\b/g, 'DDR4').replace(/\bD5\b/g, 'DDR5').replace(/\s+/g, ' ').trim());
-    const html = await fetchDanawaHtml('https://search.danawa.com/dsearch.php?query=' + q + '&tab=goods');
-    const m = html.match(/class="spec_list"[^>]*>([\s\S]*?)<\/(?:ul|div)>/i);
-    if (!m) return '';
-    const spec = m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
-    if (expectedCat && spec) {
-      const CAT_VERIFY = {
-        'CPU': /셀러론|펜티엄|코어|Celeron|Pentium|Core|Ryzen|라이젠|Athlon|소켓/i,
-        '메인보드': /메인보드|칩셋|chipset|메모리\s*슬롯|UEFI/i,
-        '메모리': /DDR[45]|PC[45]-|데스크탑용|노트북용/i,
-        '그래픽카드': /지포스|라데온|GeForce|Radeon|RTX|GTX|VRAM|GDDR/i,
-        'SSD': /SSD|NVMe|M\.2|SATA|PCIe.*x[0-9].*읽기|TLC|QLC|MLC/i,
-        'HDD': /HDD|RPM|CMR|SMR|바라쿠다|Barracuda/i,
-        '파워': /정격\s*출력|총\s*출력|정격출력|80PLUS|파워서플라이|ATX\s*파워|\d+W\s*정격/i,
-        '케이스': /케이스|미들타워|미니타워|풀타워|파워\s*위치/i,
-        '쿨러/튜닝': /쿨러|공랭|수랭|TDP|팬\s*크기|히트파이프/i,
-      };
-      const verify = CAT_VERIFY[expectedCat];
-      if (verify && !verify.test(spec)) return '';
-    }
-    return spec;
-  } catch (e) { return ''; }
+  const CAT_VERIFY = {
+    'CPU': /셀러론|펜티엄|코어|Celeron|Pentium|Core|Ryzen|라이젠|Athlon|소켓/i,
+    '메인보드': /메인보드|칩셋|chipset|메모리\s*슬롯|UEFI/i,
+    '메모리': /DDR[45]|PC[45]-|데스크탑용|노트북용/i,
+    '그래픽카드': /지포스|라데온|GeForce|Radeon|RTX|GTX|VRAM|GDDR/i,
+    'SSD': /SSD|NVMe|M\.2|SATA|PCIe.*x[0-9].*읽기|TLC|QLC|MLC/i,
+    'HDD': /HDD|RPM|CMR|SMR|바라쿠다|Barracuda/i,
+    '파워': /정격\s*출력|총\s*출력|정격출력|80PLUS|파워서플라이|ATX\s*파워|\d+W\s*정격/i,
+    '케이스': /케이스|미들타워|미니타워|풀타워|파워\s*위치/i,
+    '쿨러/튜닝': /쿨러|공랭|수랭|TDP|팬\s*크기|히트파이프/i,
+  };
+  const CAT_KEYWORD = {
+    'CPU': 'CPU 프로세서', '메인보드': '메인보드', '메모리': '메모리 RAM',
+    '그래픽카드': '그래픽카드', 'SSD': 'SSD', 'HDD': 'HDD 하드디스크',
+    '파워': '파워서플라이', '케이스': 'PC 케이스', '쿨러/튜닝': '쿨러',
+  };
+  const cleanName = productName.replace(/\[[\d×xX]+\]\s*/g, '').replace(/[\[\]]/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/^Nvidia\s+/i, '').replace(/GEN\d+\s*/gi, '').replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '').replace(/\bD4\b/g, 'DDR4').replace(/\bD5\b/g, 'DDR5').replace(/\s+/g, ' ').trim();
+  const verify = expectedCat && CAT_VERIFY[expectedCat];
+  const queries = [cleanName];
+  if (expectedCat && CAT_KEYWORD[expectedCat]) queries.push(cleanName + ' ' + CAT_KEYWORD[expectedCat]);
+  for (const qRaw of queries) {
+    try {
+      const html = await fetchDanawaHtml('https://search.danawa.com/dsearch.php?query=' + encodeURIComponent(qRaw) + '&tab=goods');
+      const m = html.match(/class="spec_list"[^>]*>([\s\S]*?)<\/(?:ul|div)>/i);
+      if (!m) continue;
+      const spec = m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+      if (!spec) continue;
+      if (verify && !verify.test(spec)) continue;
+      return spec;
+    } catch (e) { /* try next query */ }
+  }
+  return '';
 }
 async function fetchDanawa(url) {
   const html = await fetchDanawaHtml(url);
