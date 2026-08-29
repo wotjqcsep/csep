@@ -1556,7 +1556,7 @@ function parseDanawaProduct(html) {
   const rpM = h.match(/total_price[\s\S]*?<strong>([\d,]+)<\/strong>/i);
   if (rpM) price = Number(rpM[1].replace(/,/g, '')) || 0;
   let spec = '';
-  const specM = h.match(/class="spec_list"[^>]*>([\s\S]*?)<\/ul>/i);
+  const specM = h.match(/class="spec_list"[^>]*>([\s\S]*?)<\/(?:ul|div)>/i);
   if (specM) spec = specM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
   const cat = guessCatFromName(name) || guessCatFromSpec(spec);
   return [{ cat, name, price: price || '', qty: 1, spec: spec || undefined }];
@@ -1612,7 +1612,7 @@ async function fetchDanawaSpecByName(productName) {
   try {
     const q = encodeURIComponent(productName.replace(/\s*\([^)]*\)\s*$/, '').trim());
     const html = await fetchDanawaHtml('https://search.danawa.com/dsearch.php?query=' + q + '&tab=goods');
-    const m = html.match(/class="spec_list"[^>]*>([\s\S]*?)<\/div>/i);
+    const m = html.match(/class="spec_list"[^>]*>([\s\S]*?)<\/(?:ul|div)>/i);
     return m ? m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim() : '';
   } catch (e) { return ''; }
 }
@@ -1805,12 +1805,15 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
     items = parseCompuzoneSpec(html); src = 'compuzone';
     if (!items.length) items = parseCompuzoneProductPage(html);
   } else if (/danawa\.com/i.test(html)) {
-    if (/productRegisterAreaSeq/i.test(html)) {
-      const r = parseDanawaBuildPC(html); items = r.items; totalPrice = r.totalPrice; src = 'danawa';
-    } else if (/head_info|prod_spec_set/i.test(html)) {
-      items = parseDanawaProduct(html); src = 'danawa';
-    } else {
-      const r = parseDanawaCart(html); items = r.items; totalPrice = r.totalPrice; src = 'danawa';
+    src = 'danawa';
+    if (/productRegisterAreaSeq_\d/i.test(html)) {
+      const r = parseDanawaBuildPC(html); items = r.items; totalPrice = r.totalPrice;
+    }
+    if (!items.length && /head_info|prod_spec_set/i.test(html)) {
+      items = parseDanawaProduct(html);
+    }
+    if (!items.length && /bill_table/i.test(html)) {
+      const r = parseDanawaCart(html); items = r.items; totalPrice = r.totalPrice;
       const needSpec = items.filter(it => !it.spec);
       if (needSpec.length) {
         try {
