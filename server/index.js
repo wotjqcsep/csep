@@ -1702,7 +1702,7 @@ function parseIcodaProduct(html) {
       const rawCat = lm[1].trim();
       if (!ICODA_PART_CATS.test(rawCat)) continue;
       const partName = lm[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-      if (!partName || /내장\s*그래픽/i.test(partName)) continue;
+      if (!partName) continue;
       let cat = rawCat.replace(/운영체제\s*SSD/i, 'SSD');
       cat = guessCatFromName(cat) || cat;
       items.push({ cat, name: partName, price: '', qty: 1 });
