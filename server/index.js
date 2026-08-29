@@ -2035,6 +2035,16 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       const r = parseMypcshopCart(html); items = r.items; totalPrice = r.totalPrice; src = 'mypcshop';
     }
   }
+  // 아싸컴: 사양 없는 항목에 다나와 spec 검색
+  if (src === 'assacom') {
+    const needSpec = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
+    if (needSpec.length) {
+      try {
+        const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name)));
+        needSpec.forEach((it, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) it.spec = specResults[i].value; });
+      } catch (e) { console.log('[아싸컴] spec 조회 실패:', e.message); }
+    }
+  }
   items = items.filter(it => !/조립비|조립 비/i.test(it.cat));
   if (!items.length) return res.status(422).json({ error: '부품을 찾을 수 없습니다' });
   broadcastAdmin('estimate_import', { items, totalPrice, src });
