@@ -1658,7 +1658,7 @@ async function fetchDanawaHtml(url) {
 }
 async function fetchDanawaSpecByName(productName) {
   try {
-    const q = encodeURIComponent(productName.replace(/^\s*\[[^\]]*\]\s*/g, '').replace(/\s*\([^)]*\)\s*$/, '').trim());
+    const q = encodeURIComponent(productName.replace(/^\s*\[[^\]]*\]\s*/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/GEN\d+\s*/gi, '').replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '').replace(/\s+/g, ' ').trim());
     const html = await fetchDanawaHtml('https://search.danawa.com/dsearch.php?query=' + q + '&tab=goods');
     const m = html.match(/class="spec_list"[^>]*>([\s\S]*?)<\/(?:ul|div)>/i);
     return m ? m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim() : '';
@@ -1691,6 +1691,24 @@ function parseIcodaProduct(html) {
   let price = 0;
   const rpM = h.match(/class="view_price"[^>]*>([\s\S]*?)<\/span>/i);
   if (rpM) { const n = rpM[1].replace(/<[^>]+>/g, '').match(/([\d,]+)/); if (n) price = Number(n[1].replace(/,/g, '')) || 0; }
+  // 조립PC: <ul class="property"> 안의 부품 목록 파싱
+  const ICODA_PART_CATS = /^(CPU|CPU\s*쿨러|메인보드|메모리|그래픽카드|SSD|HDD|운영체제\s*SSD|케이스|파워|쿨러|ODD|모니터)$/i;
+  const propM = h.match(/<ul\s+class="property">([\s\S]*?)<\/ul>/i);
+  if (propM) {
+    const items = [];
+    const liRe = /<li>\s*<div>([^<]+)<\/div>\s*<div[^>]*>([\s\S]*?)<\/div>\s*<\/li>/gi;
+    let lm;
+    while ((lm = liRe.exec(propM[1])) !== null) {
+      const rawCat = lm[1].trim();
+      if (!ICODA_PART_CATS.test(rawCat)) continue;
+      const partName = lm[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      if (!partName || /내장\s*그래픽/i.test(partName)) continue;
+      let cat = rawCat.replace(/운영체제\s*SSD/i, 'SSD');
+      cat = guessCatFromName(cat) || cat;
+      items.push({ cat, name: partName, price: '', qty: 1 });
+    }
+    if (items.length >= 3) return items;
+  }
   let spec = '';
   const specM = h.match(/class="sinfo[^"]*"[^>]*>[\s\S]*?품명[^<]*<[^>]*>([^<]+)/i);
   if (specM) spec = specM[1].trim();
@@ -1925,6 +1943,13 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       items = parseIcodaProduct(html); src = 'icoda';
     } else {
       const r = parseIcodaCart(html); items = r.items; totalPrice = r.totalPrice; src = 'icoda';
+    }
+    const needSpec = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
+    if (needSpec.length) {
+      try {
+        const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name)));
+        needSpec.forEach((it, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) it.spec = specResults[i].value; });
+      } catch (e) { console.log('[아이코다] spec 조회 실패:', e.message); }
     }
   } else if (/mypcshop\.co\.kr/i.test(html)) {
     if (/it_top_title/i.test(html)) {
