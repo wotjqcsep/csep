@@ -1066,14 +1066,14 @@ function czMapCat(t) {
 function guessCatFromName(name) {
   const n = String(name || '');
   if (/데스크탑|데스크톱|노트북|일체형|올인원|브랜드PC|완제품/i.test(n)) return '';
-  if (/라이젠|Ryzen|i[3579][-\s]|셀러론|펜티엄|Celeron|Pentium|Core\s*(Ultra|i)|Athlon|트레드리퍼/i.test(n)) return 'CPU';
+  if (/라이젠|Ryzen|i[3579][-\s]|셀러론|펜티엄|Celeron|Pentium|Core\s*(Ultra|i)|코어\s*울트라|인텔\s*코어|Athlon|트레드리퍼/i.test(n)) return 'CPU';
   if (/메인보드|마더보드|Motherboard|B[0-9]{3}[A-Z]|X[0-9]{3}[A-Z]|Z[0-9]{3}|H[0-9]{3}|A[0-9]{3}M/i.test(n)) return '메인보드';
   if (/DDR[45]|메모리|\bRAM\b/i.test(n)) return '메모리';
   if (/지포스|라데온|GeForce|Radeon|RTX\s*[2-9]|GTX|RX\s*[0-9]/i.test(n)) return '그래픽카드';
   if (/\bSSD\b|NVMe|M\.2.*[TG]B/i.test(n)) return 'SSD';
   if (/\bHDD\b|하드디스크|바라쿠다|Barracuda|\bWD\d{2}|Seagate|IronWolf|EXOS/i.test(n)) return 'HDD';
   if ((/케이스|강화유리|미들타워|미니타워|풀타워/i.test(n)) && !/쿨러|파워/.test(n)) return '케이스';
-  if (/파워|PSU|전원공급|LEADEX|시소닉|Seasonic|마이크로닉스/i.test(n)) return '파워';
+  if (/파워|PSU|전원공급|LEADEX|시소닉|Seasonic|마이크로닉스|\d{3,}W\b/i.test(n)) return '파워';
   if (/쿨러|공랭|수랭|방열|리퀴드|Liquid|AIO/i.test(n)) return '쿨러/튜닝';
   if (/\bODD\b|외장ODD|DVD|CD-ROM|블루레이|Blu-?ray/i.test(n)) return '주변기기';
   if (/모니터|디스플레이/i.test(n) && !/그래픽/.test(n)) return '모니터';
