@@ -1284,6 +1284,7 @@ function parseAssacomSpec(html) {
     let name = nameM[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim();
     name = name.replace(/추가하기|바로가기|패키지용\s*본체로\s*가기/g, '').trim();
     if (!name || /미포함$|선택하세요|모델로\s*구입/.test(name)) continue;
+    if (/그래픽/i.test(rawCat) && /내장\s*그래픽|UHD\s*\d|HD\s*Graphics|Iris/i.test(name)) continue;
     items.push({ cat, name, qty: 1, price: '' });
   }
   const priceM = html.match(/name=["']t_price["'][^>]*value=["'](\d+)["']/i)
@@ -1658,12 +1659,29 @@ async function fetchDanawaHtml(url) {
   try { return new TextDecoder(charset).decode(buf); }
   catch (e) { return buf.toString('utf-8'); }
 }
-async function fetchDanawaSpecByName(productName) {
+async function fetchDanawaSpecByName(productName, expectedCat) {
   try {
     const q = encodeURIComponent(productName.replace(/\[[\d×xX]+\]\s*/g, '').replace(/[\[\]]/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/^Nvidia\s+/i, '').replace(/GEN\d+\s*/gi, '').replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '').replace(/\bD4\b/g, 'DDR4').replace(/\bD5\b/g, 'DDR5').replace(/\s+/g, ' ').trim());
     const html = await fetchDanawaHtml('https://search.danawa.com/dsearch.php?query=' + q + '&tab=goods');
     const m = html.match(/class="spec_list"[^>]*>([\s\S]*?)<\/(?:ul|div)>/i);
-    return m ? m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim() : '';
+    if (!m) return '';
+    const spec = m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+    if (expectedCat && spec) {
+      const CAT_VERIFY = {
+        'CPU': /셀러론|펜티엄|코어|Celeron|Pentium|Core|Ryzen|라이젠|Athlon|소켓/i,
+        '메인보드': /메인보드|M-ATX|ATX|소켓|칩셋|chipset/i,
+        '메모리': /DDR[45]|PC[45]-|데스크탑용|노트북용/i,
+        '그래픽카드': /지포스|라데온|GeForce|Radeon|RTX|GTX|VRAM|GDDR/i,
+        'SSD': /SSD|NVMe|M\.2|SATA|PCIe.*x[0-9].*읽기|TLC|QLC|MLC/i,
+        'HDD': /HDD|RPM|CMR|SMR|바라쿠다|Barracuda/i,
+        '파워': /파워|[0-9]+W.*정격|80PLUS|ATX.*전원|출력/i,
+        '케이스': /케이스|미들타워|미니타워|풀타워|M-ATX|ATX.*지원/i,
+        '쿨러/튜닝': /쿨러|공랭|수랭|TDP|팬 크기|히트파이프/i,
+      };
+      const verify = CAT_VERIFY[expectedCat];
+      if (verify && !verify.test(spec)) return '';
+    }
+    return spec;
   } catch (e) { return ''; }
 }
 async function fetchDanawa(url) {
@@ -1941,7 +1959,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
     const noSpecItems = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
     if (noSpecItems.length) {
       try {
-        const danawaResults = await Promise.allSettled(noSpecItems.map(it => fetchDanawaSpecByName(it.name)));
+        const danawaResults = await Promise.allSettled(noSpecItems.map(it => fetchDanawaSpecByName(it.name, it.cat)));
         noSpecItems.forEach((it, i) => { if (danawaResults[i].status === 'fulfilled' && danawaResults[i].value) it.spec = danawaResults[i].value; });
       } catch (e) { console.log('[컴퓨존→다나와] spec fallback 실패:', e.message); }
     }
@@ -1983,7 +2001,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       const needSpec = items.filter(it => !it.spec);
       if (needSpec.length) {
         try {
-          const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name)));
+          const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name, it.cat)));
           needSpec.forEach((it, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) it.spec = specResults[i].value; });
         } catch (e) { console.log('[다나와장바구니] spec 조회 실패:', e.message); }
       }
@@ -2026,7 +2044,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
     const needSpec = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
     if (needSpec.length) {
       try {
-        const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name)));
+        const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name, it.cat)));
         needSpec.forEach((it, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) it.spec = specResults[i].value; });
       } catch (e) { console.log('[아이코다] spec 조회 실패:', e.message); }
     }
@@ -2042,7 +2060,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
     const needSpec = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
     if (needSpec.length) {
       try {
-        const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name)));
+        const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name, it.cat)));
         needSpec.forEach((it, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) it.spec = specResults[i].value; });
       } catch (e) { console.log('[아싸컴] spec 조회 실패:', e.message); }
     }
