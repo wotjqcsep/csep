@@ -1261,13 +1261,15 @@ function parseAssacomProduct(html) {
   let name = '';
   const nameM = html.match(/<[^>]+class=["'][^"']*info--name[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|span)>/i);
   if (nameM) name = nameM[1].replace(/<[^>]+>/g, '').trim();
+  if (!name) { const hpn = html.match(/class=["']head__pro_name["'][^>]*>([\s\S]*?)<\/p>/i); if (hpn) name = hpn[1].replace(/<[^>]+>/g, '').replace(/\[[\w_]+\]\s*$/,'').replace(/^\[[^\]]+\]\s*/,'').trim(); }
   if (!name) { const titleM = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i); if (titleM) name = titleM[1].replace(/아싸컴.*$/i, '').replace(/조립PC.*$/i, '').trim(); }
   let price = '';
   const priceM = html.match(/class=["'][^"']*org-price[^"']*["'][^>]*>([\s\S]*?)<\/span>/i);
   if (priceM) price = Number((priceM[1].match(/[\d,]+/) || [''])[0].replace(/,/g, '')) || '';
   let spec = '';
-  const specM = html.match(/class=["'][^"']*template__spec[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-  if (specM) spec = specM[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+  const specM = html.match(/class=["'][^"']*template__spec[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)
+    || html.match(/class=["']pro_info__sitename["'][^>]*>([\s\S]*?)<\/p>/i);
+  if (specM) spec = specM[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/^\[/, '').replace(/\]$/, '').replace(/\s+/g, ' ').trim();
   if (!name) return [];
   const cat = guessCatFromName(name);
   return [{ cat, name, qty: 1, price, spec }];
@@ -1475,7 +1477,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
     const r = parseAssacomCart(html); items = r.items; totalPrice = r.totalPrice; src = 'assacom';
   } else if (/pro_table/i.test(html) && /assacom/i.test(html)) {
     const r = parseAssacomSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'assacom';
-  } else if (/info--name/i.test(html) && /assacom/i.test(html)) {
+  } else if ((/info--name/i.test(html) || /head__pro_name/i.test(html)) && /assacom/i.test(html)) {
     items = parseAssacomProduct(html); src = 'assacom';
   } else if (/compuzone/i.test(html)) {
     items = parseCompuzoneSpec(html); src = 'compuzone';
