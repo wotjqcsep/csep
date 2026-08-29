@@ -1976,14 +1976,17 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       const r = parseIcodaNewCart(html); items = r.items; totalPrice = r.totalPrice; src = 'icoda';
       // 조립PC → 상세페이지에서 부품 확장
       const buildIdxs = [];
-      items.forEach((it, i) => { if (it._pno && /조립\s*PC|조립\s*SYSTEM/i.test(it.name)) buildIdxs.push(i); });
+      items.forEach((it, i) => { if (it._pno && /조립\s*(PC|SYSTEM)|사무용\s*PC|게이밍\s*PC|오피스\s*PC/i.test(it.name)) buildIdxs.push(i); });
+      console.log('[아이코다장바구니] 항목:', items.map(it => it.cat + ':' + it.name.substring(0, 30)).join(' | '));
+      console.log('[아이코다장바구니] 조립PC 확장 대상:', buildIdxs.length);
       if (buildIdxs.length) {
         try {
           const details = await Promise.allSettled(buildIdxs.map(i => fetchIcodaHtml('https://usr.icoda.co.kr/item/view/' + items[i]._pno)));
           for (let k = buildIdxs.length - 1; k >= 0; k--) {
             const idx = buildIdxs[k];
-            if (details[k].status !== 'fulfilled') continue;
+            if (details[k].status !== 'fulfilled') { console.log('[아이코다장바구니] 확장 실패(fetch):', details[k].reason?.message); continue; }
             const parts = parseIcodaProduct(details[k].value);
+            console.log('[아이코다장바구니] 확장 결과:', parts.length, '개 부품', parts.map(p => p.cat).join(','));
             if (parts.length >= 3) { items.splice(idx, 1, ...parts); }
           }
         } catch (e) { console.log('[아이코다장바구니] 조립PC 확장 실패:', e.message); }
@@ -1991,9 +1994,11 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       items.forEach(it => delete it._pno);
     } else if (/var\s+view_name\s*=/i.test(html)) {
       items = parseIcodaProduct(html); src = 'icoda';
+      console.log('[아이코다상품] 파싱결과:', items.map(it => it.cat + ':' + it.name.substring(0, 25)).join(' | '));
     } else {
       const r = parseIcodaCart(html); items = r.items; totalPrice = r.totalPrice; src = 'icoda';
     }
+    console.log('[아이코다] 최종 카테고리:', items.map(it => it.cat).join(', '));
     const needSpec = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
     if (needSpec.length) {
       try {
@@ -2011,7 +2016,8 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
   items = items.filter(it => !/조립비|조립 비/i.test(it.cat));
   if (!items.length) return res.status(422).json({ error: '부품을 찾을 수 없습니다' });
   broadcastAdmin('estimate_import', { items, totalPrice, src });
-  res.json({ ok: true, count: items.length, totalPrice, src });
+  const debug = req.query && req.query.debug === '1';
+  res.json({ ok: true, count: items.length, totalPrice, src, ...(debug ? { _items: items.map(it => ({ cat: it.cat, name: it.name })) } : {}) });
 }));
 
 // 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
