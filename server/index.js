@@ -1159,20 +1159,37 @@ function parseCompuzoneCart(html) {
   const rows = String(html).split(/<tr[\s>]/i).slice(1);
   const seen = new Set();
   for (const row of rows) {
-    const linkM = row.match(/<a[^>]*href=["'][^"']*ProductNo=(\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
-    if (!linkM) continue;
-    const pno = linkM[1];
+    const chkM = row.match(/data-pno=["'](\d+)["'][^>]*data-pname=["']([^"']+)["']/i)
+      || row.match(/data-pname=["']([^"']+)["'][^>]*data-pno=["'](\d+)["']/i);
+    if (!chkM) continue;
+    const pno = chkM[1].length <= 7 ? chkM[1] : chkM[2];
+    let name = (chkM[1].length <= 7 ? chkM[2] : chkM[1])
+      .replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+    if (!name || name.length < 3) continue;
     if (seen.has(pno)) continue;
     seen.add(pno);
-    let name = linkM[2].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
-    if (!name || name.length < 3 || /선택하세요|미선택|장바구니|담기/i.test(name)) continue;
-    const priceAll = [...row.matchAll(/([\d,]{4,})\s*원?/g)].map(m => Number(m[1].replace(/,/g, '')));
-    const price = priceAll.length ? priceAll[0] : 0;
-    const qtyM = row.match(/name=["'][^"']*[Qq]ty[^"']*["'][^>]*value=["'](\d+)["']/i)
-      || row.match(/name=["'][^"']*[Nn]um[^"']*["'][^>]*value=["'](\d+)["']/i)
-      || row.match(/class=["'][^"']*qty[^"']*["'][^>]*value=["'](\d+)["']/i);
+    if (/안정화\s*서비스|출장\s*설치|출장\s*A\/?S|조립비/i.test(name)) continue;
+    let cat = '';
+    const catM = row.match(/<strong>\[([^\]]+)\]<\/strong>/i);
+    if (catM) cat = czMapCat(catM[1].trim());
+    if (!cat) cat = guessCatFromName(name);
+    let price = 0;
+    const cpM = row.match(/class=["']chkboxCartp["'][^>]*\be=["'](\d+)["']/i);
+    if (cpM) { price = Number(cpM[1]); }
+    else {
+      const redM = row.match(/color:\s*red[^>]*>([\d,]+)\s*원/i);
+      if (redM) price = Number(redM[1].replace(/,/g, ''));
+      else {
+        const basicM = row.match(/class=["']priceBasic["'][^>]*>([\s\S]*?)<\/span>/i);
+        if (basicM) {
+          const lastP = basicM[1].match(/([\d,]{4,})\s*원/g);
+          if (lastP) price = Number(lastP[lastP.length - 1].replace(/[,원\s]/g, ''));
+        }
+      }
+    }
+    const qtyM = row.match(/name=["']ea\[\d+\]["'][^>]*value=["'](\d+)["']/i)
+      || row.match(/id=["']ea\d+["'][^>]*value=["'](\d+)["']/i);
     const qty = qtyM ? parseInt(qtyM[1]) : 1;
-    const cat = guessCatFromName(name);
     totalPrice += price * qty;
     items.push({ cat: cat || '기타', name, price: price || '', qty, _pno: pno });
   }
