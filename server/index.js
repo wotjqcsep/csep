@@ -1626,11 +1626,14 @@ function parseDanawaCart(html) {
       const qtyM = row.match(/class="input_qnt"[^>]*value="(\d+)"/i);
       const qty = qtyM ? parseInt(qtyM[1]) : 1;
       const seqM = row.match(/id="goodsName_(\d+)"/i);
+      const gsM = row.match(/goodsSeq[=/](\d+)/i);
+      const typeM = row.match(/<td\s+class="type"[^>]*>([\s\S]*?)<\/td>/i);
+      const mtype = typeM ? typeM[1].replace(/<[^>]+>/g, '').trim() : '';
       const optM = row.match(/class="[^"]*opt_list[^"]*"[^>]*>([\s\S]*?)<\/ul>/i)
         || row.match(/class="[^"]*option_txt[^"]*"[^>]*>([\s\S]*?)<\/(?:p|div|span)>/i);
       let spec = optM ? optM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
       totalPrice += price * qty;
-      items.push({ cat: cat || '기타', name, price: price || '', qty, _goodsSeq: seqM ? seqM[1] : '', spec: spec || undefined });
+      items.push({ cat: cat || '기타', name, price: price || '', qty, _goodsSeq: gsM ? gsM[1] : '', _cartSeq: seqM ? seqM[1] : '', _mtype: mtype, spec: spec || undefined });
     }
   }
   return { items, totalPrice };
@@ -1883,6 +1886,25 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
     }
     if (!items.length && /bill_table/i.test(html)) {
       const r = parseDanawaCart(html); items = r.items; totalPrice = r.totalPrice;
+      // 조립PC 항목 → 상세페이지에서 부품 목록으로 확장
+      const buildPcIdxs = [];
+      items.forEach((it, i) => { if ((it._mtype && /조립/i.test(it._mtype)) || /^샵다나와\s*조립\s*PC/i.test(it.name)) if (it._goodsSeq) buildPcIdxs.push(i); });
+      if (buildPcIdxs.length) {
+        try {
+          const details = await Promise.allSettled(buildPcIdxs.map(i => fetchDanawaHtml('https://shop.danawa.com/shopmain/?controller=goodsLoadingBridge&methods=index&goodsSeq=' + items[i]._goodsSeq)));
+          for (let k = buildPcIdxs.length - 1; k >= 0; k--) {
+            const idx = buildPcIdxs[k];
+            if (details[k].status !== 'fulfilled') continue;
+            const detailHtml = details[k].value;
+            if (!/productRegisterAreaSeq/i.test(detailHtml)) continue;
+            const parts = parseDanawaBuildPC(detailHtml);
+            if (!parts.items.length) continue;
+            items.splice(idx, 1, ...parts.items);
+          }
+        } catch (e) { console.log('[다나와장바구니] 조립PC 확장 실패:', e.message); }
+      }
+      // "샵다나와 조립PC" 접두사 제거
+      items.forEach(it => { it.name = it.name.replace(/^샵다나와\s*조립\s*PC\s*/i, '').trim(); });
       const needSpec = items.filter(it => !it.spec);
       if (needSpec.length) {
         try {
@@ -1890,7 +1912,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
           needSpec.forEach((it, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) it.spec = specResults[i].value; });
         } catch (e) { console.log('[다나와장바구니] spec 조회 실패:', e.message); }
       }
-      items.forEach(it => delete it._goodsSeq);
+      items.forEach(it => { delete it._goodsSeq; delete it._cartSeq; delete it._mtype; });
     }
   } else if (/icoda\.co\.kr/i.test(html)) {
     if (/view_name/i.test(html)) {
