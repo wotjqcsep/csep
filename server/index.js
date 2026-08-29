@@ -1233,10 +1233,9 @@ function parseAssacomSpec(html) {
 function parseAssacomCart(html) {
   const items = [];
   let totalPrice = 0;
-  const re = /class="list__item\s+item--acc"[\s\S]*?<\/li>/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    const block = m[0];
+  const parts = html.split(/<li\s[^>]*class="list__item\s+item--acc"[^>]*>/i);
+  for (let p = 1; p < parts.length; p++) {
+    const block = parts[p];
     const nameM = block.match(/class="name--text"[^>]*>([\s\S]*?)<\/div>/i);
     let name = nameM ? nameM[1].replace(/<[^>]+>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim() : '';
     if (!name) continue;
