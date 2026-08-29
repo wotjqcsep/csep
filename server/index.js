@@ -1974,22 +1974,24 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
   } else if (/icoda\.co\.kr/i.test(html)) {
     if (/id="장바구니리스트"/i.test(html)) {
       const r = parseIcodaNewCart(html); items = r.items; totalPrice = r.totalPrice; src = 'icoda';
-      // 조립PC → 상세페이지에서 부품 확장
-      const buildIdxs = [];
-      items.forEach((it, i) => { if (it._pno && /조립\s*(PC|SYSTEM)|사무용\s*PC|게이밍\s*PC|오피스\s*PC/i.test(it.name)) buildIdxs.push(i); });
+      // 모든 pno 항목의 상세페이지를 확인 — 부품 목록(property)이 있으면 확장
+      const pnoIdxs = [];
+      items.forEach((it, i) => { if (it._pno) pnoIdxs.push(i); });
       console.log('[아이코다장바구니] 항목:', items.map(it => it.cat + ':' + it.name.substring(0, 30)).join(' | '));
-      console.log('[아이코다장바구니] 조립PC 확장 대상:', buildIdxs.length);
-      if (buildIdxs.length) {
+      console.log('[아이코다장바구니] pno 있는 항목:', pnoIdxs.length);
+      if (pnoIdxs.length) {
         try {
-          const details = await Promise.allSettled(buildIdxs.map(i => fetchIcodaHtml('https://usr.icoda.co.kr/item/view/' + items[i]._pno)));
-          for (let k = buildIdxs.length - 1; k >= 0; k--) {
-            const idx = buildIdxs[k];
-            if (details[k].status !== 'fulfilled') { console.log('[아이코다장바구니] 확장 실패(fetch):', details[k].reason?.message); continue; }
+          const details = await Promise.allSettled(pnoIdxs.map(i => fetchIcodaHtml('https://usr.icoda.co.kr/item/view/' + items[i]._pno)));
+          for (let k = pnoIdxs.length - 1; k >= 0; k--) {
+            const idx = pnoIdxs[k];
+            if (details[k].status !== 'fulfilled') { console.log('[아이코다장바구니] fetch 실패:', details[k].reason?.message); continue; }
             const parts = parseIcodaProduct(details[k].value);
-            console.log('[아이코다장바구니] 확장 결과:', parts.length, '개 부품', parts.map(p => p.cat).join(','));
-            if (parts.length >= 3) { items.splice(idx, 1, ...parts); }
+            if (parts.length >= 3) {
+              console.log('[아이코다장바구니] 확장:', items[idx].name.substring(0, 30), '→', parts.length, '개 부품');
+              items.splice(idx, 1, ...parts);
+            }
           }
-        } catch (e) { console.log('[아이코다장바구니] 조립PC 확장 실패:', e.message); }
+        } catch (e) { console.log('[아이코다장바구니] 확장 실패:', e.message); }
       }
       items.forEach(it => delete it._pno);
     } else if (/var\s+view_name\s*=/i.test(html)) {
