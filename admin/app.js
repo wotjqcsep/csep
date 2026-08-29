@@ -1028,15 +1028,7 @@ async function submitStoreSale(){
 
 // ── 견적서 (컴퓨존식 부품 분류, 상태보존 estState) ── 매입가·마진 내부용, 인쇄엔 판매가만.
 const EST_CATS=['CPU','메인보드','메모리','그래픽카드','SSD','HDD','케이스','파워','쿨러/튜닝','모니터','소프트웨어','입력장치','공유기','NAS','주변기기','조립비/AS'];
-const EST_CAT_COLORS={
-  'CPU':'#e03131','메인보드':'#e67700','메모리':'#f08c00',
-  '그래픽카드':'#7048e8','SSD':'#1971c2','HDD':'#0c8599',
-  '케이스':'#9c36b5','파워':'#e8590c','쿨러/튜닝':'#099268',
-  '모니터':'#1864ab','소프트웨어':'#495057','입력장치':'#d9480f',
-  '공유기':'#087f5b','NAS':'#5c7cfa','주변기기':'#4263eb',
-  '조립비/AS':'#c92a2a'
-};
-function estCatStyle(cat,hasName){ if(!cat||!hasName) return ''; const c=EST_CAT_COLORS[cat]||'#1971c2'; return `background:${c} !important;color:#fff !important;border:1.5px solid ${c} !important;border-radius:6px;text-shadow:0 1px 2px rgba(0,0,0,.3)`; }
+function estCatStyle(cat,hasName){ if(!cat||!hasName) return ''; return 'background:#1971c2 !important;color:#fff !important;border:1.5px solid #1971c2 !important;border-radius:6px;text-shadow:0 1px 2px rgba(0,0,0,.3)'; }
 let estState=null;
 function estToday(){ const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
 // 제품 결제날자 기본값 — 보통 납품 2일 전쯤 매입 결제하므로 오늘 -2일 제안 (수정 가능)
