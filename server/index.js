@@ -1690,8 +1690,10 @@ function parseIcodaProduct(html) {
   if (!name) { const titleM = h.match(/<title[^>]*>([\s\S]*?)<\/title>/i); if (titleM) name = titleM[1].replace(/\s*[\/\-|]\s*아이코다.*$/i, '').trim(); }
   if (!name || name === '아이코다') return [];
   let price = 0;
-  const rpM = h.match(/class="view_price"[^>]*>([\s\S]*?)<\/span>/i);
-  if (rpM) { const n = rpM[1].replace(/<[^>]+>/g, '').match(/([\d,]+)/); if (n) price = Number(n[1].replace(/,/g, '')) || 0; }
+  const ipM = h.match(/name="item_cnt"[^>]*\sprice="(\d+)"/i) || h.match(/price="(\d+)"[^>]*name="item_cnt"/i);
+  if (ipM) price = Number(ipM[1]) || 0;
+  if (!price) { const rpM = h.match(/class="view_price"[^>]*>([\s\S]*?)<\/span>/i); if (rpM) { const n = rpM[1].replace(/<[^>]+>/g, '').match(/([\d,]+)/); if (n) price = Number(n[1].replace(/,/g, '')) || 0; } }
+  if (!price) { const spM = h.match(/판매가\s*:\s*([\d,]+)/); if (spM) price = Number(spM[1].replace(/,/g, '')) || 0; }
   // 조립PC: <ul class="property"> 안의 부품 목록 파싱
   const ICODA_PART_CATS = /^(CPU|CPU\s*쿨러|메인보드|메모리|그래픽카드|SSD|HDD|운영체제\s*SSD|케이스|파워|쿨러|ODD|모니터)$/i;
   const propM = h.match(/<ul\s+class="property">([\s\S]*?)<\/ul>/i);
