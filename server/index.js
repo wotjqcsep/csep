@@ -1069,7 +1069,7 @@ function guessCatFromName(name) {
   if (/데스크탑|데스크톱|노트북|일체형|올인원|브랜드PC|완제품/i.test(n)) return '';
   if (/라이젠|Ryzen|i[3579][-\s]|셀러론|펜티엄|Celeron|Pentium|Core\s*(Ultra|i)|코어\s*울트라|인텔\s*코어|Athlon|트레드리퍼/i.test(n)) return 'CPU';
   if (/메인보드|마더보드|Motherboard|B[0-9]{3}[A-Z]|X[0-9]{3}[A-Z]|Z[0-9]{3}|H[0-9]{3}|A[0-9]{3}M/i.test(n)) return '메인보드';
-  if (/DDR[45]|메모리|\bRAM\b/i.test(n)) return '메모리';
+  if (/DDR[45]|PC[45]-\d|메모리|\bRAM\b/i.test(n)) return '메모리';
   if (/지포스|라데온|GeForce|Radeon|RTX\s*[2-9]|GTX|RX\s*[0-9]/i.test(n)) return '그래픽카드';
   if (/\bSSD\b|NVMe|M\.2.*[TG]B/i.test(n)) return 'SSD';
   if (/\bHDD\b|하드디스크|바라쿠다|Barracuda|\bWD\d{2}|Seagate|IronWolf|EXOS/i.test(n)) return 'HDD';
