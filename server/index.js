@@ -1721,6 +1721,9 @@ function parseIcodaProduct(html) {
     if (propMap['화면크기']) specParts.push(propMap['화면크기']);
     if (propMap['해상도']) specParts.push(propMap['해상도']);
     if (propMap['무게']) specParts.push(propMap['무게']);
+    if (propMap['네트워크/블루투스']) specParts.push(propMap['네트워크/블루투스']);
+    if (propMap['입출력 단자']) specParts.push(propMap['입출력 단자']);
+    if (propMap['부가기능']) specParts.push(propMap['부가기능']);
     if (propMap['운영체제']) specParts.push(propMap['운영체제']);
     if (specParts.length) {
       const cat = guessCatFromName(name);
