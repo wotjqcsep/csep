@@ -1285,7 +1285,7 @@ function parseAssacomProduct(html) {
     || html.match(/class=["']pro_info__sitename["'][^>]*>([\s\S]*?)<\/p>/i);
   if (specM) spec = specM[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/^\[/, '').replace(/\]$/, '').replace(/\s+/g, ' ').trim();
   if (!name) return [];
-  const cat = guessCatFromName(name);
+  const cat = guessCatFromName(name) || guessCatFromSpec(spec);
   return [{ cat, name, qty: 1, price, spec }];
 }
 async function fetchAssacomHtml(url) {

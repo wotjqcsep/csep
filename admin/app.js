@@ -1502,7 +1502,7 @@ function estUpdateFee(){
   el.innerHTML=html;
 }
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
-function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0) estState.rows.splice(i,1); estBody(); }
+function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0){ const r=estState.rows[i]; r.name=''; r.qty=1; r.cost=''; r.price=''; r.spec=''; r.showSpec=false; } estBody(); }
 function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estState.bulk); estBody(); }
 function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·매입가·합계 입력이 모두 지워집니다)'))return;
   estSyncAll();
