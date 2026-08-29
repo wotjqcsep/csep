@@ -1504,6 +1504,280 @@ async function fetchJoyzen(url) {
   return { items: single, totalPrice: 0 };
 }
 
+// ── 다나와(danawa.com) 파서 ──
+const DANAWA_CAT = {
+  'CPU': 'CPU', '쿨러': '쿨러/튜닝', '메인보드': '메인보드', '메모리': '메모리',
+  '그래픽카드': '그래픽카드', 'SSD': 'SSD', 'HDD': 'HDD', '케이스': '케이스',
+  '파워': '파워', '운영체제': '소프트웨어', '조립비': '조립비/AS',
+  '모니터': '모니터', '키보드': '입력장치', '마우스': '입력장치',
+  'ODD': '주변기기', '소프트웨어': '소프트웨어', '공유기/무선랜': '공유기',
+  'PC헤드셋': '주변기기', '스피커': '주변기기', '사운드바': '주변기기',
+  '마이크': '주변기기', 'PC 캠': '주변기기', '이어폰': '주변기기',
+  '외장HDD/SSD': 'SSD', 'USB': '주변기기', '마우스 패드': '주변기기',
+  '케이블': '주변기기', '멀티탭': '주변기기',
+};
+function danawaMapCat(t) {
+  t = String(t || '').trim();
+  if (DANAWA_CAT[t]) return DANAWA_CAT[t];
+  for (const k in DANAWA_CAT) if (t.indexOf(k) >= 0) return DANAWA_CAT[k];
+  return guessCatFromName(t) || '';
+}
+function parseDanawaBuildPC(html) {
+  const items = [];
+  const re = /<tr\s+class="productRegisterAreaSeq_\d+"[^>]*>([\s\S]*?)<\/tr>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const row = m[1];
+    const catM = row.match(/<th[^>]*class="opt_cate"[^>]*>([\s\S]*?)<\/th>/i);
+    if (!catM) continue;
+    const rawCat = catM[1].replace(/<[^>]+>/g, '').trim();
+    const cat = danawaMapCat(rawCat);
+    const imgM = row.match(/<img[^>]*alt="([^"]+)"/i);
+    let name = imgM ? imgM[1].replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').trim() : '';
+    if (!name) {
+      const spanM = row.match(/slct_box_con[^>]*><span>([^<]+)/i);
+      if (spanM) name = spanM[1].trim();
+    }
+    if (!name || /별도구매|추가선택가능|추가사양 상품을 선택|선택해 주세요/i.test(name)) continue;
+    items.push({ cat: cat || rawCat, name, qty: 1, price: '' });
+  }
+  const priceM = html.match(/total_price[\s\S]*?<strong>([\d,]+)<\/strong>/i);
+  const totalPrice = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
+  return { items, totalPrice };
+}
+function parseDanawaProduct(html) {
+  const h = String(html || '');
+  let name = '';
+  const nameM = h.match(/class="head_info"[^>]*>([\s\S]*?)(?:<\/div>|<span)/i);
+  if (nameM) name = nameM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  if (!name) { const titleM = h.match(/<title[^>]*>([\s\S]*?)<\/title>/i); if (titleM) name = titleM[1].replace(/\s*[:\-|]\s*샵다나와.*$/i, '').trim(); }
+  if (!name) return [];
+  let price = 0;
+  const rpM = h.match(/total_price[\s\S]*?<strong>([\d,]+)<\/strong>/i);
+  if (rpM) price = Number(rpM[1].replace(/,/g, '')) || 0;
+  let spec = '';
+  const specM = h.match(/class="spec_list"[^>]*>([\s\S]*?)<\/ul>/i);
+  if (specM) spec = specM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const cat = guessCatFromName(name) || guessCatFromSpec(spec);
+  return [{ cat, name, price: price || '', qty: 1, spec: spec || undefined }];
+}
+function parseDanawaCart(html) {
+  const items = [];
+  let totalPrice = 0;
+  const re = /<tr[^>]*class="[^"]*cart_item[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const row = m[1];
+    const nameM = row.match(/prd_name[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i)
+      || row.match(/cart_name[^>]*>([\s\S]*?)<\/(?:td|div)>/i);
+    let name = nameM ? nameM[1].replace(/<[^>]+>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim() : '';
+    if (!name) continue;
+    const priceM = row.match(/prd_price[^>]*>([\d,]+)/i) || row.match(/cart_price[^>]*>([\d,]+)/i);
+    const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
+    const qtyM = row.match(/name="?quantity"?\s[^>]*value="(\d+)"/i) || row.match(/cart_qty[^>]*>(\d+)/i);
+    const qty = qtyM ? parseInt(qtyM[1]) : 1;
+    const cat = guessCatFromName(name);
+    totalPrice += price * qty;
+    items.push({ cat: cat || '기타', name, price: price || '', qty });
+  }
+  if (!items.length) {
+    const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    while ((m = trRe.exec(html)) !== null) {
+      const row = m[1];
+      if (!/danawa/i.test(html)) continue;
+      const linkM = row.match(/<a[^>]*href="[^"]*(?:billingInternalProductSeq|productSeq)[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+      if (!linkM) continue;
+      let name = linkM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      if (!name || name.length < 3) continue;
+      const priceM = row.match(/([\d,]{4,})\s*원/);
+      const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
+      const cat = guessCatFromName(name);
+      totalPrice += price;
+      items.push({ cat: cat || '기타', name, price: price || '', qty: 1 });
+    }
+  }
+  return { items, totalPrice };
+}
+async function fetchDanawaHtml(url) {
+  const resp = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+    },
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  const ct = resp.headers.get('content-type') || '';
+  let charset = 'utf-8';
+  const m1 = ct.match(/charset=["']?([\w-]+)/i);
+  if (m1) charset = m1[1].toLowerCase();
+  try { return new TextDecoder(charset).decode(buf); }
+  catch (e) { return buf.toString('utf-8'); }
+}
+async function fetchDanawa(url) {
+  const html = await fetchDanawaHtml(url);
+  if (/productRegisterAreaSeq/i.test(html)) {
+    const r = parseDanawaBuildPC(html);
+    if (r.items.length) return r;
+  }
+  if (/head_info|prod_spec_set/i.test(html)) {
+    const items = parseDanawaProduct(html);
+    if (items.length) return { items, totalPrice: 0 };
+  }
+  const r = parseDanawaBuildPC(html);
+  if (r.items.length) return r;
+  const single = parseDanawaProduct(html);
+  return { items: single, totalPrice: 0 };
+}
+
+// ── 아이코다(icoda.co.kr) 파서 ──
+function parseIcodaProduct(html) {
+  const h = String(html || '');
+  let name = '';
+  const nameM = h.match(/class="view_name"[^>]*>([\s\S]*?)<\/div>/i);
+  if (nameM) name = nameM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  if (!name) { const titleM = h.match(/<title[^>]*>([\s\S]*?)<\/title>/i); if (titleM) name = titleM[1].replace(/\s*[\/\-|]\s*아이코다.*$/i, '').trim(); }
+  if (!name) return [];
+  let price = 0;
+  const rpM = h.match(/class="view_price"[^>]*>([\s\S]*?)<\/span>/i);
+  if (rpM) { const n = rpM[1].replace(/<[^>]+>/g, '').match(/([\d,]+)/); if (n) price = Number(n[1].replace(/,/g, '')) || 0; }
+  let spec = '';
+  const specM = h.match(/class="sinfo[^"]*"[^>]*>[\s\S]*?품명[^<]*<[^>]*>([^<]+)/i);
+  if (specM) spec = specM[1].trim();
+  const cat = guessCatFromName(name) || guessCatFromSpec(spec);
+  return [{ cat, name, price: price || '', qty: 1, spec: spec || undefined }];
+}
+function parseIcodaCart(html) {
+  const items = [];
+  let totalPrice = 0;
+  const re = /<div[^>]*class="[^"]*cart-item[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const row = m[1];
+    const nameM = row.match(/<a[^>]*>([\s\S]*?)<\/a>/i);
+    let name = nameM ? nameM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : '';
+    if (!name || name.length < 3) continue;
+    const priceM = row.match(/([\d,]{4,})\s*원/);
+    const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
+    const qtyM = row.match(/value="(\d+)"/);
+    const qty = qtyM ? parseInt(qtyM[1]) : 1;
+    const cat = guessCatFromName(name);
+    totalPrice += price * qty;
+    items.push({ cat: cat || '기타', name, price: price || '', qty });
+  }
+  if (!items.length) {
+    const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    while ((m = trRe.exec(html)) !== null) {
+      const row = m[1];
+      const linkM = row.match(/<a[^>]*href="[^"]*\/item\/view\/[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+      if (!linkM) continue;
+      let name = linkM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      if (!name || name.length < 3) continue;
+      const priceM = row.match(/([\d,]{4,})\s*원/);
+      const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
+      const cat = guessCatFromName(name);
+      totalPrice += price;
+      items.push({ cat: cat || '기타', name, price: price || '', qty: 1 });
+    }
+  }
+  return { items, totalPrice };
+}
+async function fetchIcodaHtml(url) {
+  const resp = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+    },
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  return buf.toString('utf-8');
+}
+async function fetchIcoda(url) {
+  const html = await fetchIcodaHtml(url);
+  const items = parseIcodaProduct(html);
+  return { items, totalPrice: 0 };
+}
+
+// ── 마이피씨샵(mypcshop.co.kr) 파서 ──
+function parseMypcshopProduct(html) {
+  const h = String(html || '');
+  let name = '';
+  const nameM = h.match(/class="it_top_title"[^>]*>([\s\S]*?)<\/div>/i);
+  if (nameM) name = nameM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  if (!name) { const titleM = h.match(/<title[^>]*>([\s\S]*?)<\/title>/i); if (titleM) name = titleM[1].replace(/\s*[:\-|]\s*마이피씨샵.*$/i, '').trim(); }
+  if (!name) return [];
+  let price = 0;
+  const rpM = h.match(/id="it_top_info_price_red"[^>]*>([\d,]+)/i)
+    || h.match(/class="it_top_info_price"[^>]*>([\d,]+)/i);
+  if (rpM) price = Number(rpM[1].replace(/,/g, '')) || 0;
+  const cat = guessCatFromName(name);
+  return [{ cat, name, price: price || '', qty: 1 }];
+}
+function parseMypcshopCart(html) {
+  const items = [];
+  let totalPrice = 0;
+  const re = /<tr[^>]*class="[^"]*cart_list_tr[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const row = m[1];
+    const nameM = row.match(/it_name[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i)
+      || row.match(/cart_name[^>]*>([\s\S]*?)<\/(?:td|div)>/i);
+    let name = nameM ? nameM[1].replace(/<[^>]+>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim() : '';
+    if (!name || name.length < 3) continue;
+    const priceM = row.match(/cart_price[^>]*>([\d,]+)/i) || row.match(/([\d,]{4,})\s*원/);
+    const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
+    const qtyM = row.match(/name="?ct_qty"?\s[^>]*value="(\d+)"/i) || row.match(/cart_qty[^>]*>(\d+)/i);
+    const qty = qtyM ? parseInt(qtyM[1]) : 1;
+    const cat = guessCatFromName(name);
+    totalPrice += price * qty;
+    items.push({ cat: cat || '기타', name, price: price || '', qty });
+  }
+  if (!items.length) {
+    const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    while ((m = trRe.exec(html)) !== null) {
+      const row = m[1];
+      if (!/mypcshop/i.test(html)) continue;
+      const linkM = row.match(/<a[^>]*href="[^"]*item\.php\?it_id=[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
+      if (!linkM) continue;
+      let name = linkM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      if (!name || name.length < 3) continue;
+      const priceM = row.match(/([\d,]{4,})\s*원/);
+      const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
+      const cat = guessCatFromName(name);
+      totalPrice += price;
+      items.push({ cat: cat || '기타', name, price: price || '', qty: 1 });
+    }
+  }
+  return { items, totalPrice };
+}
+async function fetchMypcshopHtml(url) {
+  const resp = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9',
+    },
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  const ct = resp.headers.get('content-type') || '';
+  let charset = 'utf-8';
+  const m1 = ct.match(/charset=["']?([\w-]+)/i);
+  if (m1) charset = m1[1].toLowerCase().replace('ks_c_5601-1987', 'euc-kr').replace('cp949', 'euc-kr');
+  try { return new TextDecoder(charset).decode(buf); }
+  catch (e) { return buf.toString('utf-8'); }
+}
+async function fetchMypcshop(url) {
+  const html = await fetchMypcshopHtml(url);
+  const items = parseMypcshopProduct(html);
+  return { items, totalPrice: 0 };
+}
+
 // 북마클릿 견적 가져오기 — 사용자 브라우저에서 직접 HTML을 보내면 파싱 후 SSE로 관리자에 전달
 app.options('/api/estimate/import', (req, res) => {
   res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' });
@@ -1530,6 +1804,26 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
   } else if (/compuzone/i.test(html)) {
     items = parseCompuzoneSpec(html); src = 'compuzone';
     if (!items.length) items = parseCompuzoneProductPage(html);
+  } else if (/danawa\.com/i.test(html)) {
+    if (/productRegisterAreaSeq/i.test(html)) {
+      const r = parseDanawaBuildPC(html); items = r.items; totalPrice = r.totalPrice; src = 'danawa';
+    } else if (/head_info|prod_spec_set/i.test(html)) {
+      items = parseDanawaProduct(html); src = 'danawa';
+    } else {
+      const r = parseDanawaCart(html); items = r.items; totalPrice = r.totalPrice; src = 'danawa';
+    }
+  } else if (/icoda\.co\.kr/i.test(html)) {
+    if (/view_name/i.test(html)) {
+      items = parseIcodaProduct(html); src = 'icoda';
+    } else {
+      const r = parseIcodaCart(html); items = r.items; totalPrice = r.totalPrice; src = 'icoda';
+    }
+  } else if (/mypcshop\.co\.kr/i.test(html)) {
+    if (/it_top_title/i.test(html)) {
+      items = parseMypcshopProduct(html); src = 'mypcshop';
+    } else {
+      const r = parseMypcshopCart(html); items = r.items; totalPrice = r.totalPrice; src = 'mypcshop';
+    }
   }
   if (!items.length) return res.status(422).json({ error: '부품을 찾을 수 없습니다' });
   broadcastAdmin('estimate_import', { items, totalPrice, src });
@@ -1561,6 +1855,27 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
         console.log('[견적URL] 아싸컴 파싱 실패:', e.message);
         if (/403|forbidden/i.test(e.message)) return res.status(403).json({ error: '아싸컴이 서버 접근을 차단합니다. [소스·텍스트] 버튼을 눌러 아싸컴 페이지 소스(Ctrl+U → 전체 선택 → 복사)를 붙여넣으세요.' });
       }
+    }
+    // 다나와 URL → 전용 파서
+    if (/danawa\.com/i.test(url)) {
+      try {
+        const r = await fetchDanawa(url);
+        if (r.items.length) return res.json({ items: r.items, _src: 'danawa', _totalPrice: r.totalPrice || undefined });
+      } catch (e) { console.log('[견적URL] 다나와 파싱 실패:', e.message); }
+    }
+    // 아이코다 URL → 전용 파서
+    if (/icoda\.co\.kr/i.test(url)) {
+      try {
+        const r = await fetchIcoda(url);
+        if (r.items.length) return res.json({ items: r.items, _src: 'icoda', _totalPrice: r.totalPrice || undefined });
+      } catch (e) { console.log('[견적URL] 아이코다 파싱 실패:', e.message); }
+    }
+    // 마이피씨샵 URL → 전용 파서
+    if (/mypcshop\.co\.kr/i.test(url)) {
+      try {
+        const r = await fetchMypcshop(url);
+        if (r.items.length) return res.json({ items: r.items, _src: 'mypcshop', _totalPrice: r.totalPrice || undefined });
+      } catch (e) { console.log('[견적URL] 마이피씨샵 파싱 실패:', e.message); }
     }
     const pno = /compuzone\.co\.kr/i.test(url) ? compuzonePno(url) : '';
     if (pno) {
