@@ -1658,7 +1658,7 @@ async function fetchDanawaHtml(url) {
 }
 async function fetchDanawaSpecByName(productName) {
   try {
-    const q = encodeURIComponent(productName.replace(/\s*\([^)]*\)\s*$/, '').trim());
+    const q = encodeURIComponent(productName.replace(/^\s*\[[^\]]*\]\s*/g, '').replace(/\s*\([^)]*\)\s*$/, '').trim());
     const html = await fetchDanawaHtml('https://search.danawa.com/dsearch.php?query=' + q + '&tab=goods');
     const m = html.match(/class="spec_list"[^>]*>([\s\S]*?)<\/(?:ul|div)>/i);
     return m ? m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim() : '';
