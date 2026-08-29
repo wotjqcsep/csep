@@ -1658,7 +1658,7 @@ async function fetchDanawaHtml(url) {
 }
 async function fetchDanawaSpecByName(productName) {
   try {
-    const q = encodeURIComponent(productName.replace(/^\s*\[[^\]]*\]\s*/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/\[[\d×xX]+\]\s*/g, '').replace(/^Nvidia\s+/i, '').replace(/GEN\d+\s*/gi, '').replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '').replace(/\bD4\b/g, 'DDR4').replace(/\bD5\b/g, 'DDR5').replace(/\s+/g, ' ').trim());
+    const q = encodeURIComponent(productName.replace(/\[[\d×xX]+\]\s*/g, '').replace(/[\[\]]/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/^Nvidia\s+/i, '').replace(/GEN\d+\s*/gi, '').replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '').replace(/\bD4\b/g, 'DDR4').replace(/\bD5\b/g, 'DDR5').replace(/\s+/g, ' ').trim());
     const html = await fetchDanawaHtml('https://search.danawa.com/dsearch.php?query=' + q + '&tab=goods');
     const m = html.match(/class="spec_list"[^>]*>([\s\S]*?)<\/(?:ul|div)>/i);
     return m ? m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim() : '';
