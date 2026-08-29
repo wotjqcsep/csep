@@ -1071,16 +1071,31 @@ function guessCatFromName(name) {
   if (/DDR[45]|메모리|\bRAM\b/i.test(n)) return '메모리';
   if (/지포스|라데온|GeForce|Radeon|RTX\s*[2-9]|GTX|RX\s*[0-9]/i.test(n)) return '그래픽카드';
   if (/\bSSD\b|NVMe|M\.2.*[TG]B/i.test(n)) return 'SSD';
-  if (/\bHDD\b|하드디스크|바라쿠다|Barracuda/i.test(n)) return 'HDD';
-  if (/케이스/i.test(n) && !/쿨러|파워/.test(n)) return '케이스';
-  if (/파워|PSU|전원공급/i.test(n)) return '파워';
-  if (/쿨러|공랭|수랭|방열/i.test(n)) return '쿨러/튜닝';
+  if (/\bHDD\b|하드디스크|바라쿠다|Barracuda|\bWD\d{2}|Seagate|IronWolf|EXOS/i.test(n)) return 'HDD';
+  if ((/케이스|강화유리|미들타워|미니타워|풀타워/i.test(n)) && !/쿨러|파워/.test(n)) return '케이스';
+  if (/파워|PSU|전원공급|LEADEX|시소닉|Seasonic|마이크로닉스/i.test(n)) return '파워';
+  if (/쿨러|공랭|수랭|방열|리퀴드|Liquid|AIO/i.test(n)) return '쿨러/튜닝';
+  if (/\bODD\b|외장ODD|DVD|CD-ROM|블루레이|Blu-?ray/i.test(n)) return '주변기기';
   if (/모니터|디스플레이/i.test(n) && !/그래픽/.test(n)) return '모니터';
   if (/윈도우|Windows|오피스|Office|한글과/i.test(n)) return '소프트웨어';
   if (/키보드|마우스|데스크탑세트/i.test(n)) return '입력장치';
   if (/공유기|라우터|Router|Wi-?Fi.*AP/i.test(n)) return '공유기';
   if (/\bNAS\b|나스|시놀로지|Synology|QNAP/i.test(n)) return 'NAS';
   if (/헤드셋|스피커|웹캠|마이크/i.test(n)) return '주변기기';
+  return '';
+}
+function guessCatFromSpec(spec) {
+  const s = String(spec || '');
+  if (/ATX\s*파워|파워서플라이|\d+W.*PLUS/i.test(s)) return '파워';
+  if (/CPU\s*쿨러|수랭\s*쿨러|라디에이터/i.test(s)) return '쿨러/튜닝';
+  if (/PC\s*케이스|미들타워|미니타워|풀타워/i.test(s)) return '케이스';
+  if (/HDD\s*\(PC|하드디스크.*RPM/i.test(s)) return 'HDD';
+  if (/\bSSD\b|내장형.*SATA|NVMe/i.test(s)) return 'SSD';
+  if (/DVD|CD-R|ODD|블루레이/i.test(s)) return '주변기기';
+  if (/메인보드|소켓.*칩셋/i.test(s)) return '메인보드';
+  if (/DDR[45]|데스크탑.*메모리/i.test(s)) return '메모리';
+  if (/지포스|라데온|VRAM|GDDR/i.test(s)) return '그래픽카드';
+  if (/모니터|패널.*Hz/i.test(s)) return '모니터';
   return '';
 }
 // 컴퓨존 "소스코드 공유" 온라인견적서 HTML 표 → 부품 직접 파싱 (붙여넣기, AI 불필요)
@@ -1244,9 +1259,9 @@ function parseAssacomCart(html) {
     if (priceBlocks) price = Number(priceBlocks[1].replace(/[^\d]/g, '')) || 0;
     const qtyBlock = block.match(/class="price__qty"[\s\S]*?class="price--data"[^>]*>([\s\S]*?)<\/div>/i);
     const qty = qtyBlock ? (parseInt(qtyBlock[1].replace(/[^\d]/g, '')) || 1) : 1;
-    const cat = guessCatFromName(name);
     const specM = block.match(/data-spec="([^"]+)"/i);
     const spec = specM ? specM[1].replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').trim() : '';
+    const cat = guessCatFromName(name) || guessCatFromSpec(spec);
     totalPrice += price * qty;
     items.push({ cat: cat || '기타', name, price: price || '', qty, spec: spec || undefined });
   }
