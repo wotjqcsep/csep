@@ -1686,8 +1686,9 @@ function parseIcodaProduct(html) {
   let name = '';
   const nameM = h.match(/class="view_name"[^>]*>([\s\S]*?)<\/div>/i);
   if (nameM) name = nameM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  if (!name) { const vnM = h.match(/var\s+view_name\s*=\s*"([^"]*)"/); if (vnM) name = vnM[1].trim(); }
   if (!name) { const titleM = h.match(/<title[^>]*>([\s\S]*?)<\/title>/i); if (titleM) name = titleM[1].replace(/\s*[\/\-|]\s*아이코다.*$/i, '').trim(); }
-  if (!name) return [];
+  if (!name || name === '아이코다') return [];
   let price = 0;
   const rpM = h.match(/class="view_price"[^>]*>([\s\S]*?)<\/span>/i);
   if (rpM) { const n = rpM[1].replace(/<[^>]+>/g, '').match(/([\d,]+)/); if (n) price = Number(n[1].replace(/,/g, '')) || 0; }
@@ -1698,17 +1699,33 @@ function parseIcodaProduct(html) {
     const items = [];
     const liRe = /<li>\s*<div>([^<]+)<\/div>\s*<div[^>]*>([\s\S]*?)<\/div>\s*<\/li>/gi;
     let lm;
+    const propMap = {};
     while ((lm = liRe.exec(propM[1])) !== null) {
       const rawCat = lm[1].trim();
+      const val = lm[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      propMap[rawCat] = val;
       if (!ICODA_PART_CATS.test(rawCat)) continue;
-      const partName = lm[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-      if (!partName) continue;
+      if (!val) continue;
       let cat = rawCat.replace(/운영체제\s*SSD/i, 'SSD');
       cat = guessCatFromName(cat) || cat;
-      const spec = /내장\s*그래픽/i.test(partName) ? partName : undefined;
-      items.push({ cat, name: partName, price: '', qty: 1, spec });
+      const spec = /내장\s*그래픽/i.test(val) ? val : undefined;
+      items.push({ cat, name: val, price: '', qty: 1, spec });
     }
     if (items.length >= 3) return items;
+    // 노트북/완제품: property에서 주요 사양 추출
+    const specParts = [];
+    if (propMap['CPU 종류'] || propMap['CPU 넘버']) specParts.push([propMap['CPU 제조사'], propMap['CPU 종류'], propMap['CPU 넘버']].filter(Boolean).join(' '));
+    if (propMap['코어 개수']) specParts.push(propMap['코어 개수']);
+    if (propMap['메모리 타입'] || propMap['메모리 용량']) specParts.push([propMap['메모리 타입'], propMap['메모리 용량']].filter(Boolean).join(' '));
+    if (propMap['SSD 용량']) specParts.push('SSD ' + propMap['SSD 용량'] + (propMap['SSD 형태'] ? '(' + propMap['SSD 형태'] + ')' : ''));
+    if (propMap['화면크기']) specParts.push(propMap['화면크기']);
+    if (propMap['해상도']) specParts.push(propMap['해상도']);
+    if (propMap['무게']) specParts.push(propMap['무게']);
+    if (propMap['운영체제']) specParts.push(propMap['운영체제']);
+    if (specParts.length) {
+      const cat = guessCatFromName(name);
+      return [{ cat, name, price: price || '', qty: 1, spec: specParts.join(' / ') }];
+    }
   }
   let spec = '';
   const specM = h.match(/class="sinfo[^"]*"[^>]*>[\s\S]*?품명[^<]*<[^>]*>([^<]+)/i);
@@ -1989,6 +2006,10 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
             if (parts.length >= 3) {
               console.log('[아이코다장바구니] 확장:', items[idx].name.substring(0, 30), '→', parts.length, '개 부품');
               items.splice(idx, 1, ...parts);
+            } else if (parts.length === 1 && parts[0].spec && !items[idx].spec) {
+              items[idx].spec = parts[0].spec;
+              if (parts[0].name && parts[0].name !== '아이코다') items[idx].name = parts[0].name;
+              if (parts[0].cat) items[idx].cat = parts[0].cat;
             }
           }
         } catch (e) { console.log('[아이코다장바구니] 확장 실패:', e.message); }
