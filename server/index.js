@@ -1271,6 +1271,39 @@ function parseAssacomCart(html) {
   }
   return { items, totalPrice };
 }
+function parseAssacomBuildCart(html) {
+  const items = [];
+  let totalPrice = 0;
+  const parts = html.split(/<li\s[^>]*class="list__item\s+item--product"[^>]*>/i);
+  for (let p = 1; p < parts.length; p++) {
+    const block = parts[p];
+    const priceM = block.match(/총\s*주문\s*금액[\s\S]*?class="item__data"[^>]*>([\s\S]*?)<\/div>/i);
+    if (priceM) totalPrice += Number(priceM[1].replace(/[^\d]/g, '')) || 0;
+    const specRe = /class="spec--cate"[^>]*>([\s\S]*?)<\/span>[\s\S]*?class="spec--name"[^>]*>([\s\S]*?)<\/span>/gi;
+    let m;
+    while ((m = specRe.exec(block)) !== null) {
+      const sc = m[1].replace(/<[^>]+>/g, '').trim();
+      const sn = m[2].replace(/<[^>]+>/g, '').trim();
+      if (!sn || /미포함/i.test(sn)) continue;
+      if (/랜|사운드/i.test(sc) && /내장/i.test(sn)) continue;
+      let cat = '';
+      if (/^CPU$/i.test(sc)) cat = 'CPU';
+      else if (/쿨러/i.test(sc)) cat = '쿨러/튜닝';
+      else if (/메인보드/i.test(sc)) cat = '메인보드';
+      else if (/메모리|RAM/i.test(sc)) cat = '메모리';
+      else if (/그래픽|VGA/i.test(sc)) cat = '그래픽카드';
+      else if (/^HDD$/i.test(sc)) cat = 'HDD';
+      else if (/^SSD$/i.test(sc)) cat = 'SSD';
+      else if (/DVD|리더기|ODD/i.test(sc)) cat = '주변기기';
+      else if (/파워/i.test(sc)) cat = '파워';
+      else if (/케이스/i.test(sc)) cat = '케이스';
+      else if (/서비스|조립/i.test(sc)) cat = '조립비/AS';
+      else cat = sc;
+      items.push({ cat, name: sn, qty: 1, price: '' });
+    }
+  }
+  return { items, totalPrice };
+}
 function parseAssacomProduct(html) {
   let name = '';
   const nameM = html.match(/<[^>]+class=["'][^"']*info--name[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|span)>/i);
@@ -1488,7 +1521,8 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), (req, res) => {
   } else if (/product_name/i.test(html) && /joyzen/i.test(html)) {
     items = parseJoyzenProduct(html); src = 'joyzen';
   } else if (/cart__list/i.test(html) && /assacom/i.test(html)) {
-    const r = parseAssacomCart(html); items = r.items; totalPrice = r.totalPrice; src = 'assacom';
+    const r = parseAssacomCart(html); const r2 = parseAssacomBuildCart(html);
+    items = [...r.items, ...r2.items]; totalPrice = r.totalPrice + r2.totalPrice; src = 'assacom';
   } else if (/pro_table/i.test(html) && /assacom/i.test(html)) {
     const r = parseAssacomSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'assacom';
   } else if ((/info--name/i.test(html) || /head__pro_name/i.test(html)) && /assacom/i.test(html)) {
