@@ -1669,14 +1669,14 @@ async function fetchDanawaSpecByName(productName, expectedCat) {
     if (expectedCat && spec) {
       const CAT_VERIFY = {
         'CPU': /셀러론|펜티엄|코어|Celeron|Pentium|Core|Ryzen|라이젠|Athlon|소켓/i,
-        '메인보드': /메인보드|M-ATX|ATX|소켓|칩셋|chipset/i,
+        '메인보드': /메인보드|칩셋|chipset|메모리\s*슬롯|UEFI/i,
         '메모리': /DDR[45]|PC[45]-|데스크탑용|노트북용/i,
         '그래픽카드': /지포스|라데온|GeForce|Radeon|RTX|GTX|VRAM|GDDR/i,
         'SSD': /SSD|NVMe|M\.2|SATA|PCIe.*x[0-9].*읽기|TLC|QLC|MLC/i,
         'HDD': /HDD|RPM|CMR|SMR|바라쿠다|Barracuda/i,
-        '파워': /파워|[0-9]+W.*정격|80PLUS|ATX.*전원|출력/i,
-        '케이스': /케이스|미들타워|미니타워|풀타워|M-ATX|ATX.*지원/i,
-        '쿨러/튜닝': /쿨러|공랭|수랭|TDP|팬 크기|히트파이프/i,
+        '파워': /정격\s*출력|총\s*출력|정격출력|80PLUS|파워서플라이|ATX\s*파워|\d+W\s*정격/i,
+        '케이스': /케이스|미들타워|미니타워|풀타워|파워\s*위치/i,
+        '쿨러/튜닝': /쿨러|공랭|수랭|TDP|팬\s*크기|히트파이프/i,
       };
       const verify = CAT_VERIFY[expectedCat];
       if (verify && !verify.test(spec)) return '';
