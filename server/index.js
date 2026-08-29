@@ -1331,6 +1331,7 @@ function parseAssacomBuildCart(html) {
       const sn = m[2].replace(/<[^>]+>/g, '').trim();
       if (!sn || /미포함/i.test(sn)) continue;
       if (/랜|사운드/i.test(sc) && /내장/i.test(sn)) continue;
+      if (/그래픽|VGA/i.test(sc) && /내장|UHD\s*\d|HD\s*Graphics|Iris/i.test(sn)) continue;
       let cat = '';
       if (/^CPU$/i.test(sc)) cat = 'CPU';
       else if (/쿨러/i.test(sc)) cat = '쿨러/튜닝';
@@ -1454,7 +1455,7 @@ function parseJoyzenSpec(html) {
       if (priceM) price = Number(priceM[1].replace(/,/g, '')) || 0;
     }
     name = name.replace(/^\[기본\]\s*/, '').trim();
-    if (!name || /선택하세요|선택 안|미선택|내장 그래픽|구매하지 않|추가할 제품/.test(name)) continue;
+    if (!name || /선택하세요|선택 안|미선택|내장\s*그래픽|UHD\s*\d|HD\s*Graphics|Iris|구매하지 않|추가할 제품/i.test(name)) continue;
     if (/^사은품$|^멀티탭$|^마우스패드$|^출장서비스$/.test(catText)) continue;
     if (!price && !name) continue;
     items.push({ cat: cat || catText, name, price: price || '', qty: 1 });
@@ -1584,6 +1585,7 @@ function parseDanawaBuildPC(html) {
       if (spanM) name = spanM[1].trim();
     }
     if (!name || /별도구매|추가선택가능|추가사양 상품을 선택|선택해 주세요/i.test(name)) continue;
+    if (/그래픽/i.test(rawCat) && /내장\s*그래픽|UHD\s*\d|HD\s*Graphics|Iris/i.test(name)) continue;
     items.push({ cat: cat || rawCat, name, qty: 1, price: '' });
   }
   const priceM = html.match(/total_price[\s\S]*?<strong>([\d,]+)<\/strong>/i);
@@ -1710,8 +1712,8 @@ function parseIcodaProduct(html) {
       if (!val) continue;
       let cat = rawCat.replace(/운영체제\s*SSD/i, 'SSD');
       cat = guessCatFromName(cat) || cat;
-      const spec = /내장\s*그래픽/i.test(val) ? val : undefined;
-      items.push({ cat, name: val, price: '', qty: 1, spec });
+      if (/그래픽/i.test(rawCat) && /내장\s*그래픽|UHD\s*\d|HD\s*Graphics|Iris/i.test(val)) continue;
+      items.push({ cat, name: val, price: '', qty: 1 });
     }
     if (items.length >= 3) return items;
     // 단일상품(노트북/메인보드/완제품 등): property에서 사양 추출
