@@ -1066,7 +1066,7 @@ function czMapCat(t) {
 }
 function guessCatFromName(name) {
   const n = String(name || '');
-  if (/데스크탑|데스크톱|노트북|일체형|올인원|브랜드PC|완제품/i.test(n)) return '';
+  if (/데스크탑|데스크톱|노트북|일체형|올인원|브랜드PC|완제품/i.test(n) && !/DDR[45]|PC[45]-\d|메모리|\bRAM\b|\bSSD\b|NVMe|\bHDD\b/i.test(n)) return '';
   if (/라이젠|Ryzen|i[3579][-\s]|셀러론|펜티엄|Celeron|Pentium|Core\s*(Ultra|i)|코어\s*울트라|인텔\s*코어|Athlon|트레드리퍼/i.test(n)) return 'CPU';
   if (/메인보드|마더보드|Motherboard|B[0-9]{3}[A-Z]|X[0-9]{3}[A-Z]|Z[0-9]{3}|H[0-9]{3}|A[0-9]{3}M/i.test(n)) return '메인보드';
   if (/DDR[45]|PC[45]-\d|메모리|\bRAM\b/i.test(n)) return '메모리';
