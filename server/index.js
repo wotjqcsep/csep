@@ -1712,19 +1712,13 @@ function parseIcodaProduct(html) {
       items.push({ cat, name: val, price: '', qty: 1, spec });
     }
     if (items.length >= 3) return items;
-    // 노트북/완제품: property에서 주요 사양 추출
+    // 단일상품(노트북/메인보드/완제품 등): property에서 사양 추출
+    const SKIP_KEYS = /^(상품번호|등록일|AS센터|제품분류|제조사|브랜드)$/i;
     const specParts = [];
-    if (propMap['CPU 종류'] || propMap['CPU 넘버']) specParts.push([propMap['CPU 제조사'], propMap['CPU 종류'], propMap['CPU 넘버']].filter(Boolean).join(' '));
-    if (propMap['코어 개수']) specParts.push(propMap['코어 개수']);
-    if (propMap['메모리 타입'] || propMap['메모리 용량']) specParts.push([propMap['메모리 타입'], propMap['메모리 용량']].filter(Boolean).join(' '));
-    if (propMap['SSD 용량']) specParts.push('SSD ' + propMap['SSD 용량'] + (propMap['SSD 형태'] ? '(' + propMap['SSD 형태'] + ')' : ''));
-    if (propMap['화면크기']) specParts.push(propMap['화면크기']);
-    if (propMap['해상도']) specParts.push(propMap['해상도']);
-    if (propMap['무게']) specParts.push(propMap['무게']);
-    if (propMap['네트워크/블루투스']) specParts.push(propMap['네트워크/블루투스']);
-    if (propMap['입출력 단자']) specParts.push(propMap['입출력 단자']);
-    if (propMap['부가기능']) specParts.push(propMap['부가기능']);
-    if (propMap['운영체제']) specParts.push(propMap['운영체제']);
+    for (const [k, v] of Object.entries(propMap)) {
+      if (SKIP_KEYS.test(k) || !v) continue;
+      specParts.push(k + ': ' + v);
+    }
     if (specParts.length) {
       const cat = guessCatFromName(name);
       return [{ cat, name, price: price || '', qty: 1, spec: specParts.join(' / ') }];
