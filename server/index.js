@@ -1751,6 +1751,27 @@ function parseIcodaCart(html) {
   }
   return { items, totalPrice };
 }
+function parseIcodaNewCart(html) {
+  const items = [];
+  let totalPrice = 0;
+  const blocks = html.split(/class="[^"]*상품목록[^"]*"/i);
+  for (let i = 1; i < blocks.length; i++) {
+    const block = blocks[i].substring(0, 5000);
+    const nameM = block.match(/<a[^>]*class="상품명"[^>]*href="[^"]*\/item\/view\/(\d+)"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!nameM) continue;
+    const pno = nameM[1];
+    let name = nameM[2].replace(/<[^>]+>/g, '').replace(/^\[\d+\]\s*/, '').replace(/\s+/g, ' ').trim();
+    if (!name || name.length < 3) continue;
+    const priceM = block.match(/장바구니합계금액[^>]*>([\d,]+)<\/span>/i);
+    const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
+    const qtyM = block.match(/원\s*x\s*(?:<[^>]*>)?\s*(\d+)\s*(?:<[^>]*>)?\s*개/i);
+    const qty = qtyM ? parseInt(qtyM[1]) : 1;
+    const cat = guessCatFromName(name);
+    totalPrice += price;
+    items.push({ cat: cat || '기타', name, price: price || '', qty, _pno: pno });
+  }
+  return { items, totalPrice };
+}
 async function fetchIcodaHtml(url) {
   const resp = await fetch(url, {
     headers: {
@@ -1940,7 +1961,24 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       items.forEach(it => { delete it._goodsSeq; delete it._cartSeq; delete it._mtype; });
     }
   } else if (/icoda\.co\.kr/i.test(html)) {
-    if (/view_name/i.test(html)) {
+    if (/id="장바구니리스트"/i.test(html)) {
+      const r = parseIcodaNewCart(html); items = r.items; totalPrice = r.totalPrice; src = 'icoda';
+      // 조립PC → 상세페이지에서 부품 확장
+      const buildIdxs = [];
+      items.forEach((it, i) => { if (it._pno && /조립\s*PC|조립\s*SYSTEM/i.test(it.name)) buildIdxs.push(i); });
+      if (buildIdxs.length) {
+        try {
+          const details = await Promise.allSettled(buildIdxs.map(i => fetchIcodaHtml('https://usr.icoda.co.kr/item/view/' + items[i]._pno)));
+          for (let k = buildIdxs.length - 1; k >= 0; k--) {
+            const idx = buildIdxs[k];
+            if (details[k].status !== 'fulfilled') continue;
+            const parts = parseIcodaProduct(details[k].value);
+            if (parts.length >= 3) { items.splice(idx, 1, ...parts); }
+          }
+        } catch (e) { console.log('[아이코다장바구니] 조립PC 확장 실패:', e.message); }
+      }
+      items.forEach(it => delete it._pno);
+    } else if (/var\s+view_name\s*=/i.test(html)) {
       items = parseIcodaProduct(html); src = 'icoda';
     } else {
       const r = parseIcodaCart(html); items = r.items; totalPrice = r.totalPrice; src = 'icoda';
