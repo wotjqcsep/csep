@@ -1576,8 +1576,8 @@ function estDocInner(target, copyLabel, overrideRows, isLastPage){
   const totCost=rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0), profit=sub-totCost;
   const company=esc(estState.company)||'(회사명)', contact=esc(estState.contact), customer=esc(estState.customer)||'(고객)', date=esc(estState.date), no=esc(estState.no), memo=esc(estState.memo);
   // 옵션(내부용은 항상 전체 상세 + 개별 금액)
-  const nameMode = internal ? 'full' : (estState.pname||'full');
-  const priceMode = internal ? 'each' : (estState.pprice||'each');
+  const nameMode = internal ? 'full' : (estState.pname||'short');
+  const priceMode = internal ? 'each' : (estState.pprice||'total');
   const showName = nameMode!=='cat', showEach = priceMode==='each';
   const clean = internal ? (x=>x) : custClean;   // 고객용만 금지어(컴퓨존·아이웍스) 제거
   const dispName = r => clean(nameMode==='short' ? czShortName(r.name) : r.name);
