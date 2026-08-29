@@ -1564,36 +1564,24 @@ function parseDanawaProduct(html) {
 function parseDanawaCart(html) {
   const items = [];
   let totalPrice = 0;
-  const re = /<tr[^>]*class="[^"]*cart_item[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    const row = m[1];
-    const nameM = row.match(/prd_name[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i)
-      || row.match(/cart_name[^>]*>([\s\S]*?)<\/(?:td|div)>/i);
-    let name = nameM ? nameM[1].replace(/<[^>]+>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim() : '';
-    if (!name) continue;
-    const priceM = row.match(/prd_price[^>]*>([\d,]+)/i) || row.match(/cart_price[^>]*>([\d,]+)/i);
-    const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
-    const qtyM = row.match(/name="?quantity"?\s[^>]*value="(\d+)"/i) || row.match(/cart_qty[^>]*>(\d+)/i);
-    const qty = qtyM ? parseInt(qtyM[1]) : 1;
-    const cat = guessCatFromName(name);
-    totalPrice += price * qty;
-    items.push({ cat: cat || '기타', name, price: price || '', qty });
-  }
-  if (!items.length) {
-    const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-    while ((m = trRe.exec(html)) !== null) {
-      const row = m[1];
-      if (!/danawa/i.test(html)) continue;
-      const linkM = row.match(/<a[^>]*href="[^"]*(?:billingInternalProductSeq|productSeq)[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
-      if (!linkM) continue;
-      let name = linkM[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-      if (!name || name.length < 3) continue;
-      const priceM = row.match(/([\d,]{4,})\s*원/);
-      const price = priceM ? Number(priceM[1].replace(/,/g, '')) : 0;
-      const cat = guessCatFromName(name);
-      totalPrice += price;
-      items.push({ cat: cat || '기타', name, price: price || '', qty: 1 });
+  const tbodyM = html.match(/<table[^>]*class="[^"]*bill_table[^"]*table_cart[^"]*"[^>]*>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>/gi);
+  if (!tbodyM) return { items, totalPrice };
+  for (const tbody of tbodyM) {
+    const rows = tbody.split(/<tr[\s>]/i).slice(1);
+    for (const row of rows) {
+      const nameM = row.match(/class="prod_name"[^>]*>([\s\S]*?)<\/strong>/i)
+        || row.match(/id="goodsName_\d+"[^>]*value="([^"]+)"/i);
+      let name = nameM ? nameM[1].replace(/<[^>]+>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim() : '';
+      if (!name) continue;
+      const catM = row.match(/class="txt_cate"[^>]*>([\s\S]*?)<\/span>/i);
+      let cat = catM ? danawaMapCat(catM[1].replace(/<[^>]+>/g, '').trim()) : '';
+      if (!cat) cat = guessCatFromName(name);
+      const priceM = row.match(/id="cartGoodsPrice_\d+"[^>]*value="(\d+)"/i);
+      const price = priceM ? Number(priceM[1]) : 0;
+      const qtyM = row.match(/class="input_qnt"[^>]*value="(\d+)"/i);
+      const qty = qtyM ? parseInt(qtyM[1]) : 1;
+      totalPrice += price * qty;
+      items.push({ cat: cat || '기타', name, price: price || '', qty });
     }
   }
   return { items, totalPrice };
