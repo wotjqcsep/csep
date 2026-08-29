@@ -1054,6 +1054,7 @@ const CZ_CAT = {
   '공유기': '공유기', '라우터': '공유기', 'NAS': 'NAS', '나스': 'NAS',
   '운영체제(OS)': '소프트웨어', 'OS': '소프트웨어', '소프트웨어': '소프트웨어',
   '조립비': '조립비/AS', '서비스': '조립비/AS',
+  '노트북': '노트북', '노트북존': '노트북', '브랜드PC': '데스크탑', '데스크탑': '데스크탑',
 };
 function czMapCat(t) {
   t = String(t || '').trim();
@@ -1221,9 +1222,11 @@ function parseCompuzoneProductPage(html) {
 function extractSpecText(html) {
   const m = html.match(/<meta\s+name=["']keywords["']\s+content=["']([^"']*?)["']/i);
   if (!m) return '';
-  return m[1].replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ')
+  const raw = m[1].replace(/&amp;/g, '&').replace(/&nbsp;/gi, ' ')
     .replace(/\s*\/\s*용도\s*[:：].*$/i, '')
     .replace(/\s+/g, ' ').trim();
+  if (/컴퓨존|컴퓨터존|가격비교|종합\s*쇼핑몰/i.test(raw)) return '';
+  return raw;
 }
 async function fetchCompuzoneSpec(pno) {
   const html = await fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + pno);
@@ -1863,6 +1866,13 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       if (czSpec && items.length) items[0].spec = czSpec;
     }
     items.forEach(it => delete it._pno);
+    const noSpecItems = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
+    if (noSpecItems.length) {
+      try {
+        const danawaResults = await Promise.allSettled(noSpecItems.map(it => fetchDanawaSpecByName(it.name)));
+        noSpecItems.forEach((it, i) => { if (danawaResults[i].status === 'fulfilled' && danawaResults[i].value) it.spec = danawaResults[i].value; });
+      } catch (e) { console.log('[컴퓨존→다나와] spec fallback 실패:', e.message); }
+    }
   } else if (/danawa\.com/i.test(html)) {
     src = 'danawa';
     if (/productRegisterAreaSeq_\d/i.test(html)) {
