@@ -1518,7 +1518,9 @@ function parseJoyzenCart(html) {
     '케이스': '케이스', '파워': '파워', '쿨러': '쿨러/튜닝',
     '조립비': '조립비', 'ODD': '주변기기',
   };
-  const rows = html.split(/class="cart_list_\d+"/i).slice(1);
+  const splitParts = html.split(/class\s*=\s*"cart_list_\d+"/i);
+  console.log('[parseJoyzenCart] split 결과:', splitParts.length, '개 (첫번째는 앞부분)');
+  const rows = splitParts.slice(1);
   for (const row of rows) {
     const nameM = row.match(/cart_name[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i);
     let name = nameM ? nameM[1].replace(/<[^>]*>/g, '').replace(/&amp;/gi, '&').replace(/\s+/g, ' ').trim() : '';
@@ -1537,6 +1539,7 @@ function parseJoyzenCart(html) {
     const isJinfo = /jInfo\.html/i.test(row);
     const plainText = row.replace(/<[^>]+>/g, ' ').replace(/&amp;/gi, '&').replace(/&nbsp;/gi, ' ');
     const partLines = [...plainText.matchAll(/(CPU|메모리|메인보드|그래픽카드|SSD|HDD|케이스|파워|쿨러|ODD|조립비)\s*:\s*(.+)/g)];
+    console.log('[parseJoyzenCart] row:', name.substring(0, 40), '| isJinfo:', isJinfo, '| parts:', partLines.length, '| uid:', uid);
     if (isJinfo && partLines.length >= 3) {
       totalPrice += price * qty;
       for (const pl of partLines) {
@@ -1995,7 +1998,9 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
   if (!html) return res.status(400).json({ error: 'html required' });
   let items = [], totalPrice = 0, src = '';
   if (/cart_list_\d+/i.test(html) && /joyzen/i.test(html)) {
+    console.log('[조이젠장바구니] cart_list 감지, HTML 길이:', html.length);
     const r = parseJoyzenCart(html); items = r.items; totalPrice = r.totalPrice; src = 'joyzen';
+    console.log('[조이젠장바구니] 파싱결과:', items.length, '개 →', items.map(it => it.cat + ':' + (it.name||'').substring(0, 30)).join(' | '));
     await joyzenDanawaFallback(items);
   } else if (/spec_item/i.test(html) && /joyzen/i.test(html)) {
     const r = parseJoyzenSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'joyzen';
