@@ -1693,7 +1693,7 @@ async function fetchDanawaSpecByName(productName, expectedCat) {
     '그래픽카드': /지포스|라데온|GeForce|Radeon|RTX|GTX|VRAM|GDDR/i,
     'SSD': /SSD|NVMe|M\.2|SATA|PCIe.*x[0-9].*읽기|TLC|QLC|MLC/i,
     'HDD': /HDD|RPM|CMR|SMR|바라쿠다|Barracuda/i,
-    '파워': /정격\s*출력|총\s*출력|정격출력|80PLUS|파워서플라이|ATX\s*파워|\d+W\s*정격/i,
+    '파워': /정격\s*출력|총\s*출력|정격출력|80PLUS|파워서플라이|ATX\s*파워|\d+W/i,
     '케이스': /케이스|미들타워|미니타워|풀타워|파워\s*위치/i,
     '쿨러/튜닝': /쿨러|공랭|수랭|TDP|팬\s*크기|히트파이프/i,
   };
@@ -1702,7 +1702,7 @@ async function fetchDanawaSpecByName(productName, expectedCat) {
     '그래픽카드': '그래픽카드', 'SSD': 'SSD', 'HDD': 'HDD 하드디스크',
     '파워': '파워서플라이', '케이스': 'PC 케이스', '쿨러/튜닝': '쿨러',
   };
-  const cleanName = productName.replace(/\[[\d×xX]+\]\s*/g, '').replace(/[\[\]]/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/^Nvidia\s+/i, '').replace(/GEN\d+\s*/gi, '').replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '').replace(/\bD4\b/g, 'DDR4').replace(/\bD5\b/g, 'DDR5').replace(/\s+/g, ' ').trim();
+  const cleanName = productName.replace(/\[[\d×xX]+\]\s*/g, '').replace(/[\[\]]/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/^Nvidia\s+/i, '').replace(/GEN\d+\s*/gi, '').replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '').replace(/\bD4\b/g, 'DDR4').replace(/\bD5\b/g, 'DDR5').replace(/벌크|병행수입|병행|미사용\s*탈거제품|멀티팩|대리점정품|정품/gi, '').replace(/\s+/g, ' ').trim();
   const verify = expectedCat && CAT_VERIFY[expectedCat];
   const queries = [cleanName];
   if (expectedCat && CAT_KEYWORD[expectedCat]) queries.push(cleanName + ' ' + CAT_KEYWORD[expectedCat]);
