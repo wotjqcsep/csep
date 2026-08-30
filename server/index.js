@@ -2131,6 +2131,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
     }
   }
   items = items.filter(it => !/조립비|조립 비/i.test(it.cat));
+  items.forEach(it => { if (it.name) it.name = cleanProductName(it.name); if (it.spec) it.spec = cleanSpec(it.spec); });
   if (!items.length) return res.status(422).json({ error: '부품을 찾을 수 없습니다' });
   broadcastAdmin('estimate_import', { items, totalPrice, src });
   const debug = req.query && req.query.debug === '1';
