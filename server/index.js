@@ -1517,6 +1517,14 @@ function parseJoyzenCart(html) {
   }
   return { items, totalPrice };
 }
+async function joyzenDanawaFallback(items) {
+  const need = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
+  if (!need.length) return;
+  try {
+    const dr = await Promise.allSettled(need.map(it => fetchDanawaSpecByName(it.name, it.cat)));
+    need.forEach((it, i) => { if (dr[i].status === 'fulfilled' && dr[i].value) it.spec = dr[i].value; });
+  } catch (e) {}
+}
 async function fetchJoyzenHtml(url) {
   const resp = await fetch(url, {
     headers: {
@@ -1539,13 +1547,18 @@ async function fetchJoyzenHtml(url) {
 }
 async function fetchJoyzenSpecs(items) {
   await Promise.all(items.map(async (item) => {
-    if (!item._pnum || item.spec) { delete item._pnum; return; }
-    try {
-      const h = await fetchJoyzenHtml('https://www.joyzen.co.kr/product/sInfo.html?Pnum=' + item._pnum);
-      const ov = h.match(/<div\s+class="overview"[^>]*title="([^"]+)"/i);
-      if (ov) item.spec = ov[1].replace(/\s+/g, ' ').trim();
-    } catch (e) {}
-    delete item._pnum;
+    if (item.spec) { delete item._pnum; return; }
+    if (item._pnum) {
+      try {
+        const h = await fetchJoyzenHtml('https://www.joyzen.co.kr/product/sInfo.html?Pnum=' + item._pnum);
+        const ov = h.match(/<div\s+class="overview"[^>]*title="([^"]+)"/i);
+        if (ov) item.spec = ov[1].replace(/\s+/g, ' ').trim();
+      } catch (e) {}
+      delete item._pnum;
+    }
+    if (!item.spec && item.name) {
+      try { item.spec = await fetchDanawaSpecByName(item.name, item.cat); } catch (e) {}
+    }
   }));
 }
 async function fetchJoyzen(url) {
@@ -1947,10 +1960,22 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
   let items = [], totalPrice = 0, src = '';
   if (/cart_list_\d+/i.test(html) && /joyzen/i.test(html)) {
     const r = parseJoyzenCart(html); items = r.items; totalPrice = r.totalPrice; src = 'joyzen';
+    // 장바구니 안 조립PC(jInfo 링크) → 부품으로 분해
+    const jLinks = [...String(html).matchAll(/cart_name[\s\S]*?<a[^>]*href="([^"]*jInfo\.html[^"]*)"[\s\S]*?<\/a>/gi)];
+    for (const jm of jLinks) {
+      try {
+        const fullUrl = jm[1].startsWith('http') ? jm[1] : 'https://www.joyzen.co.kr' + jm[1];
+        const r2 = await fetchJoyzen(fullUrl);
+        if (r2.items.length) items.push(...r2.items);
+      } catch (e) {}
+    }
+    await joyzenDanawaFallback(items);
   } else if (/spec_item/i.test(html) && /joyzen/i.test(html)) {
     const r = parseJoyzenSpec(html); items = r.items; totalPrice = r.totalPrice; src = 'joyzen';
+    await joyzenDanawaFallback(items);
   } else if (/product_name/i.test(html) && /joyzen/i.test(html)) {
     items = parseJoyzenProduct(html); src = 'joyzen';
+    await joyzenDanawaFallback(items);
   } else if (/cart__list/i.test(html) && /assacom/i.test(html)) {
     const r = parseAssacomCart(html); const r2 = parseAssacomBuildCart(html);
     items = [...r.items, ...r2.items]; totalPrice = r.totalPrice + r2.totalPrice; src = 'assacom';
