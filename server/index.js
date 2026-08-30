@@ -1995,7 +1995,7 @@ async function fetchMypcshop(url) {
       const cat = MPC_CAT[rawCat];
       if (!cat) continue;
       const name = names[i][1].trim();
-      if (!name || /내장\s*그래픽/i.test(name)) continue;
+      if (!name || /내장\s*그래픽/i.test(name) || /[▶►].*[◀◄]|추가[◀◄]|성능을\s*높여/i.test(name)) continue;
       items.push({ cat, name, price: '', qty: 1 });
     }
     if (items.length >= 3) {
@@ -2095,7 +2095,7 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
         const cat = MPC_CAT[mpcCats[i][1].trim()];
         if (!cat) continue;
         const name = mpcNames[i][1].trim();
-        if (!name || /내장\s*그래픽/i.test(name)) continue;
+        if (!name || /내장\s*그래픽/i.test(name) || /[▶►].*[◀◄]|추가[◀◄]|성능을\s*높여/i.test(name)) continue;
         items.push({ cat, name, price: '', qty: 1 });
       }
     } else if (/it_top_title/i.test(html)) {
