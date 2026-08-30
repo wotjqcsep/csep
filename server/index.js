@@ -2102,6 +2102,22 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
       items = parseMypcshopProduct(html); src = 'mypcshop';
     } else {
       const r = parseMypcshopCart(html); items = r.items; totalPrice = r.totalPrice; src = 'mypcshop';
+      // 조립PC 장바구니 → 부품 텍스트로 분해 (CPU : ..., RAM : ..., etc.)
+      const plainMpc = html.replace(/<[^>]+>/g, '\n').replace(/&amp;/gi, '&').replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>');
+      const mpcParts = [...plainMpc.matchAll(/(CPU|RAM|메인보드|VGA|SSD|HDD|케이스|파워|쿨러\/튜닝|ODD)\s*:\s*([^\n]+)/gi)];
+      console.log('[마이피씨샵장바구니] items:', items.length, '| 부품텍스트:', mpcParts.length, '개');
+      if (mpcParts.length >= 3) {
+        items = [];
+        for (const pl of mpcParts) {
+          const pCat = MPC_CAT[pl[1].trim()] || pl[1].trim();
+          let pName = pl[2].replace(/\s+/g, ' ').replace(/x\s*\d+\s*$/i, '').trim();
+          if (!pName || /내장\s*그래픽/i.test(pName) || /[▶►].*[◀◄]|추가[◀◄]|성능을\s*높여/i.test(pName)) continue;
+          items.push({ cat: pCat, name: pName, price: '', qty: 1 });
+        }
+        console.log('[마이피씨샵장바구니] 조립PC 분해:', items.map(it => it.cat).join(', '));
+        const tpM = html.match(/cart_rs_tot_amount[^>]*>([\d,]+)/i);
+        if (tpM && !totalPrice) totalPrice = Number(tpM[1].replace(/,/g, '')) || 0;
+      }
     }
     const mpcNeedSpec = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
     if (mpcNeedSpec.length) {
