@@ -1675,7 +1675,7 @@ function estDocInner(target, copyLabel, overrideRows, isLastPage){
   const titleText = internal ? `${companyTitle} 견적서 <span style="font-size:14px;color:#c00;letter-spacing:0">(내부용)</span>` : `${companyTitle} 견적서`;
   const bizHeader=`<div class="est-header-wrap"><table class="est-left-info"><colgroup><col style="width:80px"><col></colgroup>
     <tr><td>견적번호</td><td>${no}</td></tr>
-    <tr><td>견적일</td><td>${fmtDate}</td></tr>
+    <tr><td>${DT.dl}</td><td>${fmtDate}${dt==='estimate'?'<span style="font-size:11px;color:#c00;margin-left:12px;font-weight:600">(유효기간 : 당일 19시까지)</span>':''}</td></tr>
     <tr><td>이름</td><td>${customer} 고객님</td></tr>
     <tr><td>견적합계</td><td style="font-weight:900;font-size:16px">${won(total)} 원 ${estState.noVat?'':'(부가세포함)'}</td></tr>
   </table><table class="est-right-biz"><colgroup><col style="width:22px"><col style="width:70px"><col><col style="width:42px"><col style="width:90px"></colgroup>
