@@ -1548,15 +1548,22 @@ function estAddItems(items, mode){ estSyncAll();
 function estRows(){ return estState? estState.rows.map(r=>{ const cost=Number(r.cost)||0, margin=Number(r.margin)||0, qty=Number(r.qty)||0;
   const price=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(cost*(1+margin/100));
   return { cat:(r.cat||'').trim(), name:(r.name||'').trim(), qty, cost, margin, price, amt:price*qty, spec:r.spec||'', showSpec:!!r.showSpec }; }) : []; }
-// 품명 간략화: 맨 앞 [브랜드]만 제거, 사양([10코어],[블랙],(블랙))은 유지
+// 품명 간략화(모델명만): 모든 쇼핑몰 통일 — 브랜드·유통사·노이즈 제거
 function czShortName(name){
   let s=String(name||'');
-  s=s.replace(/^\s*\[[^\]]*\]\s*/,'');        // 맨 앞 [인텔] [GIGABYTE] 등 브랜드만 제거
-  s=s.replace(/\s*-\s*\d{4,}\s*$/,' ');       // 끝의 " - 1108545" 상품번호 제거
-  s=s.replace(/\(정품벌크\)|\(벌크\)|\(병행수입\)|\(멀티팩\)|\(대리점정품\)/g,' ');
-  s=s.replace(/정품벌크|벌크|병행|쿨러\s*미포함|미포함|멀티팩|대리점정품/g,' ');
+  s=s.replace(/^\s*\[[^\]]*\]\s*/,'');        // 맨 앞 [인텔] [GIGABYTE] [초고속 NVMe] 등 태그 제거
+  // 맨 앞 제조사명 제거 (대괄호 없이 나오는 브랜드 — 다나와·마이피씨샵·조이젠 등)
+  s=s.replace(/^(인텔|Intel|AMD|삼성전자|Samsung|마이크론|Micron|SK\s*하이닉스|Crucial|크루셜|ASUS|에이수스|MSI|GIGABYTE|기가바이트|ASRock|애즈락|ZOTAC|조텍|EVGA|CORSAIR|커세어|G\.?\s*SKILL|지스킬|Kingston|킹스톤|PATRIOT|패트리어트|Seagate|씨게이트|WD|Western\s*Digital|웨스턴디지털|KIOXIA|키오시아|PNY|Lexar|렉사|darkFlash|다크플래쉬|NZXT|Cooler\s*Master|쿨러마스터|DEEPCOOL|딥쿨|Noctua|녹투아|Seasonic|시소닉|FSP|잘만|Zalman|맥스엘리트|MaxElite|be\s*quiet!?|슈퍼플라워|Super\s*Flower|마이크로닉스|Micronics|앱코|Abko|컴이지|MAXTILL|맥스틸|PCCOOLER|ID-COOLING|3RSYS|Antec|앤텍|Fractal\s*Design|Lian\s*Li|리안리|Thermaltake|서마르테이크|COLORFUL|컬러풀|GALAX|갤럭시|이엠텍|EMTEK|INNO3D|이노3D|BIOSTAR|바이오스타)\s+/i,'');
+  s=s.replace(/\s*-\s*\d{4,}\s*$/,'');       // 끝 상품번호 " - 1108545"
+  // 끝 유통사명 제거
+  s=s.replace(/\s+(대원씨티에스|대원CTS|에스티컴|STCOM|이엠텍|EMTEK|피씨디렉트|파인인포|이노3D|INNO3D|아이웍스\d*(?:-[\w]+)?|컴퓨존|아싸컴|조이젠|제이씨현|JCH|코잇|COIT|웨이코스|Waycos|한국공식대리점|공식대리점)\s*$/gi,'');
+  // 노이즈 괄호 제거
+  s=s.replace(/\(\s*(정품벌크|벌크|병행수입|멀티팩(?:\s*정품)?|대리점정품|정품|박스|쿨러\s*포함|쿨러\s*미포함)\s*\)/gi,'');
+  s=s.replace(/\b(정품벌크|벌크|병행|멀티팩|대리점정품)\b/gi,'');
+  s=s.replace(/쿨러\s*미포함|쿨러\s*포함|미포함/gi,'');
   s=s.replace(/\[?\s*미사용\s*탈거\s*제품\s*\]?/gi,'');
-  s=s.replace(/\s{2,}/g,' ').replace(/^[\s\-·/]+|[\s\-·/]+$/g,'').trim();
+  s=s.replace(/\(\s*\)/g,'');                 // 빈 괄호 제거
+  s=s.replace(/\s{2,}/g,' ').replace(/^[\s\-·/,]+|[\s\-·/,]+$/g,'').trim();
   return s || String(name||'').trim();
 }
 // 고객용 금지어 제거 — 매입처가 드러나는 '컴퓨존'·'아이웍스'는 고객에게 절대 노출 금지(실수 방지)
