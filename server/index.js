@@ -1102,10 +1102,14 @@ function guessCatFromSpec(spec) {
 }
 function cleanSpec(s) {
   if (!s) return s;
-  return s.replace(/단종된\s*모델이므로\s*중고상품\s*주의하시기\s*바랍니다/g, '')
-    .replace(/노트북\s*적출상품\s*[/／]\s*[＊*]?\s*병행\s*,?\s*중고\s*판매처\s*확인\s*요망/g, '')
-    .replace(/무상\s*\d*\s*년/g, '')
-    .replace(/미사용\s*탈거\s*제품/g, '')
+  return s
+    .replace(/[/／]?\s*\[기타\]\s*노트북\s*적출상품\s*[/／]\s*[＊*]?\s*병행\s*,?\s*중고\s*판매처\s*확인\s*요망\.?/g, '')
+    .replace(/노트북\s*적출상품\s*[/／]\s*[＊*]?\s*병행\s*,?\s*중고\s*판매처\s*확인\s*요망\.?/g, '')
+    .replace(/[/／]?\s*단종된\s*모델이므로\s*중고상품\s*주의하시기\s*바랍니다\.?/g, '')
+    .replace(/[/／]?\s*무상\s*\d*\s*년/g, '')
+    .replace(/\[?\s*미사용\s*탈거\s*제품\s*\]?/g, '')
+    .replace(/적출\s*상품/g, '')
+    .replace(/중고\s*판매처\s*확인\s*요망\.?/g, '')
     .replace(/[,，]\s*[,，]/g, ',').replace(/^\s*[,，/／·]\s*|\s*[,，/／·]\s*$/g, '')
     .replace(/\s{2,}/g, ' ').trim();
 }
