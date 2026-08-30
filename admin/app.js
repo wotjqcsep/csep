@@ -1057,7 +1057,7 @@ function estRowHtml(x,i){ x=x||{};
   const spec=x.spec||'', hasSpec=!!spec, showSpec=x.showSpec!==false&&hasSpec;
   return `<tr class="est-row" data-i="${i}">
     <td><input class="est-cat" value="${esc(x.cat)||''}" placeholder="분류" style="width:92px;font-weight:600;${estCatStyle(x.cat,!!String(x.name||'').trim())}"></td>
-    <td><input class="est-name" value="${esc(x.name)||''}" placeholder="품명 (예: [AMD] 라이젠5 라파엘 7500F (6코어/12스레드/3.7GHz) 쿨러포함)" style="width:100%;min-width:340px"></td>
+    <td><input class="est-name" value="${esc(estState&&estState.pname==='short'?czShortName(x.name||''):x.name)||''}" data-full="${esc(x.name)||''}" oninput="this.dataset.full=this.value" placeholder="품명 (예: [AMD] 라이젠5 라파엘 7500F (6코어/12스레드/3.7GHz) 쿨러포함)" style="width:100%;min-width:340px"></td>
     <td><input class="est-qty" type="number" min="1" value="${x.qty||1}" style="width:56px"></td>
     <td><input class="est-cost" type="text" inputmode="numeric" value="${(x.cost!=null&&x.cost!=='')?fc(Number(String(x.cost).replace(/[^\d]/g,''))||0):''}" oninput="estFmtCost(this);estRecalcPrice(this)" placeholder="매입가" style="width:96px;text-align:right"></td>
     <td style="white-space:nowrap"><input class="est-margin" type="number" min="0" value="${x.margin!=null?x.margin:0}" oninput="estRecalcPrice(this)" style="width:52px"> %</td>
@@ -1186,7 +1186,7 @@ function renderEstimates(){ estInit(); const s=estState;
           </select>
         </label>
         <label>품명 표시
-          <select id="est_pname" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px">
+          <select id="est_pname" onchange="estSyncAll();estBody();estRenderPreview()" style="margin-left:5px;padding:4px 6px;border:1px solid var(--gray-300);border-radius:6px">
             <option value="full" ${s.pname==='full'?'selected':''}>전체 상세</option>
             <option value="short" ${s.pname==='short'?'selected':''}>간략화 (모델명만)</option>
             <option value="cat" ${s.pname==='cat'?'selected':''}>분류만 (품명 숨김)</option>
@@ -1439,12 +1439,12 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
     const idx=Number(tr.dataset.i), specRow=document.querySelector(`.est-spec-row[data-i="${idx}"]`);
     const spec=specRow?specRow.querySelector('.est-spec')?.value||'':'';
     const showSpec=specRow?specRow.querySelector('.est-spec-show')?.checked??false:false;
-    return { cat:q('.est-cat').value, name:q('.est-name').value, qty:Number(q('.est-qty').value)||1, cost:String(cost||''), margin, price, spec, showSpec }; });
+    const nameEl=q('.est-name'); return { cat:q('.est-cat').value, name:nameEl.dataset.full||nameEl.value, qty:Number(q('.est-qty').value)||1, cost:String(cost||''), margin, price, spec, showSpec }; });
 }
 // oninput 래퍼 디바운스 — 입력 즉시 반응, 계산·미리보기는 500ms 후 한 번만
 let _estSyncTimer;
 function estSyncLazy(){ clearTimeout(_estSyncTimer); _estSyncTimer=setTimeout(()=>{ estSyncAll(); estCalc(); estUpdateCatColors(); estRenderPreview(); },500); }
-function estUpdateCatColors(){ document.querySelectorAll('#est_body .est-row').forEach(tr=>{ const catEl=tr.querySelector('.est-cat'), nameEl=tr.querySelector('.est-name'); if(!catEl||!nameEl) return; const s=estCatStyle(catEl.value,!!nameEl.value.trim()); catEl.style.cssText='width:92px;font-weight:600;'+s; }); }
+function estUpdateCatColors(){ document.querySelectorAll('#est_body .est-row').forEach(tr=>{ const catEl=tr.querySelector('.est-cat'), nameEl=tr.querySelector('.est-name'); if(!catEl||!nameEl) return; const full=(nameEl.dataset.full||nameEl.value).trim(); const s=estCatStyle(catEl.value,!!full); catEl.style.cssText='width:92px;font-weight:600;'+s; }); }
 function estBody(){ const b=document.getElementById('est_body'); if(b){ b.innerHTML=estState.rows.map((r,i)=>estRowHtml(r,i)).join(''); estCalc(); } }
 function estCalc(){ let sub=0;
   document.querySelectorAll('#est_body .est-row').forEach(tr=>{
