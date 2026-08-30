@@ -1095,8 +1095,8 @@ function estRowHtml(x,i){ x=x||{};
     </td>
   </tr>`;
 }
-function estToggleSpec(cb){ const tr=cb.closest('.est-spec-row'); if(!tr) return; const i=Number(tr.dataset.i); if(estState&&estState.rows[i]) estState.rows[i].showSpec=cb.checked; tr.style.display=cb.checked?'table-row':'none'; }
-function estSpecAll(on){ estSyncAll(); estState.rows.forEach(r=>{ if(r.spec) r.showSpec=on; }); estBody(); }
+function estToggleSpec(cb){ const tr=cb.closest('.est-spec-row'); if(!tr) return; const i=Number(tr.dataset.i); if(estState&&estState.rows[i]) estState.rows[i].showSpec=cb.checked; tr.style.display=cb.checked?'table-row':'none'; estRenderPreview(); }
+function estSpecAll(on){ estSyncAll(); estState.rows.forEach(r=>{ if(r.spec) r.showSpec=on; }); estBody(); estRenderPreview(); }
 // 매입가·마진 입력 시 판매단가 자동계산(직접 입력하면 그 값 유지)
 function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
   const cost=Number(String(tr.querySelector('.est-cost').value||'').replace(/[^\d]/g,''))||0;
@@ -1696,10 +1696,10 @@ function estDocInner(target, copyLabel, overrideRows, isLastPage){
     ${(clean(memo))?`<div class="memo">비고: ${clean(memo)}</div>`:''}
     ${bankInfo}`;
 }
-const EST_DOC_CSS = `h1{text-align:center;letter-spacing:4px;border:2px solid var(--print-border,#333);padding:8px 0;margin-bottom:0;font-size:20px}
+const EST_DOC_CSS = `h1{text-align:center;letter-spacing:4px;border:2px solid var(--print-border,#333);padding:8px 0;margin-bottom:0;font-size:16px}
     .est-header-wrap{display:flex;gap:0;margin:0 0 10px}
-    .est-left-info{width:46%;border-collapse:collapse}.est-left-info td{padding:7px 8px;font-size:13px;border-bottom:1px solid #aaa}.est-left-info td:first-child{font-weight:600;color:#555;white-space:nowrap}
-    .est-right-biz{width:54%;border-collapse:collapse;table-layout:fixed}.est-right-biz td{border:2px solid var(--print-border,#333);padding:4px 6px;font-size:12px}
+    .est-left-info{width:55%;border-collapse:collapse}.est-left-info td{padding:7px 8px;font-size:13px;border-bottom:1px solid #aaa}.est-left-info td:first-child{font-weight:600;color:#555;white-space:nowrap}
+    .est-right-biz{width:45%;border-collapse:collapse;table-layout:fixed}.est-right-biz td{border:2px solid var(--print-border,#333);padding:4px 6px;font-size:12px}
     .est-biz-label{text-align:center;font-weight:700;font-size:13px;background:var(--primary-light,#dbeafe);letter-spacing:2px;line-height:1.6}
     table.items{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
     table.items th,table.items td{border:2px solid var(--print-border,#333);padding:7px 8px}
