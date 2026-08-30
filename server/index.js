@@ -1107,6 +1107,8 @@ function cleanSpec(s) {
     .replace(/노트북\s*적출상품\s*[/／]\s*[＊*]?\s*병행\s*,?\s*중고\s*판매처\s*확인\s*요망\.?/g, '')
     .replace(/[/／]?\s*단종된\s*모델이므로\s*중고상품\s*주의하시기\s*바랍니다\.?/g, '')
     .replace(/[/／]?\s*무상\s*\d*\s*년/g, '')
+    .replace(/[/／]?\s*A\/S\s*기간\s*[:：]\s*\d+\s*년[^/]*/gi, '')
+    .replace(/[/／]?\s*\[기타\].*/g, '')
     .replace(/\[?\s*미사용\s*탈거\s*제품\s*\]?/g, '')
     .replace(/적출\s*상품/g, '')
     .replace(/중고\s*판매처\s*확인\s*요망\.?/g, '')
@@ -1723,10 +1725,25 @@ async function fetchDanawaSpecByName(productName, expectedCat) {
     '그래픽카드': '그래픽카드', 'SSD': 'SSD', 'HDD': 'HDD 하드디스크',
     '파워': '파워서플라이', '케이스': 'PC 케이스', '쿨러/튜닝': '쿨러',
   };
-  const cleanName = productName.replace(/\[[\d×xX]+\]\s*/g, '').replace(/[\[\]]/g, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/^Nvidia\s+/i, '').replace(/GEN\d+\s*/gi, '').replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '').replace(/\bD4\b/g, 'DDR4').replace(/\bD5\b/g, 'DDR5').replace(/벌크|병행수입|병행|미사용\s*탈거제품|멀티팩|대리점정품|정품/gi, '').replace(/\s+/g, ' ').trim();
+  const cleanName = productName
+    .replace(/\[[\d×xX]+\]\s*/g, '')
+    .replace(/\[초고속[^\]]*\]\s*/gi, '')
+    .replace(/\[\d+GB\s*x\s*\d+\]/gi, '')
+    .replace(/\[(?:\d+개|2개|3개|4개)[^\]]*\]/gi, '')
+    .replace(/\[사은품\]/gi, '')
+    .replace(/[\[\]]/g, '')
+    .replace(/\s*\((?![\d.]+\s*[TGMK]B)[^)]*\)\s*$/i, '')
+    .replace(/^Nvidia\s+/i, '')
+    .replace(/GEN\d+\s*/gi, '')
+    .replace(/읽기\s*[\d,]+\s*MB\/s/gi, '').replace(/쓰기\s*[\d,]+\s*MB\/s/gi, '')
+    .replace(/\bD4\b/g, 'DDR4').replace(/\bD5\b/g, 'DDR5')
+    .replace(/벌크|병행수입|병행|미사용\s*탈거제품|멀티팩|대리점정품|정품/gi, '')
+    .replace(/\s+/g, ' ').trim();
   const verify = expectedCat && CAT_VERIFY[expectedCat];
   const queries = [cleanName];
   if (expectedCat && CAT_KEYWORD[expectedCat]) queries.push(cleanName + ' ' + CAT_KEYWORD[expectedCat]);
+  const shortName = cleanName.replace(/^[가-힣a-zA-Z]+\s+[가-힣a-zA-Z]+\s+/, '').trim();
+  if (shortName !== cleanName && shortName.length >= 8) queries.push(shortName);
   for (const qRaw of queries) {
     try {
       const html = await fetchDanawaHtml('https://search.danawa.com/dsearch.php?query=' + encodeURIComponent(qRaw) + '&tab=goods');
