@@ -2063,13 +2063,38 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
     const czPnos = items.filter(it => it._pno).map(it => it._pno);
     if (czPnos.length) {
       try {
-        const specResults = await Promise.allSettled(
-          czPnos.map(p => fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + p).then(extractSpecText))
+        const pageHtmls = await Promise.allSettled(
+          czPnos.map(p => fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + p))
         );
-        const specMap = {};
-        czPnos.forEach((p, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) specMap[p] = specResults[i].value; });
-        const noSpec = /조립비|서비스|주변기기|입력장치|키보드|마우스/;
-        items.forEach(it => { if (it._pno && specMap[it._pno] && !noSpec.test(it.cat)) it.spec = specMap[it._pno]; delete it._pno; });
+        const expanded = [];
+        for (let idx = 0; idx < items.length; idx++) {
+          const it = items[idx];
+          if (!it._pno) { expanded.push(it); continue; }
+          const pi = czPnos.indexOf(it._pno);
+          if (pi < 0 || pageHtmls[pi].status !== 'fulfilled') { expanded.push(it); continue; }
+          const pgHtml = pageHtmls[pi].value;
+          const subItems = parseCompuzoneSpec(pgHtml);
+          if (subItems.length >= 2) {
+            console.log('[컴퓨존장바구니] 조립PC 분해:', it.name, '→', subItems.length, '개 부품');
+            const subPnos = subItems.map(s => s._pno).filter(Boolean);
+            if (subPnos.length) {
+              const subSpecs = await Promise.allSettled(
+                subPnos.map(p => fetchHtmlDecoded('https://www.compuzone.co.kr/product/product_detail.htm?ProductNo=' + p).then(extractSpecText))
+              );
+              const ssMap = {};
+              subPnos.forEach((p, i) => { if (subSpecs[i].status === 'fulfilled' && subSpecs[i].value) ssMap[p] = subSpecs[i].value; });
+              const noSpec = /조립비|서비스|주변기기|입력장치|키보드|마우스/;
+              subItems.forEach(s => { if (s._pno && ssMap[s._pno] && !noSpec.test(s.cat)) s.spec = ssMap[s._pno]; delete s._pno; });
+            }
+            for (const s of subItems) { if (/내장\s*그래픽/i.test(s.name)) continue; expanded.push(s); }
+          } else {
+            const spec = extractSpecText(pgHtml);
+            if (spec && !/조립비|서비스/i.test(it.cat)) it.spec = spec;
+            delete it._pno;
+            expanded.push(it);
+          }
+        }
+        items = expanded;
       } catch (e) { console.log('[컴퓨존] spec 조회 실패:', e.message); }
     } else {
       const czSpec = extractSpecText(html);
