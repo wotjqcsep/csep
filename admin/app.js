@@ -1067,7 +1067,7 @@ async function estNextNo(){ try{ const r=await api('GET','/estimates/next-no'); 
 function estInit(){ if(estState) return; const t=estToday();
   estState={ company:estCompanyDefault(), contact:'', customer:'', phone:'', customerId:null, date:t,
     buyerBizno:'', buyerCeo:'', buyerAddr:'', buyerType:'', buyerItem:'',
-    no:'', memo:'', bulk:0,
+    no:'', memo:localStorage.getItem('csep_est_memo')||'', bulk:0,
     savedId:null, doctype:'estimate', payMethod:'cash', realCost:'', noVat:false, purchaseDate:'',   // 문서 종류 + 결제방법 + 실제 매입가(부가세 환급 계산용) + 부가세 제외 + 매입확정일
     pname:'short', pprice:'total', ptarget:'customer',   // 기본값: 고객용+간략화+총액만
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})) }; }
@@ -1446,7 +1446,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   const S_=state.settings||{}; estState.company=S_.brand_name||estState.company||''; estState.contact=S_.biz_tel||estState.contact||'';
   estState.customer=g('est_customer'); estState.phone=g('est_phone');
   estState.buyerBizno=g('est_buyer_bizno'); estState.buyerCeo=g('est_buyer_ceo'); estState.buyerAddr=g('est_buyer_addr'); estState.buyerType=g('est_buyer_type'); estState.buyerItem=g('est_buyer_item');
-  estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); estState.bulk=(g('est_bulk')==='')?0:(Number(g('est_bulk'))||0);
+  estState.date=g('est_date'); estState.no=g('est_no'); estState.memo=g('est_memo'); try{ localStorage.setItem('csep_est_memo',estState.memo); }catch(e){} estState.bulk=(g('est_bulk')==='')?0:(Number(g('est_bulk'))||0);
   estState.pname=g('est_pname')||estState.pname||'short'; estState.pprice=g('est_pprice')||estState.pprice||'total';
   estState.ptarget=g('est_ptarget')||estState.ptarget||'customer'; estState.doctype=estState.doctype||'estimate';
   estState.payMethod=g('est_paymethod')||estState.payMethod||'cash';
