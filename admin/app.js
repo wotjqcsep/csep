@@ -1698,8 +1698,8 @@ function estDocInner(target, copyLabel, overrideRows, isLastPage){
 }
 const EST_DOC_CSS = `h1{text-align:center;letter-spacing:4px;border:2px solid var(--print-border,#333);padding:8px 0;margin-bottom:0;font-size:20px}
     .est-header-wrap{display:flex;gap:0;margin:0 0 10px}
-    .est-left-info{width:40%;border-collapse:collapse}.est-left-info td{padding:7px 8px;font-size:13px;border-bottom:1px solid #aaa}.est-left-info td:first-child{font-weight:600;color:#555;white-space:nowrap}
-    .est-right-biz{width:60%;border-collapse:collapse;table-layout:fixed}.est-right-biz td{border:2px solid var(--print-border,#333);padding:4px 6px;font-size:12px}
+    .est-left-info{width:46%;border-collapse:collapse}.est-left-info td{padding:7px 8px;font-size:13px;border-bottom:1px solid #aaa}.est-left-info td:first-child{font-weight:600;color:#555;white-space:nowrap}
+    .est-right-biz{width:54%;border-collapse:collapse;table-layout:fixed}.est-right-biz td{border:2px solid var(--print-border,#333);padding:4px 6px;font-size:12px}
     .est-biz-label{text-align:center;font-weight:700;font-size:13px;background:var(--primary-light,#dbeafe);letter-spacing:2px;line-height:1.6}
     table.items{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
     table.items th,table.items td{border:2px solid var(--print-border,#333);padding:7px 8px}
