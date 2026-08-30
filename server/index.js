@@ -1100,6 +1100,20 @@ function guessCatFromSpec(spec) {
   if (/모니터|패널.*Hz/i.test(s)) return '모니터';
   return '';
 }
+function cleanSpec(s) {
+  if (!s) return s;
+  return s.replace(/단종된\s*모델이므로\s*중고상품\s*주의하시기\s*바랍니다/g, '')
+    .replace(/노트북\s*적출상품\s*[/／]\s*[＊*]?\s*병행\s*,?\s*중고\s*판매처\s*확인\s*요망/g, '')
+    .replace(/무상\s*\d*\s*년/g, '')
+    .replace(/미사용\s*탈거\s*제품/g, '')
+    .replace(/[,，]\s*[,，]/g, ',').replace(/^\s*[,，/／·]\s*|\s*[,，/／·]\s*$/g, '')
+    .replace(/\s{2,}/g, ' ').trim();
+}
+function cleanProductName(n) {
+  if (!n) return n;
+  return n.replace(/\[?\s*미사용\s*탈거\s*제품\s*\]?/g, '')
+    .replace(/\s{2,}/g, ' ').trim();
+}
 // 컴퓨존 "소스코드 공유" 온라인견적서 HTML 표 → 부품 직접 파싱 (붙여넣기, AI 불필요)
 // 각 <tr> 셀 = [번호, 분류, 제품명, 판매가, 수량, 합계]. 단일부품(1) 또는 완성품 구성(1-1).
 function parseCompuzoneShareText(text) {
@@ -2121,6 +2135,16 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
 
 // 견적 → AI로 부품·가격 파싱 (텍스트/HTML 붙여넣기, URL 공유, 스크린샷)
 app.post('/api/estimate/scan', wrap(async (req, res) => {
+  const _origJson = res.json.bind(res);
+  res.json = (body) => {
+    if (body && Array.isArray(body.items)) {
+      body.items.forEach(it => {
+        if (it.name) it.name = cleanProductName(it.name);
+        if (it.spec) it.spec = cleanSpec(it.spec);
+      });
+    }
+    return _origJson(body);
+  };
   // 텍스트/URL(소스복사·URL공유) 우선 — OCR 불필요, 더 정확
   let textIn = req.body && (req.body.text || req.body.url);
   if (typeof textIn === 'string' && /^https?:\/\//i.test(textIn.trim())) {
