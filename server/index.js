@@ -1066,11 +1066,11 @@ function czMapCat(t) {
 }
 function guessCatFromName(name) {
   const n = String(name || '');
-  if (/노트북/i.test(n) && !/DDR[45]|PC[45]-\d|\bRAM\b/i.test(n)) return '노트북';
-  if (/데스크탑|데스크톱|일체형|올인원|브랜드PC|완제품/i.test(n) && !/DDR[45]|PC[45]-\d|메모리|\bRAM\b|\bSSD\b|NVMe|\bHDD\b/i.test(n)) return '';
+  if (/노트북/i.test(n) && !/DDR[345]|PC[345]-\d|\bRAM\b/i.test(n)) return '노트북';
+  if (/데스크탑|데스크톱|일체형|올인원|브랜드PC|완제품/i.test(n) && !/DDR[345]|PC[345]-\d|메모리|\bRAM\b|\bSSD\b|NVMe|\bHDD\b/i.test(n)) return '';
   if (/라이젠|Ryzen|i[3579][-\s]|셀러론|펜티엄|Celeron|Pentium|Core\s*(Ultra|i)|코어\s*울트라|인텔\s*코어|Athlon|트레드리퍼/i.test(n)) return 'CPU';
   if (/메인보드|마더보드|Motherboard|B[0-9]{3}[A-Z]|X[0-9]{3}[A-Z]|Z[0-9]{3}|H[0-9]{3}|A[0-9]{3}M/i.test(n)) return '메인보드';
-  if (/DDR[45]|PC[45]-\d|메모리|\bRAM\b/i.test(n)) return '메모리';
+  if (/DDR[345]|PC[345]-\d|메모리|\bRAM\b/i.test(n)) return '메모리';
   if (/지포스|라데온|GeForce|Radeon|RTX\s*[2-9]|GTX|RX\s*[0-9]/i.test(n)) return '그래픽카드';
   if (/\bSSD\b|NVMe|M\.2.*[TG]B/i.test(n)) return 'SSD';
   if (/\bHDD\b|하드디스크|바라쿠다|Barracuda|\bWD\d{2}|Seagate|IronWolf|EXOS/i.test(n)) return 'HDD';
@@ -2083,6 +2083,33 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
         noSpecItems.forEach((it, i) => { if (danawaResults[i].status === 'fulfilled' && danawaResults[i].value) it.spec = danawaResults[i].value; });
       } catch (e) { console.log('[컴퓨존→다나와] spec fallback 실패:', e.message); }
     }
+  } else if (/mypcshop\.co\.kr/i.test(html)) {
+    const MPC_CAT = { 'CPU':'CPU','쿨러/튜닝':'쿨러/튜닝','RAM':'메모리','메인보드':'메인보드','VGA':'그래픽카드','SSD':'SSD','HDD':'HDD','케이스':'케이스','파워':'파워','ODD':'주변기기' };
+    const mpcCats = [...html.matchAll(/it_info_ca_name[^>]*>([^<]+)/gi)];
+    const mpcNames = [...html.matchAll(/it_info_item_select_btn\d*"[^>]*>([^<]+)/gi)];
+    if (mpcCats.length >= 3 && mpcNames.length >= 3) {
+      src = 'mypcshop';
+      const rpM = html.match(/id="it_top_info_price_red"[^>]*>([\d,]+)/i) || html.match(/class="it_top_info_price"[^>]*>([\d,]+)/i);
+      if (rpM) totalPrice = Number(rpM[1].replace(/,/g, '')) || 0;
+      for (let i = 0; i < Math.min(mpcCats.length, mpcNames.length); i++) {
+        const cat = MPC_CAT[mpcCats[i][1].trim()];
+        if (!cat) continue;
+        const name = mpcNames[i][1].trim();
+        if (!name || /내장\s*그래픽/i.test(name)) continue;
+        items.push({ cat, name, price: '', qty: 1 });
+      }
+    } else if (/it_top_title/i.test(html)) {
+      items = parseMypcshopProduct(html); src = 'mypcshop';
+    } else {
+      const r = parseMypcshopCart(html); items = r.items; totalPrice = r.totalPrice; src = 'mypcshop';
+    }
+    const mpcNeedSpec = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
+    if (mpcNeedSpec.length) {
+      try {
+        const sr = await Promise.allSettled(mpcNeedSpec.map(it => fetchDanawaSpecByName(it.name, it.cat)));
+        mpcNeedSpec.forEach((it, i) => { if (sr[i].status === 'fulfilled' && sr[i].value) it.spec = sr[i].value; });
+      } catch (e) {}
+    }
   } else if (/danawa\.com/i.test(html)) {
     src = 'danawa';
     if (/productRegisterAreaSeq_\d/i.test(html)) {
@@ -2167,33 +2194,6 @@ app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req
         const specResults = await Promise.allSettled(needSpec.map(it => fetchDanawaSpecByName(it.name, it.cat)));
         needSpec.forEach((it, i) => { if (specResults[i].status === 'fulfilled' && specResults[i].value) it.spec = specResults[i].value; });
       } catch (e) { console.log('[아이코다] spec 조회 실패:', e.message); }
-    }
-  } else if (/mypcshop\.co\.kr/i.test(html)) {
-    const MPC_CAT = { 'CPU':'CPU','쿨러/튜닝':'쿨러/튜닝','RAM':'메모리','메인보드':'메인보드','VGA':'그래픽카드','SSD':'SSD','HDD':'HDD','케이스':'케이스','파워':'파워','ODD':'주변기기' };
-    const mpcCats = [...html.matchAll(/it_info_ca_name[^>]*>([^<]+)/gi)];
-    const mpcNames = [...html.matchAll(/it_info_item_select_btn\d*"[^>]*>([^<]+)/gi)];
-    if (mpcCats.length >= 3 && mpcNames.length >= 3) {
-      src = 'mypcshop';
-      const rpM = html.match(/id="it_top_info_price_red"[^>]*>([\d,]+)/i) || html.match(/class="it_top_info_price"[^>]*>([\d,]+)/i);
-      if (rpM) totalPrice = Number(rpM[1].replace(/,/g, '')) || 0;
-      for (let i = 0; i < Math.min(mpcCats.length, mpcNames.length); i++) {
-        const cat = MPC_CAT[mpcCats[i][1].trim()];
-        if (!cat) continue;
-        const name = mpcNames[i][1].trim();
-        if (!name || /내장\s*그래픽/i.test(name)) continue;
-        items.push({ cat, name, price: '', qty: 1 });
-      }
-    } else if (/it_top_title/i.test(html)) {
-      items = parseMypcshopProduct(html); src = 'mypcshop';
-    } else {
-      const r = parseMypcshopCart(html); items = r.items; totalPrice = r.totalPrice; src = 'mypcshop';
-    }
-    const mpcNeedSpec = items.filter(it => !it.spec && !/조립비|서비스/i.test(it.cat));
-    if (mpcNeedSpec.length) {
-      try {
-        const sr = await Promise.allSettled(mpcNeedSpec.map(it => fetchDanawaSpecByName(it.name, it.cat)));
-        mpcNeedSpec.forEach((it, i) => { if (sr[i].status === 'fulfilled' && sr[i].value) it.spec = sr[i].value; });
-      } catch (e) {}
     }
   }
   // 아싸컴: 사양 없는 항목에 다나와 spec 검색
