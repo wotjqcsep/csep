@@ -1066,7 +1066,8 @@ function czMapCat(t) {
 }
 function guessCatFromName(name) {
   const n = String(name || '');
-  if (/데스크탑|데스크톱|노트북|일체형|올인원|브랜드PC|완제품/i.test(n) && !/DDR[45]|PC[45]-\d|메모리|\bRAM\b|\bSSD\b|NVMe|\bHDD\b/i.test(n)) return '';
+  if (/노트북/i.test(n) && !/DDR[45]|PC[45]-\d|\bRAM\b/i.test(n)) return '노트북';
+  if (/데스크탑|데스크톱|일체형|올인원|브랜드PC|완제품/i.test(n) && !/DDR[45]|PC[45]-\d|메모리|\bRAM\b|\bSSD\b|NVMe|\bHDD\b/i.test(n)) return '';
   if (/라이젠|Ryzen|i[3579][-\s]|셀러론|펜티엄|Celeron|Pentium|Core\s*(Ultra|i)|코어\s*울트라|인텔\s*코어|Athlon|트레드리퍼/i.test(n)) return 'CPU';
   if (/메인보드|마더보드|Motherboard|B[0-9]{3}[A-Z]|X[0-9]{3}[A-Z]|Z[0-9]{3}|H[0-9]{3}|A[0-9]{3}M/i.test(n)) return '메인보드';
   if (/DDR[45]|PC[45]-\d|메모리|\bRAM\b/i.test(n)) return '메모리';
@@ -1423,6 +1424,7 @@ const JOYZEN_CAT = {
   '모니터': '모니터', '키보드': '입력장치', '마우스': '입력장치',
   '스피커': '주변기기', '헤드폰': '주변기기', '헤드셋': '주변기기',
   '조립비': '조립비',
+  '노트북': '노트북', '태블릿PC': '태블릿PC', '노트북/태블릿PC': '노트북',
 };
 function joyzenMapCat(t) {
   const s = (t || '').trim();
@@ -1440,12 +1442,12 @@ function parseJoyzenSpec(html) {
     if (!catM) continue;
     const catText = catM[1].trim();
     const cat = joyzenMapCat(catText);
-    let name = '', price = 0;
-    const hiddenM = row.match(/value="[BSE]\|[YN]\|\d+\|\d+\|([^|]+)\|[^|]*\|(\d+)"/);
-    if (hiddenM) { name = hiddenM[1].trim(); price = Number(hiddenM[2]) || 0; }
+    let name = '', price = 0, pnum = '';
+    const hiddenM = row.match(/value="[BSE]\|[YN]\|\d+\|(\d+)\|([^|]+)\|[^|]*\|(\d+)"/);
+    if (hiddenM) { pnum = hiddenM[1]; name = hiddenM[2].trim(); price = Number(hiddenM[3]) || 0; }
     if (!name) {
-      const firstOpt = row.match(/<option\s+value="[BSE]\|[YN]\|\d+\|\d+\|([^|]+)\|[^|]*\|(\d+)"/);
-      if (firstOpt) { name = firstOpt[1].trim(); price = Number(firstOpt[2]) || 0; }
+      const firstOpt = row.match(/<option\s+value="[BSE]\|[YN]\|\d+\|(\d+)\|([^|]+)\|[^|]*\|(\d+)"/);
+      if (firstOpt) { pnum = firstOpt[1]; name = firstOpt[2].trim(); price = Number(firstOpt[3]) || 0; }
     }
     if (!name) {
       const spanM = row.match(/<div\s+id="(?:base|extra)_\d+_product"[^>]*>[\s\S]*?<span[^>]*>([^<]+)/i);
@@ -1459,7 +1461,7 @@ function parseJoyzenSpec(html) {
     if (!name || /선택하세요|선택 안|미선택|내장\s*그래픽|UHD\s*\d|HD\s*Graphics|Iris|구매하지 않|추가할 제품/i.test(name)) continue;
     if (/^사은품$|^멀티탭$|^마우스패드$|^출장서비스$/.test(catText)) continue;
     if (!price && !name) continue;
-    items.push({ cat: cat || catText, name, price: price || '', qty: 1 });
+    items.push({ cat: cat || catText, name, price: price || '', qty: 1, _pnum: pnum || undefined });
   }
   return { items, totalPrice };
 }
@@ -1535,18 +1537,29 @@ async function fetchJoyzenHtml(url) {
   try { return new TextDecoder(charset).decode(buf); }
   catch (e) { try { return new TextDecoder('euc-kr').decode(buf); } catch (e2) { return buf.toString('utf-8'); } }
 }
+async function fetchJoyzenSpecs(items) {
+  await Promise.all(items.map(async (item) => {
+    if (!item._pnum || item.spec) { delete item._pnum; return; }
+    try {
+      const h = await fetchJoyzenHtml('https://www.joyzen.co.kr/product/sInfo.html?Pnum=' + item._pnum);
+      const ov = h.match(/<div\s+class="overview"[^>]*title="([^"]+)"/i);
+      if (ov) item.spec = ov[1].replace(/\s+/g, ' ').trim();
+    } catch (e) {}
+    delete item._pnum;
+  }));
+}
 async function fetchJoyzen(url) {
   const html = await fetchJoyzenHtml(url);
   if (/jInfo\.html/i.test(url) || /spec_item/i.test(html)) {
     const { items, totalPrice } = parseJoyzenSpec(html);
-    if (items.length) return { items, totalPrice };
+    if (items.length) { await fetchJoyzenSpecs(items); return { items, totalPrice }; }
   }
   if (/sInfo\.html/i.test(url) || /product_name/i.test(html)) {
     const items = parseJoyzenProduct(html);
     return { items, totalPrice: 0 };
   }
   const { items, totalPrice } = parseJoyzenSpec(html);
-  if (items.length) return { items, totalPrice };
+  if (items.length) { await fetchJoyzenSpecs(items); return { items, totalPrice }; }
   const single = parseJoyzenProduct(html);
   return { items: single, totalPrice: 0 };
 }
@@ -2088,6 +2101,9 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
   if (typeof textIn === 'string' && /^https?:\/\//i.test(textIn.trim())) {
     const url = textIn.trim();
     // 조이젠 URL → 전용 파서(AI 불필요)
+    if (/joyzen\.co\.kr.*\/order\/cart/i.test(url)) {
+      return res.status(422).json({ error: '조이젠 장바구니는 로그인이 필요합니다. ⭐ 북마클릿을 사용해 주세요.' });
+    }
     if (/joyzen\.co\.kr/i.test(url)) {
       try {
         const r = await fetchJoyzen(url);
