@@ -1548,13 +1548,13 @@ function estAddItems(items, mode){ estSyncAll();
 function estRows(){ return estState? estState.rows.map(r=>{ const cost=Number(r.cost)||0, margin=Number(r.margin)||0, qty=Number(r.qty)||0;
   const price=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(cost*(1+margin/100));
   return { cat:(r.cat||'').trim(), name:(r.name||'').trim(), qty, cost, margin, price, amt:price*qty, spec:r.spec||'', showSpec:!!r.showSpec }; }) : []; }
-// 품명 간략화: [브랜드]·(스펙)·끝의 상품번호·벌크/포함미포함 등을 떼고 핵심 모델명만
+// 품명 간략화: 맨 앞 [브랜드]만 제거, 사양([10코어],[블랙],(블랙))은 유지
 function czShortName(name){
   let s=String(name||'');
-  s=s.replace(/\[[^\]]*\]/g,' ');            // [INTEL] [벌크/쿨러 미포함] 등 제거
-  s=s.replace(/\([^)]*\)/g,' ');             // (14세대/... ) 등 제거
+  s=s.replace(/^\s*\[[^\]]*\]\s*/,'');        // 맨 앞 [인텔] [GIGABYTE] 등 브랜드만 제거
   s=s.replace(/\s*-\s*\d{4,}\s*$/,' ');       // 끝의 " - 1108545" 상품번호 제거
-  s=s.replace(/정품벌크|벌크|병행|정품|쿨러\s*미포함|쿨러\s*포함|미포함|멀티팩|대리점정품/g,' ');
+  s=s.replace(/\(정품벌크\)|\(벌크\)|\(병행수입\)|\(멀티팩\)|\(대리점정품\)/g,' ');
+  s=s.replace(/정품벌크|벌크|병행|쿨러\s*미포함|미포함|멀티팩|대리점정품/g,' ');
   s=s.replace(/\s{2,}/g,' ').replace(/^[\s\-·/]+|[\s\-·/]+$/g,'').trim();
   return s || String(name||'').trim();
 }
