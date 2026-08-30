@@ -770,7 +770,10 @@ function renderEngineers(){
     </div>
     <div class="form-row">
       ${field('set_bizaddr','사업장 주소', S.biz_addr||'')}
+    </div>
+    <div class="form-row">
       ${field('set_biztel','전화번호', S.biz_tel||'')}
+      ${field('set_bizfax','팩스번호', S.biz_fax||'')}
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn" onclick="saveBizSettings()">사업자정보 저장</button>
@@ -788,6 +791,17 @@ function renderEngineers(){
           <div style="font-size:11px;color:var(--gray-400);margin-top:6px;max-width:340px">흰 배경은 자동으로 투명 처리됩니다. 도장은 견적서·거래명세서·세금계산서·간이영수증의 공급자 성명 옆에 날인됩니다.</div>
         </div>
       </div>
+    </div>
+  </div>
+  <div class="vd-card" style="margin-bottom:16px">
+    <div style="font-weight:800;margin-bottom:12px">🏦 입금 계좌 정보 <span style="font-weight:400;font-size:12px;color:var(--gray-500)">— 견적서 하단에 표시 (한 번 저장하면 고정)</span></div>
+    <div class="form-row">
+      ${field('set_bankname','입금은행', S.bank_name||'')}
+      ${field('set_bankaccount','계좌번호', S.bank_account||'')}
+      ${field('set_bankholder','예금주', S.bank_holder||'')}
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn" onclick="saveBankSettings()">입금정보 저장</button>
     </div>
   </div>
   <div class="vd-card" style="margin-bottom:16px">
@@ -924,7 +938,14 @@ async function saveBizSettings(){
   await api('PUT','/settings/biz_item',{value:v('set_bizitem')||''});
   await api('PUT','/settings/biz_addr',{value:v('set_bizaddr')||''});
   await api('PUT','/settings/biz_tel',{value:v('set_biztel')||''});
+  await api('PUT','/settings/biz_fax',{value:v('set_bizfax')||''});
   await loadAll(); alert('사업자정보가 저장되었습니다.');
+}
+async function saveBankSettings(){
+  await api('PUT','/settings/bank_name',{value:v('set_bankname')||''});
+  await api('PUT','/settings/bank_account',{value:v('set_bankaccount')||''});
+  await api('PUT','/settings/bank_holder',{value:v('set_bankholder')||''});
+  await loadAll(); alert('입금정보가 저장되었습니다.');
 }
 async function saveFeeSettings(){
   for(const k of ['fee_cash','fee_transfer','fee_cashreceipt','fee_card','fee_tax']) await api('PUT','/settings/'+k,{value:(v(k)||'')});
@@ -1640,43 +1661,53 @@ function estDocInner(target, copyLabel, overrideRows, isLastPage){
     receipt:   { t:'영 수 증',    dl:'거래일', receipt:true },
     tax:       { t:'세 금 계 산 서', dl:'작성일', receipt:false, tax:true },
   }[dt] || { t:'견 적 서', dl:'견적일' };
-  const title = internal ? esc(DT.t)+' <span style="font-size:14px;color:#c00;letter-spacing:0">(내부용)</span>' : esc(DT.t);
+  const S=state.settings||{};
   const taxNote = DT.tax ? `<div style="font-size:11px;color:#c00;margin-top:6px">※ 세금계산서는 사업자정보·서명 등 정식 항목 추가 예정(현재 임시 양식)</div>` : '';
   const receiptNote = DT.receipt ? `<div style="margin-top:14px;text-align:center;font-size:15px;font-weight:700">위 금액을 정히 영수함</div>` : '';
-  const S=state.settings||{};
   const supTel=esc(S.biz_tel||contact||'');
-  const buyTel=esc(estState.phone||'');
-  const dp=String(date||'').split('-'), fmtDate=dp.length===3?`${dp[0]}.${dp[1]}.${dp[2]}`:(date||'');
+  const supFax=esc(S.biz_fax||'');
+  const dp=String(date||'').split('-'), fmtDate=dp.length===3?`${dp[0]}년 ${dp[1]}월 ${dp[2]}일`:(date||'');
   const B='border:2px solid var(--print-border,#333);padding:4px 6px;font-size:12px';
   const L='border:2px solid var(--print-border,#333);padding:4px 6px;font-size:12px;background:var(--hover-bg,#f2f4f8)';
   const stampSpan=(state.settings||{}).stamp_img?'<span style="position:relative;display:inline-block"><span style="position:relative;z-index:0"> (인)</span><img src="'+((state.settings||{}).stamp_img)+'" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;object-fit:contain;z-index:1;opacity:0.85"></span>':' (인)';
   const sup={bizno:esc(S.biz_no||''),nm:esc(S.brand_name||company||''),ceo:esc(S.biz_ceo||''),addr:esc(S.biz_addr||''),bt:esc(S.biz_type||''),bi:esc(S.biz_item||''),tel:supTel};
-  const buy={bizno:esc(estState.buyerBizno||''),nm:esc(estState.customer||''),ceo:esc(estState.buyerCeo||''),addr:esc(estState.buyerAddr||''),bt:esc(estState.buyerType||''),bi:esc(estState.buyerItem||''),tel:buyTel};
-  const bizHeader=`<table class="est-biz-unified"><colgroup><col style="width:11%"><col style="width:14%"><col style="width:7%"><col style="width:7%"><col style="width:11%"><col style="width:11%"><col style="width:14%"><col style="width:7%"><col style="width:7%"><col style="width:11%"></colgroup>
-    <tr><td colspan="5" style="text-align:center;font-weight:700;font-size:13px;background:var(--dday-today-bg,#e8f4f8);${B}">공급받는자</td><td colspan="5" style="text-align:center;font-weight:700;font-size:13px;background:var(--primary-light,#dbeafe);${B}">공급자</td></tr>
-    <tr><td style="${L}">견적번호</td><td colspan="4" style="${B}">${no}</td><td style="${L}">견적번호</td><td colspan="4" style="${B}">${no}</td></tr>
-    <tr><td style="${L}">견적일자</td><td style="${B}">${fmtDate}</td><td style="${L}">견적유효</td><td colspan="2" style="${B}">${fmtDate}</td><td style="${L}">견적일자</td><td style="${B}">${fmtDate}</td><td style="${L}">견적유효</td><td colspan="2" style="${B}">${fmtDate}</td></tr>
-    <tr><td style="${L}">사업자번호</td><td colspan="4" style="${B}">${buy.bizno}</td><td style="${L}">사업자번호</td><td colspan="4" style="${B}">${sup.bizno}</td></tr>
-    <tr><td style="${L}">상호명</td><td colspan="2" style="${B}">${buy.nm}</td><td style="${L}">대표</td><td style="${B}">${buy.ceo}</td><td style="${L}">상호명</td><td colspan="2" style="${B}">${sup.nm}</td><td style="${L}">대표</td><td style="${B}">${sup.ceo}${stampSpan}</td></tr>
-    <tr><td style="${L}">주소</td><td colspan="4" style="${B}">${buy.addr}</td><td style="${L}">주소</td><td colspan="4" style="${B}">${sup.addr}</td></tr>
-    <tr><td style="${L}">업태</td><td colspan="2" style="${B}">${buy.bt}</td><td style="${L}">종목</td><td style="${B}">${buy.bi}</td><td style="${L}">업태</td><td colspan="2" style="${B}">${sup.bt}</td><td style="${L}">종목</td><td style="${B}">${sup.bi}</td></tr>
-    <tr><td style="${L}">대표전화</td><td colspan="4" style="${B}">${buy.tel}</td><td style="${L}">대표전화</td><td colspan="4" style="${B}">${sup.tel}</td></tr>
-  </table>`;
-  return `<h1>${title}</h1>
+  const companyTitle = sup.nm || '(회사명)';
+  const titleText = internal ? `${companyTitle} 견적서 <span style="font-size:14px;color:#c00;letter-spacing:0">(내부용)</span>` : `${companyTitle} 견적서`;
+  const bizHeader=`<div class="est-header-wrap"><table class="est-left-info"><colgroup><col style="width:80px"><col></colgroup>
+    <tr><td>견적번호</td><td>${no}</td></tr>
+    <tr><td>견적일</td><td>${fmtDate}</td></tr>
+    <tr><td>이름</td><td>${customer} 고객님</td></tr>
+    <tr><td>견적합계</td><td style="font-weight:900;font-size:16px">${won(total)} 원 ${estState.noVat?'':'(부가세포함)'}</td></tr>
+  </table><table class="est-right-biz"><colgroup><col style="width:22px"><col style="width:70px"><col><col style="width:42px"><col style="width:90px"></colgroup>
+    <tr><td rowspan="5" class="est-biz-label">공<br>급<br>자</td>
+        <td style="${L}">사업자번호</td><td colspan="3" style="${B}">${sup.bizno}</td></tr>
+    <tr><td style="${L}">상　호</td><td style="${B}">${sup.nm}</td><td style="${L}">대　표</td><td style="${B}">${sup.ceo}${stampSpan}</td></tr>
+    <tr><td style="${L}">사업장<br>소재지</td><td colspan="3" style="${B}">${sup.addr}</td></tr>
+    <tr><td style="${L}">업　태</td><td style="${B}">${sup.bt}</td><td style="${L}">종　목</td><td style="${B}">${sup.bi}</td></tr>
+    <tr><td style="${L}">전　화</td><td style="${B}">${supTel}</td><td style="${L}">팩　스</td><td style="${B}">${supFax}</td></tr>
+  </table></div>`;
+  const bankNm=esc(S.bank_name||''), bankAc=esc(S.bank_account||''), bankHl=esc(S.bank_holder||'');
+  const bankInfo=(bankNm||bankAc)?`<div class="bank-info">입금계좌 : ${bankNm} ${bankAc}${bankHl?' (예금주: '+bankHl+')':''}</div>`:'';
+  return `<h1>${titleText}</h1>
     ${bizHeader}
     <table class="items"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>
     <table class="sum">${sumRows}</table>
     ${receiptNote}${taxNote}
-    ${(clean(memo))?`<div class="memo">비고: ${clean(memo)}</div>`:''}`;
+    ${(clean(memo))?`<div class="memo">비고: ${clean(memo)}</div>`:''}
+    ${bankInfo}`;
 }
-const EST_DOC_CSS = `h1{text-align:center;letter-spacing:8px;border-bottom:3px solid var(--print-border,#333);padding-bottom:10px}
-    .est-biz-unified{width:100%;border-collapse:collapse;table-layout:fixed;margin:12px 0 10px}.est-biz-unified td{border:2px solid var(--print-border,#333);padding:4px 6px;font-size:12px}
+const EST_DOC_CSS = `h1{text-align:center;letter-spacing:4px;border:2px solid var(--print-border,#333);padding:8px 0;margin-bottom:0;font-size:20px}
+    .est-header-wrap{display:flex;gap:0;margin:0 0 10px}
+    .est-left-info{width:40%;border-collapse:collapse}.est-left-info td{padding:7px 8px;font-size:13px;border-bottom:1px solid #aaa}.est-left-info td:first-child{font-weight:600;color:#555;white-space:nowrap}
+    .est-right-biz{width:60%;border-collapse:collapse;table-layout:fixed}.est-right-biz td{border:2px solid var(--print-border,#333);padding:4px 6px;font-size:12px}
+    .est-biz-label{text-align:center;font-weight:700;font-size:13px;background:var(--primary-light,#dbeafe);letter-spacing:2px;line-height:1.6}
     table.items{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
     table.items th,table.items td{border:2px solid var(--print-border,#333);padding:7px 8px}
     table.items th{background:var(--hover-bg,#f2f4f8)}
     .sum{margin-top:12px;margin-left:auto;width:300px;font-size:14px}
     .sum td{border:none;padding:4px 8px}.sum .tot{border-top:2px solid var(--print-border,#333);font-weight:900;font-size:17px}
-    .memo{margin-top:14px;font-size:12px;color:#555;white-space:pre-wrap}`;
+    .memo{margin-top:14px;font-size:12px;color:#555;white-space:pre-wrap}
+    .bank-info{margin-top:12px;padding:8px 14px;border:2px solid var(--print-border,#333);font-size:13px;font-weight:600}`;
 // ── 대한민국 표준 문서 양식 (거래명세서·세금계산서·간이영수증) ──
 function nfmt(n){ return Number(n||0).toLocaleString('ko-KR'); }
 function bizInfoTable(label,x,color){
