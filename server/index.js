@@ -1711,8 +1711,8 @@ async function fetchDanawaHtml(url) {
 async function fetchDanawaSpecByName(productName, expectedCat) {
   const CAT_VERIFY = {
     'CPU': /셀러론|펜티엄|코어|Celeron|Pentium|Core|Ryzen|라이젠|Athlon|소켓/i,
-    '메인보드': /메인보드|칩셋|chipset|메모리\s*슬롯|UEFI/i,
-    '메모리': /DDR[45]|PC[45]-|데스크탑용|노트북용/i,
+    '메인보드': /메인보드|칩셋|chipset|메모리\s*슬롯|UEFI|소켓\s*AM[45]|LGA\s*\d|[ME]-?ATX|Mini-?ITX/i,
+    '메모리': /DDR[345]|PC[345]-|데스크탑용|노트북용/i,
     '그래픽카드': /지포스|라데온|GeForce|Radeon|RTX|GTX|VRAM|GDDR/i,
     'SSD': /SSD|NVMe|M\.2|SATA|PCIe.*x[0-9].*읽기|TLC|QLC|MLC/i,
     'HDD': /HDD|RPM|CMR|SMR|바라쿠다|Barracuda/i,
