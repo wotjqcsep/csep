@@ -2311,7 +2311,7 @@ function renderPayments(){
   const byPM={cash:0,transfer:0,cashreceipt:0,card:0,tax:0,unpaid:0}; mdSettled.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
   salesSettled.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
   const vatRefundMonth=mdSettled.reduce((s,r)=>s+recVatRefund(r),0);
-  const byCust={}; mdSettled.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0,refund:0,settledDates:[],payments:new Set()}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); o.refund+=recVatRefund(r); if(r.woori_settled_at) o.settledDates.push(r.woori_settled_at.slice(0,10)); o.payments.add(payLabel(r)); });
+  const byCust={}; mdSettled.filter(r=>isWoori(r)).forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0,refund:0,settledDates:[],payments:new Set()}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); o.refund+=recVatRefund(r); if(r.woori_settled_at) o.settledDates.push(r.woori_settled_at.slice(0,10)); o.payments.add(payLabel(r)); });
   const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
   return `
   <div class="page-header"><h2>💳 결산${brandName()?` <span style="font-size:13px;color:var(--gray-500)">— ${esc(brandName())}</span>`:''}</h2>
