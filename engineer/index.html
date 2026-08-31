@@ -234,7 +234,7 @@ function startGeoSort(){
       }catch(e){}
     };
     tick();
-    _geoWatchId=setInterval(tick, 30000);
+    _geoWatchId=setInterval(tick, 300000);
   }else if(navigator.geolocation){
     _geoWatchId=navigator.geolocation.watchPosition(pos=>{
       const loc={lat:pos.coords.latitude,lng:pos.coords.longitude};
