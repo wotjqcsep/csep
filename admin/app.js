@@ -1373,7 +1373,7 @@ async function estEditOne(id){
     delivered:e.delivered||false, fieldDiscount:Number(e.field_discount)||0, finalAmount:e.final_amount,
     doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', refundManual:o.refundManual!=null?o.refundManual:null, noVat:o.noVat||e.no_vat||false, purchaseDate:e.purchase_date||'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})))
-      .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
+      .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:''),spec:r.spec||'',showSpec:!!r.showSpec})) };
   _estForceRender=true; go('estimates');
   showToast('📝 견적 #'+e.id+' 편집 모드 — 저장하면 이 견적이 수정됩니다');
 }
@@ -1386,7 +1386,7 @@ async function estLoadOne(id){
     delivered:false, fieldDiscount:0, finalAmount:null,
     doctype:o.doctype||'estimate', payMethod:o.payMethod||'cash', realCost:o.realCost||'', refundManual:null, noVat:o.noVat||e.no_vat||false, purchaseDate:'', pname:o.pname||'short', pprice:o.pprice||'total', ptarget:o.ptarget||'customer',
     rows:(Array.isArray(e.items)&&e.items.length?e.items:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})))
-      .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:'')})) };
+      .map(r=>({cat:r.cat||'',name:r.name||'',qty:Number(r.qty)||1,cost:(r.cost!=null?r.cost:''),margin:Number(r.margin)||0,price:(r.price!=null?r.price:''),spec:r.spec||'',showSpec:!!r.showSpec})) };
   _estForceRender=true; go('estimates');
   showToast('📋 견적 복사됨 — 새 견적번호 '+nextNo+' 부여');
 }
