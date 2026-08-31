@@ -2101,6 +2101,7 @@ function recVatRefund(r){ return Number(r.vat_refund)||0; }
 function mySettle(r){ return recRevenue(r)-wooriCut(r)+recVatRefund(r); }
 let settleState = { y:null, m:null };
 function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }
+function scrollToSettleRow(elId){ const el=document.getElementById(elId); if(!el) return; el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s'; el.style.background='rgba(250,176,5,0.3)'; setTimeout(()=>{el.style.background='rgba(250,176,5,0.08)';},300); setTimeout(()=>{el.style.background='rgba(250,176,5,0.3)';},600); setTimeout(()=>{el.style.background='rgba(250,176,5,0.08)';},900); }
 async function doWooriSettle(id){ await api('PUT',`/receptions/${id}/woori-settle`,{settled:true}); await loadAll(); render(); }
 async function doWooriSettleSale(id){ await api('PUT',`/sales/${id}/woori-settle`,{settled:true}); await loadAll(); render(); }
 
@@ -2341,6 +2342,8 @@ function renderPayments(){
   const wooriMonth=mdSettled.reduce((s,r)=>s+wooriCut(r),0);
   const wooriPending=done.filter(r=>isWoori(r) && !r.woori_settled);
   const wooriPendingAmt=wooriPending.reduce((s,r)=>s+mySettle(r),0);
+  const _wpIds=new Set(wooriPending.map(r=>r.id));
+  const _wspIds=new Set(salesWpend.map(s=>s.id));
   const unpaid=done.filter(r=>r.payment_method==='unpaid');
   const unpaidAmt=unpaid.reduce((s,r)=>s+recRevenue(r),0);
   const byPM={cash:0,transfer:0,cashreceipt:0,card:0,tax:0,unpaid:0}; mdSettled.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
@@ -2375,19 +2378,19 @@ function renderPayments(){
     ${AG?`<div class="detail-panel" style="position:static;display:flex;flex-direction:column;overflow:hidden;max-height:320px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-shrink:0"><h3 style="margin:0">${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3><span style="color:#e03131;font-size:13px;font-weight:700">${esc(agencyName())} ${Number((state.settings||{})[('fee_'+((state.settings||{}).fee_primary||'card'))])||0}% 제외 정산금</span></div>
       ${(wooriPending.length+salesWpend.length)>0?`<div style="flex:1;overflow-y:auto;min-height:0"><table class="table" style="font-size:13px;margin:0"><thead style="position:sticky;top:0;z-index:1;background:var(--bg-card,#1a1a2e)"><tr><th>고객</th><th>결제수단</th><th>완료일</th><th style="text-align:right">금액</th><th></th></tr></thead><tbody>
-      ${wooriPending.map(r=>`<tr>
+      ${wooriPending.map(r=>`<tr style="cursor:pointer" onclick="scrollToSettleRow('rec_${r.id}')">
         <td><strong>${esc(custName(r.customer_id))}</strong></td>
         <td>${payLabel(r)}${recVatRefund(r)?` <span style="color:#0ca678;font-size:11px">환급+${won(recVatRefund(r))}</span>`:''}</td>
         <td>${(r.completed_at||'').slice(0,10)||'-'}</td>
         <td style="text-align:right"><strong>${won(mySettle(r))}</strong></td>
-        <td><button class="btn btn-sm btn-success" onclick="doWooriSettle(${r.id})">정산받음</button></td>
+        <td><button class="btn btn-sm btn-success" onclick="event.stopPropagation();doWooriSettle(${r.id})">정산받음</button></td>
       </tr>`).join('')}
-      ${salesWpend.map(s=>`<tr>
+      ${salesWpend.map(s=>`<tr style="cursor:pointer" onclick="scrollToSettleRow('sale_${s.id}')">
         <td><strong>🛒 ${esc(s.item_name)}</strong></td>
         <td>${payLabel(s)}</td>
         <td>${(s.sale_date||'').slice(0,10)||'-'}</td>
         <td style="text-align:right"><strong>${won(saleMine(s))}</strong></td>
-        <td><button class="btn btn-sm btn-success" onclick="doWooriSettleSale(${s.id})">정산받음</button></td>
+        <td><button class="btn btn-sm btn-success" onclick="event.stopPropagation();doWooriSettleSale(${s.id})">정산받음</button></td>
       </tr>`).join('')}
       </tbody></table></div>`:'<div class="empty-state">받을 정산액 없음</div>'}
     </div>`:''}
@@ -2412,7 +2415,7 @@ function renderPayments(){
   <div style="font-weight:700;margin:18px 2px 8px">🔧 이달 완료 작업·납품 내역 — ${md.length}건 · 매출 ${won(rev)}</div>
   <div class="table-container"><table class="table">
     <thead><tr><th>일자</th><th>거래처</th><th>내용</th><th>담당</th><th>결제수단</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th><th style="text-align:right;color:#0ca678">환급</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
-    <tbody>${md.length? [...md].sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||'')||b.id-a.id).map(r=>`<tr>
+    <tbody>${md.length? [...md].sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||'')||b.id-a.id).map(r=>`<tr id="rec_${r.id}" style="${_wpIds.has(r.id)?'border-left:4px solid #fab005;background:rgba(250,176,5,0.08)':''}">
       <td style="font-size:12px">${(r.completed_at||'').slice(0,10)}</td>
       <td><strong>${esc(custName(r.customer_id))}</strong></td>
       <td style="font-size:12px">${esc(r.symptom)||'-'}${(Number(r.labor_fee)||0)&&(Number(r.parts_fee)||0)?` <span style="color:var(--gray-400)">(공임 ${won(r.labor_fee)}·부품 ${won(r.parts_fee)})</span>`:''}${(Number(r.estimate_amount)||0)>recRevenue(r)?` <span style="color:#e8590c;font-weight:700">· 현장할인 ${won((Number(r.estimate_amount)||0)-recRevenue(r))}</span>`:''}</td>
@@ -2424,7 +2427,7 @@ function renderPayments(){
   <div style="font-weight:700;margin:18px 2px 8px">🛒 이달 판매 내역 (매장 등) — ${salesMonth.length}건 · 매출 ${won(salesRev)}${AG?` · 정산 ${won(salesMine)}`:''}</div>
   <div class="table-container"><table class="table">
     <thead><tr><th>일자</th><th>제품명</th><th style="text-align:right">수량</th><th style="text-align:right">금액</th><th>결제수단</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
-    <tbody>${salesMonth.length? [...salesMonth].sort((a,b)=>(b.sale_date||'').localeCompare(a.sale_date||'')||b.id-a.id).map(s=>`<tr>
+    <tbody>${salesMonth.length? [...salesMonth].sort((a,b)=>(b.sale_date||'').localeCompare(a.sale_date||'')||b.id-a.id).map(s=>`<tr id="sale_${s.id}" style="${_wspIds.has(s.id)?'border-left:4px solid #fab005;background:rgba(250,176,5,0.08)':''}">
       <td style="font-size:12px">${(s.sale_date||'').slice(0,10)}</td>
       <td><strong>${esc(s.item_name)}</strong>${s.customer_id?` <span style="font-size:11px;color:var(--gray-400)">(${esc(custName(s.customer_id))})</span>`:''}</td>
       <td style="text-align:right">${s.quantity||1}</td>
