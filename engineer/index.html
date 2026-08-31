@@ -287,22 +287,39 @@ function render(){
   else if(S.tab==='sched'){ content=`<div id="schedInline"></div>`; }
   else if(S.tab==='done'){ const weekAgo=new Date(Date.now()-7*24*60*60*1000).toISOString(); const dl=(isAdmin?done:done.filter(r=>r.assigned_engineer_id==myId)).filter(r=>(r.completed_at||r.received_at||'')>=weekAgo); content=(dl.length?dl.map(cardHtml).join(''):'<div class="empty">최근 1주일 완료 작업이 없습니다</div>')+'<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px">최근 1주일 이력만 표시 · 이전 이력은 📅 일정 탭에서 확인</div>'; }
   else if(isAdmin){
-    const f=S.statusFilter||'pending';
-    const cntPending=S.receptions.filter(r=>notDone(r)&&!reserved(r)&&r.status!=='in_progress'&&r.status!=='repairing').length;
-    const cntIp=S.receptions.filter(r=>r.status==='in_progress').length;
-    const cntRepair=S.receptions.filter(r=>r.status==='repairing').length;
-    const cnt={pending:cntPending,in_progress:cntIp,repairing:cntRepair,reserved:S.receptions.filter(reserved).length,completed:done.length,all:S.receptions.length};
+    const f=S.statusFilter||'all';
+    const today=new Date().toISOString().slice(0,10);
+    const isToday=r=>r.reserved_date&&r.reserved_date.slice(0,10)===today&&notDone(r);
+    const active=S.receptions.filter(r=>r.status!=='completed'&&r.status!=='cancelled');
+    const cntPending=active.filter(r=>notDone(r)&&!reserved(r)&&r.status!=='in_progress'&&r.status!=='repairing').length;
+    const cntIp=active.filter(r=>r.status==='in_progress').length;
+    const cntRepair=active.filter(r=>r.status==='repairing').length;
+    const cntReserved=active.filter(reserved).length;
+    const cnt={all:active.length,pending:cntPending,in_progress:cntIp,repairing:cntRepair,reserved:cntReserved};
     const filterFn={
       pending:r=>notDone(r)&&!reserved(r)&&r.status!=='in_progress'&&r.status!=='repairing',
       in_progress:r=>r.status==='in_progress',
       repairing:r=>r.status==='repairing',
       reserved:r=>reserved(r),
-      completed:r=>r.status==='completed',
       all:()=>true
     };
-    let flist=ipFirst((filterFn[f]?S.receptions.filter(filterFn[f]):S.receptions));
+    let flist=(filterFn[f]?active.filter(filterFn[f]):active);
+    // 전체 탭: 출동중 → 당일예약 → 미처리 → 수거·점검
+    if(f==='all'){
+      const grp={ip:[],todayRes:[],pending:[],repair:[],otherRes:[]};
+      flist.forEach(r=>{
+        if(r.status==='in_progress') grp.ip.push(r);
+        else if(isToday(r)) grp.todayRes.push(r);
+        else if(r.status==='repairing') grp.repair.push(r);
+        else if(reserved(r)) grp.otherRes.push(r);
+        else grp.pending.push(r);
+      });
+      flist=[...grp.ip,...grp.todayRes,...grp.pending,...grp.otherRes,...grp.repair];
+    }else{
+      flist=ipFirst(flist);
+    }
     if(_geoSortLoc && Object.keys(routeOrderMap).length) flist=sortByProximity(flist);
-    const chips=[['pending','🔴 미처리'],['in_progress','🟢 출동중'],['repairing','🟣 수거·점검'],['reserved','🟡 예약'],['all','전체']];
+    const chips=[['all','📊 전체'],['pending','🔴 미처리'],['in_progress','🟢 출동중'],['repairing','🟣 수거·점검'],['reserved','🟡 예약']];
     content=`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${chips.map(([k,l])=>`<span onclick="filterAndScroll('${k}')" style="padding:6px 12px;border-radius:16px;font-size:13px;cursor:pointer;${f===k?'background:var(--primary);color:#fff':'background:#fff;border:1px solid #dee2e6'}">${l} ${cnt[k]}</span>`).join('')}</div>`
       +(flist.length?flist.map(cardHtml).join(''):'<div class="empty">작업이 없습니다</div>');
   } else {
