@@ -1356,7 +1356,7 @@ async function estLoadList(){
   if(!list.length){ box.innerHTML='<div style="color:var(--gray-400);font-size:13px;padding:8px">저장된 견적이 없습니다</div>'; return; }
   box.innerHTML=`<table class="table" style="font-size:13px"><thead><tr><th>견적번호</th><th>고객/거래처</th><th>연락처</th><th style="text-align:right">합계</th><th>결제</th><th>일자</th><th></th></tr></thead><tbody>`
     + list.map(e=>{const pm=(e.opts&&e.opts.payMethod)||'cash'; return `<tr>
-        <td>${esc(e.no)||('#'+e.id)}${e.delivered?' <span class="badge assigned" style="font-size:10px">납품완료</span>':''}${(Number(e.field_discount)||0)>0?` <span style="color:#e8590c;font-size:11px">현장할인 ${won(e.field_discount)}</span>`:''}</td><td>${esc(e.customer_name)||'-'}</td><td>${esc(e.phone)||'-'}</td>
+        <td><a href="#" onclick="event.preventDefault();estEditOne(${e.id})" style="color:#fab005;text-decoration:underline;cursor:pointer">${esc(e.no)||('#'+e.id)}</a>${e.delivered?' <span class="badge assigned" style="font-size:10px">납품완료</span>':''}${(Number(e.field_discount)||0)>0?` <span style="color:#e8590c;font-size:11px">현장할인 ${won(e.field_discount)}</span>`:''}</td><td>${esc(e.customer_name)||'-'}</td><td>${esc(e.phone)||'-'}</td>
         <td style="text-align:right;font-weight:600">${won(e.total)}</td><td>${estPayLabel(pm)}</td><td>${esc(e.est_date)||''}</td>
         <td style="white-space:nowrap"><button class="btn btn-sm" style="background:#fab005;color:#000" onclick="estEditOne(${e.id})">편집</button>
           <button class="btn btn-sm" onclick="estLoadOne(${e.id})">복사</button>
@@ -1573,10 +1573,11 @@ function estUpdateFee(){
 function estAddRow(){ estSyncAll(); estState.rows.push({cat:'',name:'',qty:1,cost:'',margin:estState.bulk}); estBody(); }
 function estDelRow(btn){ estSyncAll(); const i=Number(btn.closest('tr').getAttribute('data-i')); if(i>=0){ const r=estState.rows[i]; r.name=''; r.qty=1; r.cost=''; r.price=''; r.spec=''; r.showSpec=false; } estBody(); }
 function estApplyBulk(){ estSyncAll(); estState.rows.forEach(r=>r.margin=estState.bulk); estBody(); }
-function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·매입가·합계 입력이 모두 지워집니다)'))return;
+async function estReset(){ if(!confirm('견적 항목을 초기화할까요? (품목·매입가·합계 입력이 모두 지워집니다)'))return;
   estSyncAll();
   estState.rows=EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:estState.bulk}));
-  estState.realCost=''; estState.purchaseDate='';
+  estState.realCost=''; estState.purchaseDate=''; estState.savedId=null;
+  estState.no=await estNextNo();
   _estForceRender=true; render();
 }
 async function estNewDoc(){ if(estState.savedId && !confirm('현재 견적을 닫고 새 견적서를 작성할까요?'))return;
