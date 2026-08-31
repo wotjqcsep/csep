@@ -208,14 +208,73 @@ async function loadReceptions(showLoading){
 function isEditing(){ return !!S.processing || S.tab==='wo' || S.tab==='info' || !!document.getElementById('ov') || !!document.getElementById('ov2'); }
 function engName(id){ const e=S.engineers.find(x=>x.id==id); return e?e.name:(id?`기사${id}`:'-'); }
 
+// ── 배차 경로 순서 매핑 (경로 최적화 실행 후 카드에 번호·색상 표시) ──
+let routeOrderMap={};
+function updateRouteOrderMap(){
+  routeOrderMap={};
+  if(routeState.optimized&&routeState.optimized.length){
+    routeState.optimized.forEach((r,i)=>{ if(!r.geoFailed) routeOrderMap[r.id]={idx:i, color:legColor(i)}; });
+  }
+}
+
+// ── 현재 위치 기반 카드 정렬 ──
+let _geoSortLoc=null, _geoWatchId=null;
+function startGeoSort(){
+  if(_geoWatchId) return;
+  const cap=window.Capacitor;
+  if(cap&&cap.isNativePlatform&&cap.isNativePlatform()&&cap.Plugins&&cap.Plugins.Geolocation){
+    let last=0;
+    const tick=async()=>{
+      try{
+        const pos=await cap.Plugins.Geolocation.getCurrentPosition({enableHighAccuracy:true,timeout:10000});
+        const loc={lat:pos.coords.latitude,lng:pos.coords.longitude};
+        if(!_geoSortLoc||Math.abs(loc.lat-_geoSortLoc.lat)>0.0005||Math.abs(loc.lng-_geoSortLoc.lng)>0.0005){
+          _geoSortLoc=loc; if(!S.processing) render();
+        }
+      }catch(e){}
+    };
+    tick();
+    _geoWatchId=setInterval(tick, 30000);
+  }else if(navigator.geolocation){
+    _geoWatchId=navigator.geolocation.watchPosition(pos=>{
+      const loc={lat:pos.coords.latitude,lng:pos.coords.longitude};
+      if(!_geoSortLoc||Math.abs(loc.lat-_geoSortLoc.lat)>0.0005||Math.abs(loc.lng-_geoSortLoc.lng)>0.0005){
+        _geoSortLoc=loc; if(!S.processing) render();
+      }
+    },()=>{},{enableHighAccuracy:true, maximumAge:30000});
+  }
+}
+
+function geoDistHaversine(a,b){
+  const R=6371000, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+  const h=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+}
+
+function sortByProximity(list){
+  if(!_geoSortLoc||!list.length) return list;
+  const geocoded={};
+  if(routeState.optimized){
+    routeState.optimized.forEach(r=>{ if(r.coords) geocoded[r.id]=r.coords; });
+  }
+  const withDist=list.map(r=>{
+    const c=geocoded[r.id];
+    const dist=c?geoDistHaversine(_geoSortLoc,c):Infinity;
+    return {r, dist};
+  });
+  withDist.sort((a,b)=>a.dist-b.dist);
+  return withDist.map(x=>x.r);
+}
+
 // ── 렌더 ──
 function render(){
   if(!S.engineer)return renderLogin();
   if(S.processing){ renderProcessing(); return; }
   const isAdmin=S.engineer.is_admin, myId=S.engineer.id;
-  const notDone=r=>r.status!=='completed'&&r.status!=='cancelled';   // 취소건은 진행목록에서 제외
+  const notDone=r=>r.status!=='completed'&&r.status!=='cancelled';
   const reserved=r=>r.reserved_date&&notDone(r);
-  const ipFirst=list=>[...list.filter(r=>r.status==='in_progress'||r.status==='repairing'),...list.filter(r=>r.status!=='in_progress'&&r.status!=='repairing')]; // 진행중·수리중을 맨 위로
+  const ipFirst=list=>[...list.filter(r=>r.status==='in_progress'||r.status==='repairing'),...list.filter(r=>r.status!=='in_progress'&&r.status!=='repairing')];
   const mineActive=ipFirst(S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r)));
   const done=S.receptions.filter(r=>r.status==='completed');
   const tabs = isAdmin
@@ -241,11 +300,16 @@ function render(){
       completed:r=>r.status==='completed',
       all:()=>true
     };
-    const flist=ipFirst((filterFn[f]?S.receptions.filter(filterFn[f]):S.receptions));
+    let flist=ipFirst((filterFn[f]?S.receptions.filter(filterFn[f]):S.receptions));
+    if(_geoSortLoc && Object.keys(routeOrderMap).length) flist=sortByProximity(flist);
     const chips=[['pending','🔴 미처리'],['in_progress','🟢 출동중'],['repairing','🟣 수거·점검'],['reserved','🟡 예약'],['all','전체']];
     content=`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${chips.map(([k,l])=>`<span onclick="filterAndScroll('${k}')" style="padding:6px 12px;border-radius:16px;font-size:13px;cursor:pointer;${f===k?'background:var(--primary);color:#fff':'background:#fff;border:1px solid #dee2e6'}">${l} ${cnt[k]}</span>`).join('')}</div>`
       +(flist.length?flist.map(cardHtml).join(''):'<div class="empty">작업이 없습니다</div>');
-  } else { content=mineActive.length?mineActive.map(cardHtml).join(''):'<div class="empty">작업이 없습니다</div>'; }
+  } else {
+    let mlist=mineActive;
+    if(_geoSortLoc && Object.keys(routeOrderMap).length) mlist=sortByProximity(mlist);
+    content=mlist.length?mlist.map(cardHtml).join(''):'<div class="empty">작업이 없습니다</div>';
+  }
   const soundName=localStorage.getItem('csep_sound')||'noti1';
   document.getElementById('app').innerHTML=`
     <div class="topbar"><h1>🔧 현장 기사 앱</h1><span class="who"><span style="color:${isAdmin?'#ff6b6b':'#74c0fc'};font-weight:700">${esc(S.engineer.name)} ${isAdmin?'대표':'기사'}</span> · <a onclick="logout()" style="color:#6b9cff;cursor:pointer">로그아웃</a></span></div>
@@ -268,9 +332,12 @@ function cardHtml(r){
   const st=isRes?'예약':({new:'미처리',assigned:'미처리',in_progress:'진행중',repairing:'수거·점검',completed:'완료',cancelled:'취소'}[r.status]||r.status);
   const badgeClass=isRes?'assigned':r.status;
   const stClass=isRes?'st-reserved':('st-'+r.status);
-  return `<div class="card ${stClass}">
+  const ro=routeOrderMap[r.id];
+  const routeBadge=ro?`<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${ro.color};color:#fff;font-size:12px;font-weight:700;margin-right:6px;flex-shrink:0">${ro.idx+1}</span>`:'';
+  const routeBorder=ro?`border-left:4px solid ${ro.color};`:'';
+  return `<div class="card ${stClass}" style="${routeBorder}">
     <div class="card-head">
-      <div><div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'} ${woTypeBadge(r.initial_memo)}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div>
+      <div style="display:flex;align-items:center"><div>${routeBadge}</div><div><div class="cust-name">${esc(r.customer_name)||esc(r.customer_phone)||'고객'} ${woTypeBadge(r.initial_memo)}</div>${r.customer_company?`<div class="info-line">${esc(r.customer_company)}</div>`:''}</div></div>
       <span class="badge ${badgeClass}">● ${st}</span>
     </div>
     ${isAdmin&&r.assigned_engineer_id?`<div class="info-line">👤 <span style="color:${engColorById(r.assigned_engineer_id)};font-weight:700">${esc(engName(r.assigned_engineer_id))}${engColorById(r.assigned_engineer_id)==='#e03131'?' (대표)':''}</span></div>`:''}
@@ -1532,7 +1599,9 @@ async function openRouteOptimizer(){
     routeState.sections=null; routeState.realTotal=null; routeState.routeMode='직선';
     const optimized=await optimizeRoute(currentLoc, withAddr, routeState.destination);
     routeState.optimized=optimized;
+    updateRouteOrderMap();
     renderRouteOptimized(optimized, currentLoc);
+    startGeoSort();
   }catch(e){
     console.error('경로 최적화 오류:', e);
     alert('경로 계산에 실패했습니다: '+e.message);
