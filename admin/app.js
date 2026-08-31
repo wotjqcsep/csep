@@ -1489,15 +1489,31 @@ function estCalc(){ let sub=0;
   setIn('est_sub_in',sub); setIn('est_total_in',sub+vat);
   estUpdateFee();
 }
-// 공급가액 목표값 → 일괄 마진 역산 후 전 품목 적용
+// 공급가액 목표값 → 일괄 마진 역산 후 전 품목 적용, 오차 보정
 function estSetSupply(val){
   const target=Number(String(val||'').replace(/[^\d]/g,''))||0;
   estSyncAll();
-  const cost=estState.rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0);
+  const rows=estState.rows.filter(r=>(Number(r.cost)||0)>0);
+  const cost=rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0);
   if(cost<=0){ showToast('매입가가 입력되어야 공급가액으로 마진을 역산할 수 있습니다.','#e68900'); estBody(); return; }
-  const margin=Math.round((target/cost-1)*1000)/10;   // 소수1자리 %
+  const margin=Math.round((target/cost-1)*1000)/10;
   estState.bulk=margin; estState.rows.forEach(r=>{ r.margin=margin; r.price=''; });
-  _estForceRender=true; render();   // 일괄마진 입력·품목 판매단가·합계 모두 재반영
+  // 마진 적용 후 합계 계산 → 오차를 마지막 품목 판매단가에 보정
+  let sum=0;
+  const active=estState.rows.filter(r=>(Number(r.cost)||0)>0 && (Number(r.qty)||0)>0);
+  active.forEach(r=>{
+    const c=Number(r.cost)||0, m=Number(r.margin)||0, q=Number(r.qty)||0;
+    const p=Math.round(c*(1+m/100));
+    sum+=p*q;
+  });
+  const diff=target-sum;
+  if(diff!==0 && active.length>0){
+    const last=active[active.length-1];
+    const c=Number(last.cost)||0, m=Number(last.margin)||0, q=Number(last.qty)||0;
+    const basePrice=Math.round(c*(1+m/100));
+    last.price=String(basePrice+Math.round(diff/q));
+  }
+  _estForceRender=true; render();
 }
 function estSetTotal(val){ const t=Number(String(val||'').replace(/[^\d]/g,''))||0; estSetSupply(estState.noVat?t:Math.floor(t/1.1)); }
 function estToggleVat(checked){ estSyncAll(); estState.noVat=checked; estBody(); }
