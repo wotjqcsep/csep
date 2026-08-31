@@ -2339,9 +2339,22 @@ function renderPayments(){
     </div>
     ${AG?`<div class="detail-panel" style="position:static">
       <h3>${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3>
-      ${wooriPending.slice(0,8).map(r=>`<div class="detail-row"><span class="detail-value">${esc(custName(r.customer_id))} · ${payLabel(r)}${recVatRefund(r)?` <span style="color:#0ca678;font-size:11px">환급+${won(recVatRefund(r))}</span>`:''}<br><span style="font-size:11px;color:var(--gray-400)">완료: ${(r.completed_at||'').slice(0,10)||'-'}</span></span><span style="display:flex;gap:6px;align-items:center"><strong>${won(mySettle(r))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettle(${r.id})">정산받음</button></span></div>`).join('')}
-      ${salesWpend.slice(0,8).map(s=>`<div class="detail-row"><span class="detail-value">🛒 ${esc(s.item_name)} · ${payLabel(s)}</span><span style="display:flex;gap:6px;align-items:center"><strong>${won(saleMine(s))}</strong><button class="btn btn-sm btn-success" onclick="doWooriSettleSale(${s.id})">정산받음</button></span></div>`).join('')}
-      ${(wooriPending.length+salesWpend.length)===0?'<div class="empty-state">받을 정산액 없음</div>':''}
+      ${(wooriPending.length+salesWpend.length)>0?`<table class="table" style="font-size:13px;margin:0"><thead><tr><th>고객</th><th>결제수단</th><th>완료일</th><th style="text-align:right">금액</th><th></th></tr></thead><tbody>
+      ${wooriPending.map(r=>`<tr>
+        <td><strong>${esc(custName(r.customer_id))}</strong></td>
+        <td>${payLabel(r)}${recVatRefund(r)?` <span style="color:#0ca678;font-size:11px">환급+${won(recVatRefund(r))}</span>`:''}</td>
+        <td>${(r.completed_at||'').slice(0,10)||'-'}</td>
+        <td style="text-align:right"><strong>${won(mySettle(r))}</strong></td>
+        <td><button class="btn btn-sm btn-success" onclick="doWooriSettle(${r.id})">정산받음</button></td>
+      </tr>`).join('')}
+      ${salesWpend.map(s=>`<tr>
+        <td><strong>🛒 ${esc(s.item_name)}</strong></td>
+        <td>${payLabel(s)}</td>
+        <td>${(s.sale_date||'').slice(0,10)||'-'}</td>
+        <td style="text-align:right"><strong>${won(saleMine(s))}</strong></td>
+        <td><button class="btn btn-sm btn-success" onclick="doWooriSettleSale(${s.id})">정산받음</button></td>
+      </tr>`).join('')}
+      </tbody></table>`:'<div class="empty-state">받을 정산액 없음</div>'}
     </div>`:''}
   </div>
   <div style="font-weight:700;margin:18px 2px 8px">📋 외주 대행업체 정산 현황</div>
