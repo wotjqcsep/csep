@@ -2310,7 +2310,7 @@ function renderPayments(){
   const byPM={cash:0,transfer:0,cashreceipt:0,card:0,tax:0,unpaid:0}; mdSettled.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
   salesSettled.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
   const vatRefundMonth=mdSettled.reduce((s,r)=>s+recVatRefund(r),0);
-  const byCust={}; mdSettled.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0,refund:0}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); o.refund+=recVatRefund(r); });
+  const byCust={}; mdSettled.forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0,refund:0,dates:[]}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); o.refund+=recVatRefund(r); if(r.completed_at) o.dates.push(r.completed_at.slice(0,10)); });
   const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
   return `
   <div class="page-header"><h2>💳 결산${brandName()?` <span style="font-size:13px;color:var(--gray-500)">— ${esc(brandName())}</span>`:''}</h2>
@@ -2343,16 +2343,21 @@ function renderPayments(){
       ${(wooriPending.length+salesWpend.length)===0?'<div class="empty-state">받을 정산액 없음</div>':''}
     </div>`:''}
   </div>
+  <div style="font-weight:700;margin:18px 2px 8px">📋 외주 대행업체 정산 현황</div>
   <div class="table-container"><table class="table">
-    <thead><tr><th>거래처</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th>`:''}<th style="text-align:right;color:#0ca678">환급</th><th style="text-align:right">정산액</th></tr></thead>
-    <tbody>${custRows.length? custRows.map(([cid,o])=>`<tr>
+    <thead><tr><th>고객</th><th>처리일</th><th style="text-align:right">공임</th><th style="text-align:right">부품</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th>`:''}<th style="text-align:right;color:#0ca678">환급</th><th style="text-align:right">정산액</th></tr></thead>
+    <tbody>${custRows.length? custRows.map(([cid,o])=>{
+      const uniqueDates=[...new Set(o.dates)].sort();
+      const dateStr=uniqueDates.length>1?uniqueDates[0]+'~'+uniqueDates[uniqueDates.length-1]:(uniqueDates[0]||'-');
+      return `<tr>
       <td><strong>${esc(custName(cid))}</strong></td>
+      <td style="font-size:12px">${dateStr}</td>
       <td style="text-align:right">${won(o.labor)}</td>
       <td style="text-align:right">${won(o.parts)}</td>
       <td style="text-align:right"><strong>${won(o.rev)}</strong></td>
       ${AG?`<td style="text-align:right;color:var(--warning)">${o.woori?won(o.woori):'-'}</td>`:''}
       <td style="text-align:right;color:#0ca678">${o.refund?'+'+won(o.refund):'-'}</td>
-      <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`).join('') : `<tr><td colspan="${AG?7:6}" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>`}
+      <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`;}).join('') : `<tr><td colspan="${AG?8:7}" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>`}
     </tbody></table></div>
   <div style="font-weight:700;margin:18px 2px 8px">🔧 이달 완료 작업·납품 내역 — ${md.length}건 · 매출 ${won(rev)}</div>
   <div class="table-container"><table class="table">
