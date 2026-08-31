@@ -817,6 +817,13 @@ function renderEngineers(){
       ${field('fee_tax','세금계산서', S.fee_tax||'')}
       <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn" onclick="saveFeeSettings()">수수료율 저장</button></div>
     </div>
+    <div class="form-row" style="margin-top:8px">
+      <div class="form-group"><label>대표 수수료 (정산 화면 표시용)</label>
+        <select id="fee_primary" onchange="savePrimaryFee(this.value)" style="padding:8px;border-radius:6px;border:1px solid var(--gray-300)">
+          ${[['card','카드'],['tax','세금계산서'],['cashreceipt','현금영수증']].map(([k,l])=>`<option value="${k}" ${(S.fee_primary||'card')===k?'selected':''}>${l} (${S['fee_'+({card:'card',tax:'tax',cashreceipt:'cashreceipt'}[k])]||0}%)</option>`).join('')}
+        </select>
+      </div>
+    </div>
     <div style="font-size:12px;color:var(--gray-400)">문서 작성 시 선택한 결제수단의 수수료율이 합계에 적용되어 실수령액이 계산됩니다. 예) 카드 15, 세금계산서 15, 나머지 0.</div>
   </div>
   <div class="table-container"><table class="table">
@@ -950,6 +957,10 @@ async function saveBankSettings(){
 async function saveFeeSettings(){
   for(const k of ['fee_cash','fee_transfer','fee_cashreceipt','fee_card','fee_tax']) await api('PUT','/settings/'+k,{value:(v(k)||'')});
   await loadAll(); alert('결제수단별 수수료율이 저장되었습니다.');
+}
+async function savePrimaryFee(val){
+  await api('PUT','/settings/fee_primary',{value:val});
+  await loadAll(); renderInto();
 }
 // 결제수단 라벨 + 결제수단별 외주 수수료율(사업자관리 설정, 0=없음)
 const EST_PAY={cash:'현금',transfer:'계좌이체',cashreceipt:'현금영수증',card:'카드',tax:'세금계산서'};
@@ -2338,7 +2349,7 @@ function renderPayments(){
       ${vatRefundMonth>0?`<div class="detail-row" style="border:none"><span class="detail-value" style="color:#0ca678">매입부가세 환급(이달)</span><span class="detail-value" style="text-align:right;color:#0ca678"><strong>+${won(vatRefundMonth)}</strong></span></div>`:''}
     </div>
     ${AG?`<div class="detail-panel" style="position:static">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3><span style="color:#e03131;font-size:13px;font-weight:700">${esc(agencyName())} ${Math.round(Math.max(feeRate('card'),feeRate('tax'),feeRate('cashreceipt'))*10000)/100}% 제외 정산금</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3><span style="color:#e03131;font-size:13px;font-weight:700">${esc(agencyName())} ${Number((state.settings||{})[('fee_'+((state.settings||{}).fee_primary||'card'))])||0}% 제외 정산금</span></div>
       ${(wooriPending.length+salesWpend.length)>0?`<table class="table" style="font-size:13px;margin:0"><thead><tr><th>고객</th><th>결제수단</th><th>완료일</th><th style="text-align:right">금액</th><th></th></tr></thead><tbody>
       ${wooriPending.map(r=>`<tr>
         <td><strong>${esc(custName(r.customer_id))}</strong></td>
