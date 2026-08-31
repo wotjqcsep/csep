@@ -1117,7 +1117,7 @@ function renderEstimates(){ estInit(); const s=estState;
   if(window._pendingEstImport){ const d=window._pendingEstImport; window._pendingEstImport=null; setTimeout(()=>{ estAddItems(d.items,'append'); showToast('📋 북마클릿: '+d.items.length+'개 항목 추가'+(d.totalPrice?' (업체 판매가 '+Number(d.totalPrice).toLocaleString()+'원)':'')); renderInto(); },100); }
   if(!s.no && !s.savedId) estNextNo().then(no=>{ if(!estState.no){ estState.no=no; const el=document.getElementById('est_no'); if(el) el.value=no; } });
   const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; const p=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(c*(1+m/100)); return t+p*q; },0);
-  const vat=s.noVat?0:Math.round(sub*0.1);
+  const vat=s.noVat?0:Math.floor(sub*0.1);
   return `
   <div oninput="estSyncLazy()">
   <div class="page-header"><h2>📄 문서 작성 <span style="font-size:13px;color:var(--gray-500)">— 문서 종류를 골라 작성·인쇄 (같은 내용으로 종류만 전환)</span></h2></div>
@@ -1323,7 +1323,7 @@ async function estSave(btn){
   const rows=estRows().filter(r=>r.name||r.amt);
   if(!rows.length){ if(st){st.style.color='#e03131';st.textContent='품목을 입력하세요';} return; }
   if(!(estState.customer||'').trim() && !(estState.phone||'').trim()){ if(st){st.style.color='#e03131';st.textContent='고객/거래처 또는 연락처를 입력하세요';} return; }
-  const sub=rows.reduce((t,r)=>t+r.amt,0), vat=estState.noVat?0:Math.round(sub*0.1);
+  const sub=rows.reduce((t,r)=>t+r.amt,0), vat=estState.noVat?0:Math.floor(sub*0.1);
   const body={ no:estState.no, customer_id:estState.customerId||null, customer_name:estState.customer, phone:estState.phone,
     company:estState.company, contact:estState.contact, est_date:estState.date, memo:estState.memo,
     items:rows, opts:{doctype:estState.doctype,payMethod:estState.payMethod,realCost:estState.realCost,noVat:estState.noVat,pname:estState.pname,pprice:estState.pprice,ptarget:estState.ptarget,bulk:estState.bulk,
@@ -1483,7 +1483,7 @@ function estCalc(){ let sub=0;
     const qty=Number(tr.querySelector('.est-qty').value)||0;
     const price=Number(String(tr.querySelector('.est-price').value||'').replace(/[^\d]/g,''))||0, amt=price*qty;
     tr.querySelector('.est-amt').textContent=won(amt); sub+=amt; });
-  const vat=estState.noVat?0:Math.round(sub*0.1);
+  const vat=estState.noVat?0:Math.floor(sub*0.1);
   const vEl=document.getElementById('est_vat'); if(vEl) vEl.textContent=estState.noVat?'—':won(vat);
   const setIn=(id,val)=>{ const e=document.getElementById(id); if(e && document.activeElement!==e) e.value=nfmt(val); };
   setIn('est_sub_in',sub); setIn('est_total_in',sub+vat);
@@ -1499,7 +1499,7 @@ function estSetSupply(val){
   estState.bulk=margin; estState.rows.forEach(r=>{ r.margin=margin; r.price=''; });
   _estForceRender=true; render();   // 일괄마진 입력·품목 판매단가·합계 모두 재반영
 }
-function estSetTotal(val){ const t=Number(String(val||'').replace(/[^\d]/g,''))||0; estSetSupply(estState.noVat?t:Math.round(t/1.1)); }
+function estSetTotal(val){ const t=Number(String(val||'').replace(/[^\d]/g,''))||0; estSetSupply(estState.noVat?t:Math.floor(t/1.1)); }
 function estToggleVat(checked){ estSyncAll(); estState.noVat=checked; estBody(); }
 // 결제수단별 수수료율(사업자관리) — 요율>0 이면 수수료 발생
 function estFeeRate(){ return estState?feeRate(estState.payMethod):0; }
@@ -1508,7 +1508,7 @@ function estFeeRate(){ return estState?feeRate(estState.payMethod):0; }
 // 카드/현금영수증/세금계산서: 외주업체 경유 → 수수료(부가세납부 포함) + 매입부가세 환급
 function estUpdateFee(){
   const el=document.getElementById('est_fee'); if(!el||!estState) return;
-  const rows=estRows(); const sub=rows.reduce((t,r)=>t+r.amt,0), vat=estState.noVat?0:Math.round(sub*0.1);
+  const rows=estRows(); const sub=rows.reduce((t,r)=>t+r.amt,0), vat=estState.noVat?0:Math.floor(sub*0.1);
   const total=sub+vat;
   const totCost=rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0);
   const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.round(total*rate);
@@ -1616,7 +1616,7 @@ function estDocInner(target, copyLabel, overrideRows, isLastPage){
   const internal = target==='internal';
   const rows=overrideRows||estRows().filter(r=>r.name||r.amt);
   const allRows=estRows().filter(r=>r.name||r.amt);
-  let sub=allRows.reduce((t,r)=>t+r.amt,0), vat=estState.noVat?0:Math.round(sub*0.1), total=sub+vat;
+  let sub=allRows.reduce((t,r)=>t+r.amt,0), vat=estState.noVat?0:Math.floor(sub*0.1), total=sub+vat;
   const totCost=rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0), profit=sub-totCost;
   const company=esc(estState.company)||'(회사명)', contact=esc(estState.contact), customer=esc(estState.customer)||'(고객)', date=esc(estState.date), no=esc(estState.no), memo=esc(estState.memo);
   // 옵션(내부용은 항상 전체 상세 + 개별 금액)
@@ -1739,7 +1739,7 @@ function stdDoc(dtype, ctx, copyLabel, isLastPage){
   const buy={ bizno:esc(estState.buyerBizno||''), nm:esc(estState.customer||'(공급받는자)'), ceo:esc(estState.buyerCeo||''), addr:esc(estState.buyerAddr||''), bt:esc(estState.buyerType||''), bi:esc(estState.buyerItem||''), tel:esc(estState.phone||'') };
   const items=ctx.rows.filter(r=>r.name||r.amt);
   const sub=ctx.totalSub!=null?ctx.totalSub:items.reduce((t,r)=>t+r.amt,0);
-  const vat=ctx.totalVat!=null?ctx.totalVat:((estState&&estState.noVat)?0:Math.round(sub*0.1));
+  const vat=ctx.totalVat!=null?ctx.totalVat:((estState&&estState.noVat)?0:Math.floor(sub*0.1));
   const total=ctx.totalAmt!=null?ctx.totalAmt:(sub+vat);
   const memo=custClean(ctx.memo||'');
   if(dtype==='receipt') return stdReceipt(sup,buy,items,sub,vat,total,ctx,memo,copyLabel);
