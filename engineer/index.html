@@ -314,7 +314,7 @@ function render(){
         else if(reserved(r)) grp.otherRes.push(r);
         else grp.pending.push(r);
       });
-      flist=[...grp.ip,...grp.todayRes,...grp.pending,...grp.otherRes,...grp.repair];
+      flist=[...grp.todayRes,...grp.ip,...grp.pending,...grp.otherRes,...grp.repair];
     }else{
       flist=ipFirst(flist);
     }
