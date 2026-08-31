@@ -252,7 +252,7 @@ function render(){
     <div class="tabs">${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}</div>
     ${S.tab==='all'||S.tab==='list' ? `<div style="padding:12px 14px 0;display:flex;gap:6px">
       <button class="btn" style="margin:0;background:#2b3140;color:#fff;flex:1" onclick="openSoundPicker()">🔔 알림 소리 선택 (${soundName})</button>
-      ${isAdmin && S.tab==='all' ? `<button class="btn" style="margin:0;background:#1971c2;color:#fff;flex:1" onclick="openRouteOptimizer()">🗺️ 배차 경로</button><button class="btn" style="margin:0;background:#495057;color:#fff;padding:0 10px" onclick="openDestinationManager()" title="최종 목적지 관리">📍</button>` : ''}
+      ${isAdmin && S.tab==='all' ? `<button class="btn" style="margin:0;background:#1971c2;color:#fff;flex:3" onclick="openRouteOptimizer()">🗺️ 배차 경로</button><button class="btn" style="margin:0;background:#495057;color:#fff;flex:0;padding:0 10px;font-size:12px;white-space:nowrap" onclick="openDestinationManager()" title="최종 목적지 관리">📍</button>` : ''}
     </div>` : ''}
     <div class="content">${content}</div>`;
   if(S.tab==='wo')renderWoTab();
