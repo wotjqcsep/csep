@@ -907,7 +907,7 @@ async function groqParse(ocrText) {
   const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
     body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
+      model: process.env.GROQ_MODEL || 'groq/compound',
       temperature: 0, response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: biosAiPrompt(ocrText) }],
     }),
@@ -939,7 +939,7 @@ async function aiParse(ocrText) {
 }
 app.get('/api/ai-status', wrap(async (req, res) => {
   const hasGroq = !!process.env.GROQ_API_KEY;
-  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+  const model = process.env.GROQ_MODEL || 'groq/compound';
   if (!hasGroq) return res.json({ ok: false, error: 'GROQ_API_KEY 미설정' });
   try {
     const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -1004,7 +1004,7 @@ async function aiJsonFromText(prompt) {
   if (gKey) {
     const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gKey },
-      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b', temperature: 0, max_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'groq/compound', temperature: 0, max_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
