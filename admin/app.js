@@ -2101,7 +2101,7 @@ function recVatRefund(r){ return Number(r.vat_refund)||0; }
 function mySettle(r){ return recRevenue(r)-wooriCut(r)+recVatRefund(r); }
 let settleState = { y:null, m:null };
 function settleMove(d){ let m=settleState.m+d, y=settleState.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} settleState.m=m; settleState.y=y; renderInto(); }
-function scrollToSettleRow(elId){ const el=document.getElementById(elId); if(!el) return; el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s'; el.style.background='rgba(250,176,5,0.3)'; setTimeout(()=>{el.style.background='rgba(250,176,5,0.08)';},300); setTimeout(()=>{el.style.background='rgba(250,176,5,0.3)';},600); setTimeout(()=>{el.style.background='rgba(250,176,5,0.08)';},900); }
+function scrollToSettleRow(elId){ const el=document.getElementById(elId); if(!el) return; el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s'; const on='rgba(250,176,5,0.35)',off='rgba(250,176,5,0.08)'; el.style.background=on; setTimeout(()=>{el.style.background=off;},300); setTimeout(()=>{el.style.background=on;},600); setTimeout(()=>{el.style.background=off;},900); setTimeout(()=>{el.style.background=on;},1200); setTimeout(()=>{el.style.background=off;},1500); }
 async function doWooriSettle(id){ await api('PUT',`/receptions/${id}/woori-settle`,{settled:true}); await loadAll(); render(); }
 async function doWooriSettleSale(id){ await api('PUT',`/sales/${id}/woori-settle`,{settled:true}); await loadAll(); render(); }
 
@@ -2369,7 +2369,7 @@ function renderPayments(){
     ${statCard('고객 미수금', won(unpaidAmt), unpaidAmt>0?'var(--danger)':'', 18)}
   </div>
   <div class="split" style="grid-template-columns:${AG?'1fr 1fr':'1fr'};margin-bottom:16px;align-items:stretch">
-    <div class="detail-panel" style="position:static">
+    <div class="detail-panel" style="position:static;max-height:320px;overflow-y:auto">
       <h3>이달 결제수단별</h3>
       ${['cash','transfer','cashreceipt','card','tax','unpaid'].map(k=>`<div class="detail-row"><span class="detail-value">${PM_LABEL[k]}</span><span class="detail-value" style="text-align:right"><strong>${won(byPM[k])}</strong></span></div>`).join('')}
       ${AG?`<div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">${esc(agencyName())} 대행수수료(이달, 판매 포함)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth+salesWoori)}</strong></span></div>`:''}
