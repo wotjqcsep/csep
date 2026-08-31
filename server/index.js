@@ -426,6 +426,7 @@ async function initDB() {
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS payment_method TEXT;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS tax_invoice BOOLEAN DEFAULT FALSE;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS woori_settled BOOLEAN DEFAULT FALSE;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS woori_settled_at TIMESTAMPTZ;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS estimate_amount DOUBLE PRECISION;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS visit_fee DOUBLE PRECISION;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS picked_up BOOLEAN DEFAULT FALSE;
@@ -441,6 +442,7 @@ async function initDB() {
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS purchase_date TEXT;
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax_invoice BOOLEAN DEFAULT FALSE;
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS woori_settled BOOLEAN DEFAULT FALSE;
+    ALTER TABLE sales ADD COLUMN IF NOT EXISTS woori_settled_at TIMESTAMPTZ;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS next_visit_parts TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS cad TEXT;
     ALTER TABLE computers ADD COLUMN IF NOT EXISTS adobe TEXT;
@@ -2673,7 +2675,8 @@ app.put('/api/receptions/:id/collect', express.json(), wrap(async (req, res) => 
 // 우리사무기 정산 받음 처리 (토글)
 app.put('/api/receptions/:id/woori-settle', wrap(async (req, res) => {
   const val = req.body.settled !== undefined ? !!req.body.settled : true;
-  const { rows } = await pool.query('UPDATE receptions SET woori_settled=$1 WHERE id=$2 RETURNING *', [val, req.params.id]);
+  const settledAt = val ? new Date().toISOString() : null;
+  const { rows } = await pool.query('UPDATE receptions SET woori_settled=$1, woori_settled_at=$3 WHERE id=$2 RETURNING *', [val, req.params.id, settledAt]);
   if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
@@ -2800,7 +2803,8 @@ app.post('/api/sales', wrap(async (req, res) => {
 }));
 app.put('/api/sales/:id/woori-settle', wrap(async (req, res) => {
   const val = req.body.settled !== undefined ? !!req.body.settled : true;
-  const { rows } = await pool.query('UPDATE sales SET woori_settled=$1 WHERE id=$2 RETURNING *', [val, req.params.id]);
+  const settledAt = val ? new Date().toISOString() : null;
+  const { rows } = await pool.query('UPDATE sales SET woori_settled=$1, woori_settled_at=$3 WHERE id=$2 RETURNING *', [val, req.params.id, settledAt]);
   res.json(rows[0] || {});
 }));
 
