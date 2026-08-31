@@ -1145,7 +1145,9 @@ function renderEstimates(){ estInit(); const s=estState;
       <div class="form-group" style="flex:2;display:flex;align-items:flex-end;gap:6px">
         <button class="btn btn-sm" onclick="estSave(this)">💾 견적 저장</button>
         <button class="btn btn-sm btn-secondary" onclick="estToggle('est_saved_box');estLoadList()">📂 저장된 견적</button>
-        <span id="est_save_status" style="font-size:12px;color:var(--gray-500)"></span>
+        <button class="btn btn-sm btn-secondary" onclick="estReset()">초기화</button>
+        <button class="btn btn-sm" style="background:#7048e8;color:#fff" onclick="estNewDoc()">＋ 새 견적서</button>
+        <span id="est_save_status" style="font-size:12px;color:var(--gray-500)">${estState.savedId?'📝 견적 #'+estState.savedId+' 수정 중':''}</span>
       </div>
     </div>
     <div id="est_saved_box" style="display:${_estSavedOpen?'block':'none'};margin-top:8px;border-top:1px solid var(--gray-200);padding-top:10px">
@@ -1261,8 +1263,6 @@ function renderEstimates(){ estInit(); const s=estState;
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn" onclick="estPrint(estState.ptarget)">🖨️ 이 상태로 인쇄</button>
-        <button class="btn btn-secondary" onclick="estReset()">초기화</button>
-        <button class="btn" style="background:#7048e8;color:#fff" onclick="estNewDoc()">＋ 새 견적서</button>${estState.savedId?` <span style="font-size:11px;color:var(--gray-400)">📝 견적 #${estState.savedId} 수정 중</span>`:''}
       </div>
       <div style="font-size:12px;color:var(--gray-400);margin-top:8px">※ 내부용은 품명·금액 옵션과 무관하게 항상 전체 표시. 옵션은 출력물에만 적용되고 위 표 데이터는 그대로입니다.</div>
       <div style="display:flex;align-items:center;gap:8px;margin:12px 0 6px">
