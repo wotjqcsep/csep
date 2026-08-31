@@ -2338,8 +2338,8 @@ function renderPayments(){
       ${vatRefundMonth>0?`<div class="detail-row" style="border:none"><span class="detail-value" style="color:#0ca678">매입부가세 환급(이달)</span><span class="detail-value" style="text-align:right;color:#0ca678"><strong>+${won(vatRefundMonth)}</strong></span></div>`:''}
     </div>
     ${AG?`<div class="detail-panel" style="position:static">
-      <h3>${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3>
-      ${(wooriPending.length+salesWpend.length)>0?`<div style="font-size:12px;color:var(--gray-400);margin-bottom:6px">※ 금액은 ${esc(agencyName())} 수수료 제외 정산금입니다</div><table class="table" style="font-size:13px;margin:0"><thead><tr><th>고객</th><th>결제수단</th><th>완료일</th><th style="text-align:right">금액 <span style="font-size:11px;color:var(--gray-400)">(수수료 제외)</span></th><th></th></tr></thead><tbody>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3><span style="color:#e03131;font-size:13px;font-weight:700">${esc(agencyName())} ${Math.round(Math.max(feeRate('card'),feeRate('tax'),feeRate('cashreceipt'))*10000)/100}% 제외 정산금</span></div>
+      ${(wooriPending.length+salesWpend.length)>0?`<table class="table" style="font-size:13px;margin:0"><thead><tr><th>고객</th><th>결제수단</th><th>완료일</th><th style="text-align:right">금액</th><th></th></tr></thead><tbody>
       ${wooriPending.map(r=>`<tr>
         <td><strong>${esc(custName(r.customer_id))}</strong></td>
         <td>${payLabel(r)}${recVatRefund(r)?` <span style="color:#0ca678;font-size:11px">환급+${won(recVatRefund(r))}</span>`:''}</td>
