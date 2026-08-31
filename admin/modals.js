@@ -505,7 +505,7 @@ function openSaleModal(){
     <div class="form-group"><label>고객 *</label><select id="s_cust">${custOptions}</select></div>
     <div class="form-row">${field('s_item','품목명 *','')}<div class="form-group"><label>품목 유형</label><select id="s_type"><option value="part">부품</option><option value="product">완제품</option><option value="service">서비스</option></select></div></div>
     <div class="form-row">${field('s_qty','수량','1','number')}${field('s_price','단가','0','number')}</div>
-    <div class="form-row">${field('s_date','판매일',new Date().toISOString().slice(0,10),'date')}<div class="form-group"><label>결제수단</label><select id="s_method"><option value="cash">현금</option><option value="card">카드</option><option value="transfer">계좌이체</option></select></div></div>
+    <div class="form-row">${field('s_date','판매일',kstNow(),'date')}<div class="form-group"><label>결제수단</label><select id="s_method"><option value="cash">현금</option><option value="card">카드</option><option value="transfer">계좌이체</option></select></div></div>
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveSale()">저장</button></div>`;
   modal('판매 등록', body);
 }

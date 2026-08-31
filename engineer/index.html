@@ -85,6 +85,8 @@ const S={ engineer:null, tab:'list', receptions:[], engineers:[], customers:[], 
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString('ko-KR');
+function kstDate(dt){ if(!dt) return ''; const d=new Date(dt); const k=new Date(d.getTime()+9*3600000); return k.toISOString().slice(0,10); }
+function kstNow(){ return kstDate(new Date()); }
 const WO_TYPE_COLOR={출장:'#1971c2',납품:'#e67700','견적서 납품':'#7048e8'};
 function woTypeBadge(memo){
   if(!memo) return '';
@@ -288,7 +290,7 @@ function render(){
   else if(S.tab==='done'){ const weekAgo=new Date(Date.now()-7*24*60*60*1000).toISOString(); const dl=(isAdmin?done:done.filter(r=>r.assigned_engineer_id==myId)).filter(r=>(r.completed_at||r.received_at||'')>=weekAgo); content=(dl.length?dl.map(cardHtml).join(''):'<div class="empty">최근 1주일 완료 작업이 없습니다</div>')+'<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px">최근 1주일 이력만 표시 · 이전 이력은 📅 일정 탭에서 확인</div>'; }
   else if(isAdmin){
     const f=S.statusFilter||'all';
-    const today=new Date().toISOString().slice(0,10);
+    const today=kstNow();
     const isToday=r=>r.reserved_date&&r.reserved_date.slice(0,10)===today&&notDone(r);
     const active=S.receptions.filter(r=>r.status!=='completed'&&r.status!=='cancelled');
     const cntPending=active.filter(r=>notDone(r)&&!reserved(r)&&r.status!=='in_progress'&&r.status!=='repairing').length;
@@ -545,7 +547,7 @@ function renderProcessing(){
         <button class="btn btn-success" style="flex:1" onclick="submitProcessing(${r.id})">✅ 처리 완료</button>
         ${r.status!=='repairing'?`<button class="btn" style="flex:1;background:#7048e8;color:#fff" onclick="submitCollect(${r.id})">🔧 장비수거 (사무실 수리)</button>`:''}
       </div>
-      ${r.status==='repairing'&&r.collected_at?`<div style="background:#f3f0ff;border:1px solid #d0bfff;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:13px;color:#7048e8">🔧 장비수거일: ${(r.collected_at||'').slice(0,10)} — 점검/수리 완료 후 위 [처리 완료] 버튼을 눌러주세요</div>`:''}
+      ${r.status==='repairing'&&r.collected_at?`<div style="background:#f3f0ff;border:1px solid #d0bfff;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:13px;color:#7048e8">🔧 장비수거일: ${kstDate(r.collected_at)} — 점검/수리 완료 후 위 [처리 완료] 버튼을 눌러주세요</div>`:''}
       <button class="btn" style="background:#f76707;color:#fff" onclick="submitReserve(${r.id})">⏳ 미처리 (예약)</button>
       `}
       ${(S.engineer&&S.engineer.is_admin&&!done)?`<div style="border-top:1px solid #e9ecef;margin:16px 0 8px;padding-top:12px"><div style="font-size:12px;color:var(--gray-500);margin-bottom:6px">🚫 콜 취소</div><div class="row2">
@@ -613,7 +615,7 @@ function ehFilterHtml(filter){
   const rows=filter? _ehHist.filter(r=>(r.work_type||'')==filter) : _ehHist;
   if(!rows.length) return '<div class="empty">해당 분류의 이력이 없습니다</div>';
   const SL={new:'미처리',assigned:'배정',in_progress:'진행중',repairing:'수거·점검',completed:'완료'};
-  return rows.map(r=>`<div style="padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px">${r.work_type?`<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;color:#fff;background:${WO_TYPE_COLOR[r.work_type]||'#868e96'};margin-right:4px">${esc(r.work_type)}</span>`:''}<span class="badge ${r.status}">${SL[r.status]||r.status}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join('');
+  return rows.map(r=>`<div style="padding:8px 0;border-bottom:1px solid #f1f3f5;font-size:13px">${r.work_type?`<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;color:#fff;background:${WO_TYPE_COLOR[r.work_type]||'#868e96'};margin-right:4px">${esc(r.work_type)}</span>`:''}<span class="badge ${r.status}">${SL[r.status]||r.status}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${kstDate(r.received_at)}</span></div>`).join('');
 }
 async function openHistory(custId){
   try{ _ehHist=await api('GET',`/customers/${custId}/receptions`); }catch(e){ _ehHist=[]; }
@@ -1022,7 +1024,7 @@ function buildSchedByDate(){
   (S.schedules||[]).forEach(s=>add(s.date,{k:'sched',s}));
   (S.receptions||[]).forEach(r=>{
     if(r.status==='cancelled') return;
-    if(r.status==='completed') add((r.completed_at||'').slice(0,10),{k:'done',r});
+    if(r.status==='completed') add(kstDate(r.completed_at),{k:'done',r});
     else if(r.reserved_date) add(r.reserved_date,{k:'resv',r});
   });
   return byDate;

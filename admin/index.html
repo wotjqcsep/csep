@@ -457,6 +457,8 @@ async function api(method, url, body){
 const digits = s => (s||'').replace(/\D/g,'');
 const won = n => '₩'+(Number(n)||0).toLocaleString();
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function kstDate(dt){ if(!dt) return ''; const d=new Date(dt); const k=new Date(d.getTime()+9*3600000); return k.toISOString().slice(0,10); }
+function kstNow(){ return kstDate(new Date()); }
 
 // ── 데이터 로딩 (백그라운드) ──
 let firstLoad = true;
@@ -551,8 +553,7 @@ function renderDashboard(){
   </div>`;
 }
 function renderDdayPanel(){
-  const now=new Date(); const pad=n=>String(n).padStart(2,'0');
-  const todayKey=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const todayKey=kstNow();
   const todayMs=new Date(todayKey+'T00:00:00').getTime();
   const items=[];
   // 메모 일정

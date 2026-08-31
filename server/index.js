@@ -617,7 +617,7 @@ app.get('/api/customers/:id/receptions', wrap(async (req, res) => {
 //  견적서 저장 (estimates) — 저장/검색/불러오기 + 거래처 자동 등록
 // ============================================================
 app.get('/api/estimates/next-no', wrap(async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const today = new Date(Date.now()+9*3600000).toISOString().slice(0, 10).replace(/-/g, '');
   const prefix = 'Q' + today + '-';
   const { rows } = await pool.query("SELECT no FROM estimates WHERE no LIKE $1 ORDER BY no DESC LIMIT 1", [prefix + '%']);
   let seq = 1;
@@ -2901,7 +2901,7 @@ app.put('/api/payments/:id/complete', wrap(async (req, res) => {
 //  대시보드 / 통계
 // ============================================================
 app.get('/api/dashboard', wrap(async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date(Date.now()+9*3600000).toISOString().slice(0, 10);
   const receptions = (await pool.query('SELECT * FROM receptions')).rows;
   const customers = (await pool.query('SELECT id, outstanding_amount FROM customers')).rows;
   const inventory = (await pool.query('SELECT id, quantity, reorder_level FROM inventory')).rows;
@@ -3520,7 +3520,7 @@ async function backfillVatRefund() {
 
 async function cleanupExpiredSchedules() {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date(Date.now()+9*3600000).toISOString().slice(0, 10);
     const { rowCount } = await pool.query("DELETE FROM schedules WHERE date IS NOT NULL AND date < $1", [today]);
     if (rowCount) console.log(`[정리] 지난 일정 ${rowCount}건 자동 삭제`);
   } catch (e) { console.log('[정리] 일정 삭제 오류:', e.message); }

@@ -479,7 +479,7 @@ async function openWorkorderModal(customerId, siteId){
   const body=`
     <div style="color:var(--warning);font-weight:700;margin-bottom:8px">📁 수리/점검 이력 (${hist.length}건${hist.length>20?' · 최근 20건':''})</div>
     ${hist.length
-      ? `${(()=>{ const _vt=['출장','납품','견적서 납품']; const woTypes=[...new Set(hist.map(r=>r.work_type).filter(t=>t&&_vt.includes(t)))]; return woTypes.length?`<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap"><button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:var(--gray-800);color:#fff" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='var(--gray-800)';this.style.color='#fff';woHistFilter('')">전체</button>${woTypes.map(t=>`<button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:var(--gray-100);color:var(--gray-700)" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='${WO_TYPE_COLOR[t]||'var(--gray-600)'}';this.style.color='#fff';woHistFilter('${esc(t)}')">${esc(t)}</button>`).join('')}</div>`:''; })()}<div id="wo_hist_body" style="max-height:150px;overflow-y:auto;margin-bottom:14px;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px">${hist.slice(0,20).map(r=>`<div class="wo-hist-row" data-type="${esc(r.work_type||'')}" style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--gray-100)">${woTypeBadge(r.work_type?'['+r.work_type+']':r.initial_memo)} <span class="badge ${r.status}" style="font-size:10px">${statusLabel(r.status)}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${(r.received_at||'').slice(0,10)}</span></div>`).join('')}</div>`
+      ? `${(()=>{ const _vt=['출장','납품','견적서 납품']; const woTypes=[...new Set(hist.map(r=>r.work_type).filter(t=>t&&_vt.includes(t)))]; return woTypes.length?`<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap"><button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:var(--gray-800);color:#fff" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='var(--gray-800)';this.style.color='#fff';woHistFilter('')">전체</button>${woTypes.map(t=>`<button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:var(--gray-100);color:var(--gray-700)" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>{b.style.background='var(--gray-100)';b.style.color='var(--gray-700)'});this.style.background='${WO_TYPE_COLOR[t]||'var(--gray-600)'}';this.style.color='#fff';woHistFilter('${esc(t)}')">${esc(t)}</button>`).join('')}</div>`:''; })()}<div id="wo_hist_body" style="max-height:150px;overflow-y:auto;margin-bottom:14px;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px">${hist.slice(0,20).map(r=>`<div class="wo-hist-row" data-type="${esc(r.work_type||'')}" style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--gray-100)">${woTypeBadge(r.work_type?'['+r.work_type+']':r.initial_memo)} <span class="badge ${r.status}" style="font-size:10px">${statusLabel(r.status)}</span> ${esc(r.symptom)||'-'} <span style="color:var(--gray-400);float:right">${kstDate(r.received_at)}</span></div>`).join('')}</div>`
       : '<div style="text-align:center;color:var(--gray-400);padding:14px 0;margin-bottom:8px">이전 이력이 없습니다</div>'}
     <div style="color:#7048e8;font-weight:700;margin:6px 0 10px">➕ 작업지시 작성</div>
     <div class="form-group"><label>장비 선택 (선택사항)</label><select id="wo_comp"><option value="">선택 안함</option>${comps.map(c=>`<option value="${c.id}">${esc(c.name)||'장비'} · ${DEVICE_TYPES[c.device_type]||c.device_type}</option>`).join('')}</select></div>
@@ -1003,8 +1003,7 @@ function stMoney(el){ let x=(el.value||'').replace(/[^0-9]/g,'').replace(/^0+(?=
 function stCalc(){ const qty=Number(v('st_qty'))||0; const price=Number((v('st_price')||'').replace(/[^0-9]/g,''))||0; const t=qty*price; const el=document.getElementById('st_total'); if(el) el.value=t?Number(t).toLocaleString('ko-KR'):''; }
 function renderStore(){
   const all=(state.sales||[]).filter(s=>!s.customer_id);   // 워크인(매장) 판매만
-  const now=new Date();
-  const todayStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const todayStr=kstNow();
   const monthStr=todayStr.slice(0,7);
   const sum=arr=>arr.reduce((t,s)=>t+(Number(s.total_price)||0),0);
   const today=all.filter(s=>(s.sale_date||'').slice(0,10)===todayStr);
@@ -2134,7 +2133,7 @@ async function printAgencySettlement(year, month){
     rowNum++;
     agencyRows+=`<tr>
       <td style="text-align:center">${rowNum}</td>
-      <td style="text-align:center">${(r.completed_at||'').slice(0,10)}</td>
+      <td style="text-align:center">${kstDate(r.completed_at)}</td>
       <td>${r.est_no||('#'+r.id)}</td>
       <td style="text-align:center">${PM_LABEL[r.payment_method]||r.payment_method||''}${r.tax_invoice?'/계산서':''}</td>
       <td style="text-align:right">${won(rev)}</td>
@@ -2168,7 +2167,7 @@ async function printAgencySettlement(year, month){
     vatNum++;
     vatRows+=`<tr>
       <td style="text-align:center">${vatNum}</td>
-      <td style="text-align:center">${r.purchase_date||(r.completed_at||'').slice(0,10)}</td>
+      <td style="text-align:center">${r.purchase_date||kstDate(r.completed_at)}</td>
       <td>${r.est_no||('#'+r.id)}</td>
       <td style="text-align:right">${won(r.est_total||0)}</td>
       <td style="text-align:right">${won(realCost)}</td>
@@ -2210,7 +2209,7 @@ async function printAgencySettlement(year, month){
     <table class="col"><tbody>
       <tr><td>제출자</td><td>${esc(myBizName)}${myCeo?' / '+esc(myCeo):''}</td></tr>
       ${myBizNo?`<tr><td>사업자번호</td><td>${esc(myBizNo)}</td></tr>`:''}
-      <tr><td>작성일</td><td>${new Date().toISOString().slice(0,10)}</td></tr>
+      <tr><td>작성일</td><td>${kstNow()}</td></tr>
     </tbody></table>
   </div>
 
@@ -2276,7 +2275,7 @@ async function printAgencySettlement(year, month){
     <table style="width:48%"><tbody>
       <tr><td style="font-weight:700;color:#555;padding:2px 6px;white-space:nowrap">제출자</td><td style="padding:2px 6px">${esc(myBizName)}${myCeo?' / '+esc(myCeo):''}</td></tr>
       ${myBizNo?`<tr><td style="font-weight:700;color:#555;padding:2px 6px;white-space:nowrap">사업자번호</td><td style="padding:2px 6px">${esc(myBizNo)}</td></tr>`:''}
-      <tr><td style="font-weight:700;color:#555;padding:2px 6px;white-space:nowrap">작성일</td><td style="padding:2px 6px">${new Date().toISOString().slice(0,10)}</td></tr>
+      <tr><td style="font-weight:700;color:#555;padding:2px 6px;white-space:nowrap">작성일</td><td style="padding:2px 6px">${kstNow()}</td></tr>
     </tbody></table>
   </div>
   ${agencyRows?`
@@ -2349,7 +2348,7 @@ function renderPayments(){
   const byPM={cash:0,transfer:0,cashreceipt:0,card:0,tax:0,unpaid:0}; mdSettled.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
   salesSettled.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
   const vatRefundMonth=mdSettled.reduce((s,r)=>s+recVatRefund(r),0);
-  const byCust={}; mdSettled.filter(r=>isWoori(r)).forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0,refund:0,settledDates:[],payments:new Set()}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); o.refund+=recVatRefund(r); if(r.woori_settled_at) o.settledDates.push(r.woori_settled_at.slice(0,10)); o.payments.add(payLabel(r)); });
+  const byCust={}; mdSettled.filter(r=>isWoori(r)).forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0,refund:0,settledDates:[],payments:new Set()}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); o.refund+=recVatRefund(r); if(r.woori_settled_at) o.settledDates.push(kstDate(r.woori_settled_at)); o.payments.add(payLabel(r)); });
   const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
   return `
   <div class="page-header"><h2>💳 결산${brandName()?` <span style="font-size:13px;color:var(--gray-500)">— ${esc(brandName())}</span>`:''}</h2>
@@ -2381,7 +2380,7 @@ function renderPayments(){
       ${wooriPending.map(r=>`<tr style="cursor:pointer" onclick="scrollToSettleRow('rec_${r.id}')">
         <td><strong>${esc(custName(r.customer_id))}</strong></td>
         <td>${payLabel(r)}${recVatRefund(r)?` <span style="color:#0ca678;font-size:11px">환급+${won(recVatRefund(r))}</span>`:''}</td>
-        <td>${(r.completed_at||'').slice(0,10)||'-'}</td>
+        <td>${kstDate(r.completed_at)||'-'}</td>
         <td style="text-align:right"><strong>${won(mySettle(r))}</strong></td>
         <td><button class="btn btn-sm btn-success" onclick="event.stopPropagation();doWooriSettle(${r.id})">정산받음</button></td>
       </tr>`).join('')}
@@ -2416,7 +2415,7 @@ function renderPayments(){
   <div class="table-container"><table class="table">
     <thead><tr><th>일자</th><th>거래처</th><th>내용</th><th>담당</th><th>결제수단</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th><th style="text-align:right;color:#0ca678">환급</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
     <tbody>${md.length? [...md].sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||'')||b.id-a.id).map(r=>`<tr id="rec_${r.id}" style="${_wpIds.has(r.id)?'border-left:4px solid #fab005;background:rgba(250,176,5,0.08)':''}">
-      <td style="font-size:12px">${(r.completed_at||'').slice(0,10)}</td>
+      <td style="font-size:12px">${kstDate(r.completed_at)}</td>
       <td><strong>${esc(custName(r.customer_id))}</strong></td>
       <td style="font-size:12px">${esc(r.symptom)||'-'}${(Number(r.labor_fee)||0)&&(Number(r.parts_fee)||0)?` <span style="color:var(--gray-400)">(공임 ${won(r.labor_fee)}·부품 ${won(r.parts_fee)})</span>`:''}${(Number(r.estimate_amount)||0)>recRevenue(r)?` <span style="color:#e8590c;font-weight:700">· 현장할인 ${won((Number(r.estimate_amount)||0)-recRevenue(r))}</span>`:''}</td>
       <td>${r.assigned_engineer_id?engBadge(r.assigned_engineer_id):'-'}</td>
