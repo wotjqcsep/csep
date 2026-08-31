@@ -1515,7 +1515,14 @@ function estSetSupply(val){
   }
   _estForceRender=true; render();
 }
-function estSetTotal(val){ const t=Number(String(val||'').replace(/[^\d]/g,''))||0; estSetSupply(estState.noVat?t:Math.floor(t/1.1)); }
+function estSetTotal(val){
+  const t=Number(String(val||'').replace(/[^\d]/g,''))||0;
+  if(estState.noVat){ estSetSupply(t); return; }
+  // 합계에서 공급가액 역산: sub + floor(sub*0.1) == t 가 되는 sub 찾기
+  let sub=Math.floor(t/1.1);
+  if(sub+Math.floor(sub*0.1)<t) sub++;
+  estSetSupply(sub);
+}
 function estToggleVat(checked){ estSyncAll(); estState.noVat=checked; estBody(); }
 // 결제수단별 수수료율(사업자관리) — 요율>0 이면 수수료 발생
 function estFeeRate(){ return estState?feeRate(estState.payMethod):0; }
