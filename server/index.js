@@ -937,6 +937,21 @@ async function aiParse(ocrText) {
   if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return geminiParse(ocrText);
   throw new Error('AI 키(GROQ_API_KEY 또는 GEMINI_API_KEY) 미설정');
 }
+app.get('/api/ai-status', wrap(async (req, res) => {
+  const hasGroq = !!process.env.GROQ_API_KEY;
+  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  if (!hasGroq) return res.json({ ok: false, error: 'GROQ_API_KEY 미설정' });
+  try {
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + process.env.GROQ_API_KEY },
+      body: JSON.stringify({ model, temperature: 0, max_tokens: 20, messages: [{ role: 'user', content: '한국어로 "AI 정상 작동" 이라고만 답하세요.' }] }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) return res.json({ ok: false, model, error: (data.error && data.error.message) || ('HTTP ' + resp.status) });
+    const reply = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '';
+    res.json({ ok: true, model, reply: reply.trim() });
+  } catch (e) { res.json({ ok: false, model, error: e.message }); }
+}));
 app.post('/api/computers/ai-scan', wrap(async (req, res) => {
   const body = req.body || {};
   // 1) 수동 AI 정밀분석: {text, ai:true} → Gemini로 재해석
