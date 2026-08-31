@@ -81,7 +81,7 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:var(--bg);c
 
 <script>
 const API='/api';
-const S={ engineer:null, tab:'list', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], processing:null, statusFilter:'pending', procPhotos:[], procExisting:[], incomingCalls:[], incomingSms:[], modalRec:null, settings:{} };
+const S={ engineer:null, tab:'list', receptions:[], engineers:[], customers:[], computers:[], presets:[], parts:[], chatUnread:{}, chatOpen:null, stats:null, schedules:[], processing:null, statusFilter:'all', procPhotos:[], procExisting:[], incomingCalls:[], incomingSms:[], modalRec:null, settings:{} };
 const DEVICE_TYPES={ desktop:'데스크톱', laptop:'노트북', server:'서버', printer:'프린터', other:'기타' };
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const won=n=>'₩'+(Number(n)||0).toLocaleString('ko-KR');
@@ -319,7 +319,7 @@ function render(){
       flist=ipFirst(flist);
     }
     if(_geoSortLoc && Object.keys(routeOrderMap).length) flist=sortByProximity(flist);
-    const chips=[['all','📊 전체'],['pending','🔴 미처리'],['in_progress','🟢 출동중'],['repairing','🟣 수거·점검'],['reserved','🟡 예약']];
+    const chips=[['all','📊 전체'],['in_progress','🟢 출동중'],['pending','🔴 미처리'],['repairing','🟣 수거·점검'],['reserved','🟡 예약']];
     content=`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${chips.map(([k,l])=>`<span onclick="filterAndScroll('${k}')" style="padding:6px 12px;border-radius:16px;font-size:13px;cursor:pointer;${f===k?'background:var(--primary);color:#fff':'background:#fff;border:1px solid #dee2e6'}">${l} ${cnt[k]}</span>`).join('')}</div>`
       +(flist.length?flist.map(cardHtml).join(''):'<div class="empty">작업이 없습니다</div>');
   } else {
