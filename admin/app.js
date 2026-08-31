@@ -254,10 +254,10 @@ async function openReceptionDetail(recId){
     ${photos.length?`<div class="form-section">현장 사진 (${photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${photos.map(p=>`<img src="${p.photo}" style="width:92px;height:92px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--gray-200)" onclick="window.open(this.src,'_blank')">`).join('')}</div>`:''}
     <div class="form-section">처리 · 결제 (처리하기)</div>
     <textarea id="rd_sol" style="width:100%;min-height:60px" placeholder="처리한 내용을 입력하세요">${esc(r.solution||'')}</textarea>
-    <div class="form-row" style="margin-top:8px">
-      <div class="form-group"><label>공임비</label><input id="rd_labor" type="text" inputmode="numeric" value="${Number(r.labor_fee)?Number(r.labor_fee).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this);calcPay()" placeholder="0"></div>
-      <div class="form-group"><label>부품비</label><input id="rd_parts" type="text" inputmode="numeric" value="${Number(r.parts_fee)?Number(r.parts_fee).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this);calcPay()" placeholder="0"></div>
-    </div>
+    ${(()=>{ const cm=(state.settings||{}).cost_input_mode||'both';
+      if(cm==='labor_only') return `<div class="form-row" style="margin-top:8px"><div class="form-group" style="flex:1"><label>비용</label><input id="rd_labor" type="text" inputmode="numeric" value="${Number(r.labor_fee)?Number(r.labor_fee).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this);calcPay()" placeholder="0"></div></div><input type="hidden" id="rd_parts" value="0">`;
+      if(cm==='parts_only') return `<div class="form-row" style="margin-top:8px"><div class="form-group" style="flex:1"><label>비용</label><input id="rd_parts" type="text" inputmode="numeric" value="${Number(r.parts_fee)?Number(r.parts_fee).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this);calcPay()" placeholder="0"></div></div><input type="hidden" id="rd_labor" value="0">`;
+      return `<div class="form-row" style="margin-top:8px"><div class="form-group"><label>공임비</label><input id="rd_labor" type="text" inputmode="numeric" value="${Number(r.labor_fee)?Number(r.labor_fee).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this);calcPay()" placeholder="0"></div><div class="form-group"><label>부품비</label><input id="rd_parts" type="text" inputmode="numeric" value="${Number(r.parts_fee)?Number(r.parts_fee).toLocaleString('ko-KR'):''}" oninput="estFmtCost(this);calcPay()" placeholder="0"></div></div>`; })()}
     <div class="form-row">
       <div class="form-group"><label>결제수단</label><select id="rd_pm" onchange="calcPay()">
         <option value="">선택</option>
@@ -826,6 +826,17 @@ function renderEngineers(){
     </div>
     <div style="font-size:12px;color:var(--gray-400)">문서 작성 시 선택한 결제수단의 수수료율이 합계에 적용되어 실수령액이 계산됩니다. 예) 카드 15, 세금계산서 15, 나머지 0.</div>
   </div>
+  <div class="vd-card" style="margin-bottom:16px">
+    <div style="font-weight:800;margin-bottom:4px">💰 비용 입력 방식 <span style="font-weight:400;font-size:12px;color:#0ca678">— 기사앱 비용·결제 화면에 적용</span></div>
+    <div style="font-size:12px;color:var(--gray-500);margin-bottom:10px">부품비+공임비 두 칸 또는 비용 한 칸으로 선택합니다. 한 칸 선택 시 비활성화된 항목은 0으로 처리됩니다.</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      ${['both','labor_only','parts_only'].map(k=>{
+        const cur=S.cost_input_mode||'both';
+        const labels={both:'부품비 + 공임비 (두 칸)',labor_only:'공임비만 (비용 한 칸)',parts_only:'부품비만 (비용 한 칸)'};
+        return '<button class="btn'+(cur===k?' btn-primary':' btn-secondary')+'" onclick="saveCostMode(\''+k+'\')" style="font-size:13px">'+labels[k]+'</button>';
+      }).join('')}
+    </div>
+  </div>
   <div class="table-container"><table class="table">
     <thead><tr><th>이름</th><th>전화</th><th>상태</th><th>권한</th><th>앱 로그인</th><th>액션</th></tr></thead>
     <tbody>${es.length? es.map(e=>`<tr>
@@ -961,6 +972,11 @@ async function saveFeeSettings(){
 async function savePrimaryFee(val){
   await api('PUT','/settings/fee_primary',{value:val});
   await loadAll(); renderInto();
+}
+async function saveCostMode(mode){
+  await api('PUT','/settings/cost_input_mode',{value:mode});
+  await loadAll(); renderInto();
+  showToast('비용 입력 방식 변경: '+{both:'부품비+공임비',labor_only:'공임비만',parts_only:'부품비만'}[mode]);
 }
 // 결제수단 라벨 + 결제수단별 외주 수수료율(사업자관리 설정, 0=없음)
 const EST_PAY={cash:'현금',transfer:'계좌이체',cashreceipt:'현금영수증',card:'카드',tax:'세금계산서'};
