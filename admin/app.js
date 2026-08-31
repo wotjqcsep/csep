@@ -283,7 +283,7 @@ async function openReceptionDetail(recId){
 function calcPay(){
   const labor=Number((v('rd_labor')||'').replace(/[^\d]/g,''))||0, parts=Number((v('rd_parts')||'').replace(/[^\d]/g,''))||0, pm=v('rd_pm');
   const tax=document.getElementById('rd_tax') && document.getElementById('rd_tax').checked;
-  const rev=labor+parts, wr=feeRateRec({payment_method:pm,tax_invoice:tax}), woori=Math.round(rev*wr), mine=rev-woori;
+  const rev=labor+parts, wr=feeRateRec({payment_method:pm,tax_invoice:tax}), woori=Math.floor(rev*wr), mine=rev-woori;
   const vatRefund=Number((document.getElementById('rd_vatrefund')||{}).value||0);
   const finalMine=mine+vatRefund;
   const el=document.getElementById('rd_calc'); if(!el) return;
@@ -1511,11 +1511,11 @@ function estUpdateFee(){
   const rows=estRows(); const sub=rows.reduce((t,r)=>t+r.amt,0), vat=estState.noVat?0:Math.floor(sub*0.1);
   const total=sub+vat;
   const totCost=rows.reduce((t,r)=>t+(Number(r.cost)||0)*(Number(r.qty)||0),0);
-  const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.round(total*rate);
+  const rate=estFeeRate(), pct=Math.round(rate*10000)/100, cut=Math.floor(total*rate);
   const net=total-cut;               // 실수령액 = 합계 - 외주업체 결제 수수료
   const realCost=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
   const useOutsource=rate>0;         // 외주업체 경유 여부
-  const autoRefund=realCost>0?(realCost-Math.round(realCost/1.1)):0;
+  const autoRefund=realCost>0?(realCost-Math.floor(realCost/1.1)):0;
   const refund=(estState.refundManual!=null)?estState.refundManual:autoRefund;
   const finalNet=net+refund;         // 최종 실수령 = 실수령액 + 매입환급
   const finalProfit=finalNet-realCost; // 최종 순이익 = 최종 실수령 - 매입비
@@ -1644,7 +1644,7 @@ function estDocInner(target, copyLabel, overrideRows, isLastPage){
     if(showEach){ cells.push(`<td style="text-align:right">${won(r.price)}</td>`, `<td style="text-align:right">${won(r.amt)}</td>`); }
     return `<tr>${cells.join('')}</tr>`;
   }).join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:#aaa;padding:20px">품목을 입력하세요</td></tr>`;
-  const feeRt=estFeeRate(), feePct=Math.round(feeRt*10000)/100, feeCut=Math.round(total*feeRt);
+  const feeRt=estFeeRate(), feePct=Math.round(feeRt*10000)/100, feeCut=Math.floor(total*feeRt);
   const sumRows = `<tr><td>공급가액</td><td style="text-align:right">${won(sub)}</td></tr>
       <tr><td>부가세(10%)</td><td style="text-align:right">${won(vat)}</td></tr>
       <tr class="tot"><td>합계금액</td><td style="text-align:right">${won(total)}</td></tr>
@@ -1652,7 +1652,7 @@ function estDocInner(target, copyLabel, overrideRows, isLastPage){
     + (internal ? (function(){
       const rc=Number(String(estState.realCost||'').replace(/[^\d]/g,''))||0;
       const useOut=feeRt>0;
-      const autoRf=rc>0?(rc-Math.round(rc/1.1)):0;
+      const autoRf=rc>0?(rc-Math.floor(rc/1.1)):0;
       const rf=(estState.refundManual!=null)?estState.refundManual:autoRf;
       const net=total-feeCut;          // 실수령액
       const finalNet=net+rf;           // 최종 실수령 = 실수령액 + 매입환급
@@ -1769,7 +1769,7 @@ function stdStatement(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   </tbody></table>`;
   const TB='border:2px solid var(--print-border,#333);padding:4px 5px;font-size:11px';
   const TH='border:2px solid var(--print-border,#333);padding:4px 5px;font-size:11px;background:var(--hover-bg,#f2f4f8);text-align:center';
-  const body=items.map(r=>{ const amt=r.amt, tax=Math.round(amt*0.1);
+  const body=items.map(r=>{ const amt=r.amt, tax=Math.floor(amt*0.1);
     return `<tr><td style="text-align:center;${TB}">${mm}</td><td style="text-align:center;${TB}">${dd}</td>
       <td style="${TB}">${esc(ctx.dispName(r))}</td><td style="${TB}"></td><td style="text-align:center;${TB}">${r.qty}</td>
       <td style="text-align:right;${TB}">${nfmt(r.price)}</td><td style="text-align:right;${TB}">${nfmt(amt)}</td>
@@ -1809,7 +1809,7 @@ function stdTaxInvoice(sup,buy,items,sub,vat,total,ctx,memo,copyLabel,isLastPage
   const copyType=isSupCopy?'공 급 자':'공급받는자';
   const subDH=['백','십','억','천','백','십','만','천','백','십','일'].map(h=>`<td style="${lb};font-size:7px">${h}</td>`).join('');
   const vatDH=['십','억','천','백','십','만','천','백','십','일'].map(h=>`<td style="${lb};font-size:7px">${h}</td>`).join('');
-  const itemRow=(r)=>{ const amt=r.amt, tax=Math.round(amt*0.1);
+  const itemRow=(r)=>{ const amt=r.amt, tax=Math.floor(amt*0.1);
     const ov='white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0';
     return `<tr><td style="${lb}">${mm}</td><td style="${lb}">${dd}</td>
       <td colspan="6" style="${b};${ov}">${esc(ctx.dispName(r))}</td><td colspan="3" style="${b};${ov}"></td><td colspan="3" style="${lb}">${r.qty}</td>
@@ -1851,7 +1851,7 @@ function stdTaxInvoice(sup,buy,items,sub,vat,total,ctx,memo,copyLabel,isLastPage
 }
 function stdStatementFallback(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   const dp=String(ctx.date||'').split('-'), mm=dp[1]||'', dd=dp[2]||'';
-  const body=items.map(r=>{ const amt=r.amt, tax=Math.round(amt*0.1);
+  const body=items.map(r=>{ const amt=r.amt, tax=Math.floor(amt*0.1);
     return `<tr><td style="text-align:center">${mm}</td><td style="text-align:center">${dd}</td>
       <td>${esc(ctx.dispName(r))}</td><td></td><td style="text-align:center">${r.qty}</td>
       <td style="text-align:right">${nfmt(r.price)}</td><td style="text-align:right">${nfmt(amt)}</td>
@@ -2072,7 +2072,7 @@ function agencyOn(){ return ['cash','transfer','cashreceipt','card','tax'].some(
 function feePctRec(r){ return Math.round(feeRateRec(r)*10000)/100; }
 function isWoori(r){ return feeRateRec(r)>0; }   // 외주 수수료 대상
 function recRevenue(r){ return (Number(r.labor_fee)||0)+(Number(r.parts_fee)||0)+(Number(r.visit_fee)||0); }
-function wooriCut(r){ return Math.round(recRevenue(r)*feeRateRec(r)); }
+function wooriCut(r){ return Math.floor(recRevenue(r)*feeRateRec(r)); }
 function recVatRefund(r){ return Number(r.vat_refund)||0; }
 function mySettle(r){ return recRevenue(r)-wooriCut(r)+recVatRefund(r); }
 let settleState = { y:null, m:null };
@@ -2119,7 +2119,7 @@ async function printAgencySettlement(year, month){
   });
   agencySales.forEach(s=>{
     const rev=Number(s.total_price)||0;
-    const fee=Math.round(rev*feeRateRec(s));
+    const fee=Math.floor(rev*feeRateRec(s));
     const pay=rev-fee;
     agencyTotalRev+=rev; agencyTotalFee+=fee; agencyTotalPay+=pay;
     rowNum++;
@@ -2303,7 +2303,7 @@ function renderPayments(){
   const AG=agencyOn();
   const monthTag=`${y}-${String(m+1).padStart(2,'0')}`;
   const salesMonth=(state.sales||[]).filter(s=>(s.sale_date||'').slice(0,7)===monthTag);
-  const saleWoori=s=>Math.round((Number(s.total_price)||0)*feeRateRec(s));
+  const saleWoori=s=>Math.floor((Number(s.total_price)||0)*feeRateRec(s));
   const saleMine=s=>(Number(s.total_price)||0)-saleWoori(s);
   const salesSettled=salesMonth.filter(s=>feeRateRec(s)<=0||s.woori_settled);   // 대행 경유 매장판매도 정산받은 것만
   const salesRev=salesSettled.reduce((t,s)=>t+(Number(s.total_price)||0),0);

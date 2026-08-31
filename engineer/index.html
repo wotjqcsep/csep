@@ -1189,7 +1189,7 @@ let woState={ customerId:'', customer:null, search:'', results:[], comps:[], sym
 function calcProcPay(){
   const parts=moneyVal('p_cparts'), labor=moneyVal('p_clabor');
   const pm=(document.getElementById('p_paymethod')||{}).value, tax=(pm==='tax');
-  const rate=engFeeRateRec(pm,tax), pct=Math.round(rate*10000)/100, rev=parts+labor, woori=Math.round(rev*rate), mine=rev-woori;
+  const rate=engFeeRateRec(pm,tax), pct=Math.round(rate*10000)/100, rev=parts+labor, woori=Math.floor(rev*rate), mine=rev-woori;
   const vatRefund=Number((document.getElementById('p_vatrefund')||{}).value||0);
   const finalMine=mine+vatRefund;
   const estAmt=Number(String((document.getElementById('p_estamt')||{}).value||'').replace(/[^\d]/g,''))||0;
