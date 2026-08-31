@@ -1084,7 +1084,7 @@ function estInit(){ if(estState) return; const t=estToday();
     rows:EST_CATS.map(c=>({cat:c,name:'',qty:1,cost:'',margin:0})) }; }
 function estRowHtml(x,i){ x=x||{};
   const cost=Number(x.cost)||0, margin=Number(x.margin!=null?x.margin:0)||0, qty=Number(x.qty)||1;
-  const price=(x.price!=null&&x.price!=='')?(Number(String(x.price).replace(/[^\d]/g,''))||0):(cost?Math.round(cost*(1+margin/100)):0);
+  const price=(x.price!=null&&x.price!=='')?(Number(String(x.price).replace(/[^\d]/g,''))||0):(cost?Math.floor(cost*(1+margin/100)):0);
   const amt=price*qty, fc=n=>n?Number(n).toLocaleString('ko-KR'):'';
   const spec=x.spec||'', hasSpec=!!spec, showSpec=x.showSpec!==false&&hasSpec;
   return `<tr class="est-row" data-i="${i}">
@@ -1112,11 +1112,11 @@ function estSpecAll(on){ estSyncAll(); estState.rows.forEach(r=>{ if(r.spec) r.s
 function estRecalcPrice(el){ const tr=el.closest('tr'); if(!tr)return;
   const cost=Number(String(tr.querySelector('.est-cost').value||'').replace(/[^\d]/g,''))||0;
   const margin=Number(tr.querySelector('.est-margin').value)||0;
-  const pe=tr.querySelector('.est-price'); if(pe) pe.value = cost? Number(Math.round(cost*(1+margin/100))).toLocaleString('ko-KR') : ''; }
+  const pe=tr.querySelector('.est-price'); if(pe) pe.value = cost? Number(Math.floor(cost*(1+margin/100))).toLocaleString('ko-KR') : ''; }
 function renderEstimates(){ estInit(); const s=estState;
   if(window._pendingEstImport){ const d=window._pendingEstImport; window._pendingEstImport=null; setTimeout(()=>{ estAddItems(d.items,'append'); showToast('📋 북마클릿: '+d.items.length+'개 항목 추가'+(d.totalPrice?' (업체 판매가 '+Number(d.totalPrice).toLocaleString()+'원)':'')); renderInto(); },100); }
   if(!s.no && !s.savedId) estNextNo().then(no=>{ if(!estState.no){ estState.no=no; const el=document.getElementById('est_no'); if(el) el.value=no; } });
-  const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; const p=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(c*(1+m/100)); return t+p*q; },0);
+  const sub=s.rows.reduce((t,r)=>{ const c=Number(r.cost)||0,m=Number(r.margin)||0,q=Number(r.qty)||0; const p=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.floor(c*(1+m/100)); return t+p*q; },0);
   const vat=s.noVat?0:Math.floor(sub*0.1);
   return `
   <div oninput="estSyncLazy()">
@@ -1466,7 +1466,7 @@ function estSyncAll(){ if(!estState)return; const g=id=>{const e=document.getEle
   { const e=document.getElementById('est_novat'); if(e) estState.noVat=e.checked; }
   estState.rows=[...document.querySelectorAll('#est_body .est-row')].map(tr=>{ const q=c=>tr.querySelector(c);
     const cost=Number(String(q('.est-cost').value||'').replace(/[^\d]/g,''))||0, margin=Number(q('.est-margin').value)||0;
-    const priceRaw=String(q('.est-price').value||'').replace(/[^\d]/g,''), auto=cost?Math.round(cost*(1+margin/100)):0;
+    const priceRaw=String(q('.est-price').value||'').replace(/[^\d]/g,''), auto=cost?Math.floor(cost*(1+margin/100)):0;
     const price=(priceRaw===''||Number(priceRaw)===auto)?'':priceRaw;
     const idx=Number(tr.dataset.i), specRow=document.querySelector(`.est-spec-row[data-i="${idx}"]`);
     const spec=specRow?specRow.querySelector('.est-spec')?.value||'':'';
@@ -1503,14 +1503,14 @@ function estSetSupply(val){
   const active=estState.rows.filter(r=>(Number(r.cost)||0)>0 && (Number(r.qty)||0)>0);
   active.forEach(r=>{
     const c=Number(r.cost)||0, m=Number(r.margin)||0, q=Number(r.qty)||0;
-    const p=Math.round(c*(1+m/100));
+    const p=Math.floor(c*(1+m/100));
     sum+=p*q;
   });
   const diff=target-sum;
   if(diff!==0 && active.length>0){
     const last=active[active.length-1];
     const c=Number(last.cost)||0, m=Number(last.margin)||0, q=Number(last.qty)||0;
-    const basePrice=Math.round(c*(1+m/100));
+    const basePrice=Math.floor(c*(1+m/100));
     last.price=String(basePrice+Math.round(diff/q));
   }
   _estForceRender=true; render();
@@ -1601,7 +1601,7 @@ function estAddItems(items, mode){ estSyncAll();
   estBody();
 }
 function estRows(){ return estState? estState.rows.map(r=>{ const cost=Number(r.cost)||0, margin=Number(r.margin)||0, qty=Number(r.qty)||0;
-  const price=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.round(cost*(1+margin/100));
+  const price=(r.price!=null&&r.price!=='')?(Number(String(r.price).replace(/[^\d]/g,''))||0):Math.floor(cost*(1+margin/100));
   return { cat:(r.cat||'').trim(), name:(r.name||'').trim(), qty, cost, margin, price, amt:price*qty, spec:r.spec||'', showSpec:!!r.showSpec }; }) : []; }
 // 품명 간략화(모델명만): 모든 쇼핑몰 통일 — 브랜드·유통사·노이즈 제거
 function czShortName(name){

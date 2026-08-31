@@ -2619,7 +2619,7 @@ async function calcAndStoreVatRefund(qry, recId) {
     const opts = typeof est.opts === 'string' ? JSON.parse(est.opts) : (est.opts || {});
     const realCost = Number(String(opts.realCost || '').replace(/[^\d]/g, '')) || 0;
     if (realCost <= 0 && opts.refundManual == null) { await qry('UPDATE receptions SET vat_refund=0 WHERE id=$1', [recId]); return; }
-    const autoRefund = realCost > 0 ? (realCost - Math.round(realCost / 1.1)) : 0;
+    const autoRefund = realCost > 0 ? (realCost - Math.floor(realCost / 1.1)) : 0;
     const refund = opts.refundManual != null ? Number(opts.refundManual) : autoRefund;
     await qry('UPDATE receptions SET vat_refund=$2 WHERE id=$1', [recId, refund || 0]);
   } catch (e) { console.log('[매입부가세 환급 계산] 오류:', e.message); }
