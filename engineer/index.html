@@ -1908,7 +1908,7 @@ function renderRouteList(optimized, currentLoc){
       <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 이동${real?'(도로)':'(직선)'}:</span><strong>${((routeState.realTotal?routeState.realTotal.distance:(totalDist+(routeState.destLeg?routeState.destLeg.distance:0)))/1000).toFixed(1)}km</strong></div>
       <div style="display:flex;justify-content:space-between"><span>예상 시간:</span><strong>약 ${Math.round((routeState.realTotal?routeState.realTotal.duration:(totalTime+(routeState.destLeg?routeState.destLeg.duration:0)))/60)}분</strong></div>
     </div>
-    <button class="btn btn-primary" onclick="launchRouteNav()" style="margin-top:10px">🧭 첫번째 배차 네비게이션</button>
+    <div style="display:flex;gap:6px;margin-top:10px"><button class="btn" style="flex:1;background:#4263eb;color:#fff;margin:0" onclick="launchRouteNav('tmap')">🧭 티맵</button><button class="btn" style="flex:1;background:#fab005;color:#3d3d00;margin:0" onclick="launchRouteNav('kakao')">🗺️ 카카오맵</button></div>
     <button class="btn btn-ghost" onclick="closeSheet()" style="margin-top:6px">닫기</button>`;
   listDiv.innerHTML=html;
 }
@@ -1916,10 +1916,12 @@ function handleRouteItemClick(recId){
   closeSheet();
   openProcessing(recId);
 }
-function launchRouteNav(){
+function launchRouteNav(type){
   if(!routeState.optimized||!routeState.optimized[0])return;
   const first=routeState.optimized[0];
-  if(first.customer_address) navKakao(first.customer_address);
+  if(!first.customer_address) return;
+  if(type==='tmap') navTmap(first.customer_address);
+  else navKakao(first.customer_address);
 }
 
 // ── 알림 소리 (업무지시 도착) ──
