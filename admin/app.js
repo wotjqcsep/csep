@@ -2364,16 +2364,16 @@ function renderPayments(){
     ${vatRefundMonth>0?statCard('매입부가세 환급', '+'+won(vatRefundMonth), '#0ca678', 18):''}
     ${statCard('고객 미수금', won(unpaidAmt), unpaidAmt>0?'var(--danger)':'', 18)}
   </div>
-  <div class="split" style="grid-template-columns:${AG?'1fr 1fr':'1fr'};margin-bottom:16px">
+  <div class="split" style="grid-template-columns:${AG?'1fr 1fr':'1fr'};margin-bottom:16px;align-items:stretch">
     <div class="detail-panel" style="position:static">
       <h3>이달 결제수단별</h3>
       ${['cash','transfer','cashreceipt','card','tax','unpaid'].map(k=>`<div class="detail-row"><span class="detail-value">${PM_LABEL[k]}</span><span class="detail-value" style="text-align:right"><strong>${won(byPM[k])}</strong></span></div>`).join('')}
       ${AG?`<div class="detail-row" style="border:none;margin-top:6px"><span class="detail-value" style="color:var(--warning)">${esc(agencyName())} 대행수수료(이달, 판매 포함)</span><span class="detail-value" style="text-align:right;color:var(--warning)"><strong>${won(wooriMonth+salesWoori)}</strong></span></div>`:''}
       ${vatRefundMonth>0?`<div class="detail-row" style="border:none"><span class="detail-value" style="color:#0ca678">매입부가세 환급(이달)</span><span class="detail-value" style="text-align:right;color:#0ca678"><strong>+${won(vatRefundMonth)}</strong></span></div>`:''}
     </div>
-    ${AG?`<div class="detail-panel" style="position:static">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3><span style="color:#e03131;font-size:13px;font-weight:700">${esc(agencyName())} ${Number((state.settings||{})[('fee_'+((state.settings||{}).fee_primary||'card'))])||0}% 제외 정산금</span></div>
-      ${(wooriPending.length+salesWpend.length)>0?`<table class="table" style="font-size:13px;margin:0"><thead><tr><th>고객</th><th>결제수단</th><th>완료일</th><th style="text-align:right">금액</th><th></th></tr></thead><tbody>
+    ${AG?`<div class="detail-panel" style="position:static;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-shrink:0"><h3 style="margin:0">${esc(agencyName())} 받을 정산액 (미정산 ${wooriPending.length+salesWpend.length}건)</h3><span style="color:#e03131;font-size:13px;font-weight:700">${esc(agencyName())} ${Number((state.settings||{})[('fee_'+((state.settings||{}).fee_primary||'card'))])||0}% 제외 정산금</span></div>
+      ${(wooriPending.length+salesWpend.length)>0?`<div style="flex:1;overflow-y:auto;min-height:0"><table class="table" style="font-size:13px;margin:0"><thead style="position:sticky;top:0;z-index:1"><tr><th>고객</th><th>결제수단</th><th>완료일</th><th style="text-align:right">금액</th><th></th></tr></thead><tbody>
       ${wooriPending.map(r=>`<tr>
         <td><strong>${esc(custName(r.customer_id))}</strong></td>
         <td>${payLabel(r)}${recVatRefund(r)?` <span style="color:#0ca678;font-size:11px">환급+${won(recVatRefund(r))}</span>`:''}</td>
@@ -2388,7 +2388,7 @@ function renderPayments(){
         <td style="text-align:right"><strong>${won(saleMine(s))}</strong></td>
         <td><button class="btn btn-sm btn-success" onclick="doWooriSettleSale(${s.id})">정산받음</button></td>
       </tr>`).join('')}
-      </tbody></table>`:'<div class="empty-state">받을 정산액 없음</div>'}
+      </tbody></table></div>`:'<div class="empty-state">받을 정산액 없음</div>'}
     </div>`:''}
   </div>
   <div style="font-weight:700;margin:18px 2px 8px">📋 외주 대행업체 정산 현황</div>
