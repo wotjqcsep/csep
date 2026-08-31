@@ -3126,7 +3126,7 @@ app.post('/api/route', wrap(async (req, res) => {
 // body: { origin:{lat,lng}, stops:[{id,lat,lng}, ...] } → { ok, road, order:[{id,lat,lng,distance,duration}] }
 app.post('/api/route-order', wrap(async (req, res) => {
   const key = process.env.KAKAO_REST_API_KEY;
-  const { origin, stops } = req.body || {};
+  const { origin, stops, destination } = req.body || {};
   if (!origin || !Array.isArray(stops) || !stops.length) return res.status(400).json({ error: 'origin/stops 필요' });
   const haversine = (a, b) => {
     const R = 6371000, toRad = d => d * Math.PI / 180;
@@ -3168,7 +3168,15 @@ app.post('/api/route-order', wrap(async (req, res) => {
     order.push({ id: next.id, lat: next.lat, lng: next.lng, distance: bres.distance, duration: bres.duration });
     cur = next;
   }
-  res.json({ ok: true, road: anyReal, order });
+  // 최종 목적지까지의 거리/시간 계산
+  let destLeg = null;
+  if (destination && destination.lat && destination.lng && order.length) {
+    const lastStop = order[order.length - 1];
+    const d = await roadDist(lastStop, destination);
+    if (!d.fallback) anyReal = true;
+    destLeg = { distance: d.distance, duration: d.duration };
+  }
+  res.json({ ok: true, road: anyReal, order, destLeg });
 }));
 
 app.get('/api/incoming-call/pending', wrap(async (req, res) => {

@@ -252,7 +252,7 @@ function render(){
     <div class="tabs">${tabs.map(([id,label])=>`<button class="tab ${S.tab===id?'active':''}" onclick="setTab('${id}')">${label}</button>`).join('')}</div>
     ${S.tab==='all'||S.tab==='list' ? `<div style="padding:12px 14px 0;display:flex;gap:6px">
       <button class="btn" style="margin:0;background:#2b3140;color:#fff;flex:1" onclick="openSoundPicker()">🔔 알림 소리 선택 (${soundName})</button>
-      ${isAdmin && S.tab==='all' ? `<button class="btn" style="margin:0;background:#1971c2;color:#fff;flex:1" onclick="openRouteOptimizer()">🗺️ 배차 경로</button>` : ''}
+      ${isAdmin && S.tab==='all' ? `<button class="btn" style="margin:0;background:#1971c2;color:#fff;flex:1" onclick="openRouteOptimizer()">🗺️ 배차 경로</button><button class="btn" style="margin:0;background:#495057;color:#fff;padding:0 10px" onclick="openDestinationManager()" title="최종 목적지 관리">📍</button>` : ''}
     </div>` : ''}
     <div class="content">${content}</div>`;
   if(S.tab==='wo')renderWoTab();
@@ -1423,14 +1423,81 @@ async function saveCustomerEdit(id){
 }
 
 // ── 배차 경로 최적화 ──
-let routeState={map:null, markers:[], polylines:[], optimized:[], currentLoc:null, loading:false, sections:null};
+let routeState={map:null, markers:[], polylines:[], optimized:[], currentLoc:null, loading:false, sections:null, destination:null};
 // 구간(1→2→3…) 구분용 중복 안 되는 색 팔레트 (마커·경로선·리스트 동일 색)
 const LEG_COLORS=['#4263eb','#f76707','#2f9e44','#ae3ec9','#1098ad','#e64980','#5c940d','#7048e8','#0ca678','#d6336c','#f59f00','#12b886'];
 const legColor=i=>LEG_COLORS[i%LEG_COLORS.length];
+
+// ── 최종 목적지 관리 (localStorage) ──
+function getDestinations(){ try{ return JSON.parse(localStorage.getItem('route_destinations')||'[]'); }catch(e){ return []; } }
+function saveDestinations(list){ localStorage.setItem('route_destinations', JSON.stringify(list)); }
+
+function openDestinationManager(){
+  const dests=getDestinations();
+  const html=`<div class="overlay" id="destOv" onclick="if(event.target===this)this.remove()">
+    <div class="sheet" style="max-height:85%;overflow-y:auto">
+      <h3 style="margin:0 0 12px">📍 최종 목적지 관리</h3>
+      <div id="destList">${dests.length?dests.map((d,i)=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:10px;background:#f8f9fa;border-radius:8px;margin-bottom:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px">${esc(d.name)}</div>
+            <div style="font-size:12px;color:var(--gray-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.address)}</div>
+          </div>
+          <button class="btn btn-ghost" style="margin:0;padding:4px 8px;font-size:12px" onclick="editDestination(${i})">수정</button>
+          <button class="btn btn-ghost" style="margin:0;padding:4px 8px;font-size:12px;color:var(--danger)" onclick="deleteDestination(${i})">삭제</button>
+        </div>`).join(''):'<div style="text-align:center;color:var(--gray-400);padding:20px">등록된 목적지가 없습니다</div>'}
+      </div>
+      <button class="btn btn-primary" onclick="editDestination(-1)" style="margin-top:8px;width:100%">+ 새 목적지 추가</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('destOv').remove()" style="margin-top:6px;width:100%">닫기</button>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function editDestination(idx){
+  const dests=getDestinations();
+  const d=idx>=0?dests[idx]:{name:'',address:''};
+  const title=idx>=0?'목적지 수정':'새 목적지 추가';
+  const html=`<div class="overlay" id="destEditOv" onclick="if(event.target===this)this.remove()">
+    <div class="sheet" style="max-height:80%">
+      <h3 style="margin:0 0 12px">${title}</h3>
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">이름 (예: 사무실, 집)</label>
+      <input id="destName" class="input" value="${esc(d.name)}" placeholder="사무실" style="margin-bottom:12px">
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">주소</label>
+      <input id="destAddr" class="input" value="${esc(d.address)}" placeholder="서울시 강남구 테헤란로 123" style="margin-bottom:16px">
+      <button class="btn btn-primary" onclick="saveDestination(${idx})" style="width:100%">저장</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('destEditOv').remove()" style="margin-top:6px;width:100%">취소</button>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.getElementById('destName').focus();
+}
+
+function saveDestination(idx){
+  const name=document.getElementById('destName').value.trim();
+  const address=document.getElementById('destAddr').value.trim();
+  if(!name||!address){ alert('이름과 주소를 모두 입력해주세요'); return; }
+  const dests=getDestinations();
+  if(idx>=0) dests[idx]={name,address}; else dests.push({name,address});
+  saveDestinations(dests);
+  document.getElementById('destEditOv').remove();
+  const mgr=document.getElementById('destOv');
+  if(mgr) mgr.remove();
+  openDestinationManager();
+}
+
+function deleteDestination(idx){
+  if(!confirm('이 목적지를 삭제할까요?')) return;
+  const dests=getDestinations();
+  dests.splice(idx,1);
+  saveDestinations(dests);
+  document.getElementById('destOv').remove();
+  openDestinationManager();
+}
+
 async function openRouteOptimizer(){
   const myId=S.engineer.id;
-  const notDone=r=>r.status!=='completed'&&r.status!=='cancelled';   // 취소건은 진행목록에서 제외
-  // 앱 '미처리' 칩과 동일 정의: 완료 아님 + 예약 아님 (예약 건은 배차 경로에서 제외)
+  const notDone=r=>r.status!=='completed'&&r.status!=='cancelled';
   const pending=S.receptions.filter(r=>r.assigned_engineer_id==myId&&notDone(r)&&!r.reserved_date);
   if(!pending.length){ alert('미처리 작업이 없습니다 (예약 건은 제외됩니다)'); return; }
 
@@ -1445,15 +1512,25 @@ async function openRouteOptimizer(){
   if(noAddr.length){
     alert(`⚠️ ${noAddr.length}건은 주소가 없어 제외됨:\n` + noAddr.map(r=>r.customer_name||r.customer_phone).join(', '));
   }
+
+  // 최종 목적지 선택 UI
+  const dests=getDestinations();
+  if(dests.length){
+    const selected=await showDestinationPicker(dests);
+    routeState.destination=selected;
+  }else{
+    routeState.destination=null;
+  }
+
   routeState.loading=true;
-  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()"><div class="sheet" style="height:100%;max-height:100%;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:0"><div style="padding:18px 22px;flex-shrink:0"><h3 style="margin:0">🗺️ 배차 경로 최적화</h3><div style="font-size:12px;color:var(--gray-500);margin-top:4px">현재 위치 기준 · 주소있음 ${withAddr.length}건</div></div><div id="routeContainer" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column"><div style="text-align:center;padding:40px 20px;color:var(--gray-400)">계산 중...</div></div></div></div>`);
+  const destLabel=routeState.destination?` · 🏁 ${esc(routeState.destination.name)}`:'';
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()"><div class="sheet" style="height:100%;max-height:100%;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:0"><div style="padding:18px 22px;flex-shrink:0"><h3 style="margin:0">🗺️ 배차 경로 최적화</h3><div style="font-size:12px;color:var(--gray-500);margin-top:4px">현재 위치 기준 · 주소있음 ${withAddr.length}건${destLabel}</div></div><div id="routeContainer" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column"><div style="text-align:center;padding:40px 20px;color:var(--gray-400)">계산 중...</div></div></div></div>`);
   try{
     await ensureKakao();
     const currentLoc=await getCurrentLocation();
     routeState.currentLoc=currentLoc;
-    // 지도선은 직선 유지. 순서·거리는 optimizeRoute가 도로거리 기준으로 계산(실패 시 직선)
     routeState.sections=null; routeState.realTotal=null; routeState.routeMode='직선';
-    const optimized=await optimizeRoute(currentLoc, withAddr);
+    const optimized=await optimizeRoute(currentLoc, withAddr, routeState.destination);
     routeState.optimized=optimized;
     renderRouteOptimized(optimized, currentLoc);
   }catch(e){
@@ -1461,6 +1538,31 @@ async function openRouteOptimizer(){
     alert('경로 계산에 실패했습니다: '+e.message);
   }
   routeState.loading=false;
+}
+
+function showDestinationPicker(dests){
+  return new Promise(resolve=>{
+    const html=`<div class="overlay" id="destPickOv" onclick="if(event.target===this){this.remove();window._destResolve(null)}">
+      <div class="sheet" style="max-height:70%">
+        <h3 style="margin:0 0 6px">🏁 최종 목적지 선택</h3>
+        <div style="font-size:12px;color:var(--gray-500);margin-bottom:12px">업무 종료 후 돌아갈 곳을 선택하세요</div>
+        ${dests.map((d,i)=>`
+          <div onclick="document.getElementById('destPickOv').remove();window._destResolve(${i})" style="padding:12px;background:#f8f9fa;border-radius:8px;margin-bottom:8px;cursor:pointer;border:1px solid #e3e7ec">
+            <div style="font-weight:700;font-size:14px">📍 ${esc(d.name)}</div>
+            <div style="font-size:12px;color:var(--gray-500);margin-top:2px">${esc(d.address)}</div>
+          </div>`).join('')}
+        <button class="btn btn-ghost" onclick="document.getElementById('destPickOv').remove();window._destResolve(null)" style="width:100%;margin-top:4px">목적지 없이 진행</button>
+        <div style="text-align:center;margin-top:8px">
+          <span onclick="document.getElementById('destPickOv').remove();window._destResolve(null);openDestinationManager()" style="font-size:12px;color:var(--primary);cursor:pointer;text-decoration:underline">목적지 관리</span>
+        </div>
+      </div>
+    </div>`;
+    window._destResolve=idx=>{
+      delete window._destResolve;
+      resolve(idx!==null?dests[idx]:null);
+    };
+    document.body.insertAdjacentHTML('beforeend', html);
+  });
 }
 // 카카오 지도 SDK 로딩 보장 (autoload=false → load 호출 필요)
 function ensureKakao(){
@@ -1511,7 +1613,7 @@ function calculateDistance(from, to){
   const dist=R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); // 직선거리(m)
   return {distance: dist, duration: Math.round(dist/1000/30*3600)}; // 평균 30km/h 가정 소요초
 }
-async function optimizeRoute(startLoc, receptions){
+async function optimizeRoute(startLoc, receptions, destination){
   // 1) 모든 주소 → 좌표 변환
   const geocoder=new kakao.maps.services.Geocoder();
   const geocode=addr=>new Promise(resolve=>{
@@ -1524,29 +1626,65 @@ async function optimizeRoute(startLoc, receptions){
   const points=[];
   for(const r of receptions){ points.push({...r, coords: await geocode(r.customer_address)}); }
   const withCoords=points.filter(p=>p.coords);
-  const failed=points.filter(p=>!p.coords);   // 좌표 인식 실패 건
+  const failed=points.filter(p=>!p.coords);
+  // 최종 목적지 좌표 변환
+  let destCoords=null;
+  if(destination){
+    destCoords=await geocode(destination.address);
+    if(!destCoords) alert('⚠️ 최종 목적지 주소를 인식할 수 없어 목적지 없이 계산합니다');
+  }
   let ordered=null;
-  // 2) 실제 도로거리 기준 순서 (서버 카카오모빌리티) — 지도선은 직선, 순서·거리만 도로 기준
+  // 2) 실제 도로거리 기준 순서 (서버 카카오모빌리티)
   try{
-    const resp=await api('POST','/route-order',{ origin:{lat:startLoc.lat,lng:startLoc.lng}, stops:withCoords.map(p=>({id:p.id, lat:p.coords.lat, lng:p.coords.lng})) });
+    const body={ origin:{lat:startLoc.lat,lng:startLoc.lng}, stops:withCoords.map(p=>({id:p.id, lat:p.coords.lat, lng:p.coords.lng})) };
+    if(destCoords) body.destination={lat:destCoords.lat, lng:destCoords.lng};
+    const resp=await api('POST','/route-order', body);
     if(resp && resp.ok && Array.isArray(resp.order) && resp.order.length===withCoords.length){
       ordered=resp.order.map(o=>{ const p=withCoords.find(x=>String(x.id)===String(o.id)); return {...p, distance:o.distance, duration:o.duration}; });
       routeState.routeMode = resp.road ? '실제도로' : '직선';
+      if(resp.destLeg) routeState.destLeg=resp.destLeg; else routeState.destLeg=null;
     }
   }catch(e){ console.warn('도로거리 순서 실패 → 직선 폴백', e); }
-  // 3) 폴백: 직선거리 최근접이웃
+  // 3) 폴백: 직선거리 최근접이웃 (목적지 고려)
   if(!ordered){
-    ordered=[]; const remaining=withCoords.slice(); let cur=startLoc;
-    while(remaining.length){
-      let bi=0, bd=Infinity;
-      for(let i=0;i<remaining.length;i++){ const d=calculateDistance(cur, remaining[i].coords).distance; if(d<bd){ bd=d; bi=i; } }
-      const next=remaining.splice(bi,1)[0];
-      const leg=calculateDistance(cur, next.coords);
-      ordered.push({...next, distance:leg.distance, duration:leg.duration});
-      cur=next.coords;
+    ordered=[];
+    if(destCoords && withCoords.length>1){
+      // 최종 목적지가 있으면: 출발→작업지들→목적지 전체 최적화
+      const remaining=withCoords.slice(); let cur=startLoc;
+      while(remaining.length>1){
+        let bi=0, bd=Infinity;
+        for(let i=0;i<remaining.length;i++){
+          const toNext=calculateDistance(cur, remaining[i].coords).distance;
+          if(toNext<bd){ bd=toNext; bi=i; }
+        }
+        const next=remaining.splice(bi,1)[0];
+        const leg=calculateDistance(cur, next.coords);
+        ordered.push({...next, distance:leg.distance, duration:leg.duration});
+        cur=next.coords;
+      }
+      const last=remaining[0];
+      const leg=calculateDistance(cur, last.coords);
+      ordered.push({...last, distance:leg.distance, duration:leg.duration});
+      const destLeg=calculateDistance(last.coords, destCoords);
+      routeState.destLeg={distance:destLeg.distance, duration:destLeg.duration};
+    }else{
+      const remaining=withCoords.slice(); let cur=startLoc;
+      while(remaining.length){
+        let bi=0, bd=Infinity;
+        for(let i=0;i<remaining.length;i++){ const d=calculateDistance(cur, remaining[i].coords).distance; if(d<bd){ bd=d; bi=i; } }
+        const next=remaining.splice(bi,1)[0];
+        const leg=calculateDistance(cur, next.coords);
+        ordered.push({...next, distance:leg.distance, duration:leg.duration});
+        cur=next.coords;
+      }
+      if(destCoords){
+        const destLeg=calculateDistance(cur, destCoords);
+        routeState.destLeg={distance:destLeg.distance, duration:destLeg.duration};
+      }else{ routeState.destLeg=null; }
     }
     routeState.routeMode='직선';
   }
+  if(destCoords) routeState.destCoords=destCoords; else routeState.destCoords=null;
   failed.forEach(f=>ordered.push({...f, coords:null, distance:0, duration:0, geoFailed:true}));
   return ordered;
 }
@@ -1602,6 +1740,14 @@ function initRouteMap(currentLoc, optimized){
     });
     pathCoords.push(pos);
   });
+  // 최종 목적지 마커
+  if(routeState.destCoords && routeState.destination){
+    const destPos=new kakao.maps.LatLng(routeState.destCoords.lat, routeState.destCoords.lng);
+    const destMarker=new kakao.maps.Marker({ position:destPos, map, title:'🏁 '+routeState.destination.name, zIndex:20 });
+    destMarker.setImage(createMarkerImage('#e03131','🏁'));
+    routeState.markers.push(destMarker);
+    pathCoords.push(destPos);
+  }
   drawRouteLines(map, pathCoords);
   fitRouteBounds(currentLoc, optimized);
 }
@@ -1620,6 +1766,7 @@ function fitRouteBounds(currentLoc, optimized){
   const bounds=new kakao.maps.LatLngBounds();
   bounds.extend(new kakao.maps.LatLng(currentLoc.lat, currentLoc.lng));
   optimized.forEach(r=>{ if(r.coords)bounds.extend(new kakao.maps.LatLng(r.coords.lat, r.coords.lng)); });
+  if(routeState.destCoords) bounds.extend(new kakao.maps.LatLng(routeState.destCoords.lat, routeState.destCoords.lng));
   routeState.map.setBounds(bounds);
 }
 function createMarkerImage(color, text){
@@ -1665,9 +1812,15 @@ function renderRouteList(optimized, currentLoc){
         <div style="font-size:11px;color:var(--gray-600);margin-top:3px">${distTxt}${real&&!r.geoFailed?'':' <span style="color:var(--gray-400)">(직선)</span>'}</div>
       </div>`;
     }).join('')}
+    ${routeState.destination&&routeState.destLeg?`
+    <div style="padding:10px;background:#fff5f5;border-radius:8px;margin-bottom:8px;border-left:5px solid #e03131">
+      <div style="font-weight:700;font-size:13px;margin-bottom:3px"><span style="display:inline-block;width:18px;height:18px;line-height:18px;text-align:center;background:#e03131;color:#fff;border-radius:50%;font-size:10px;margin-right:5px">🏁</span>${esc(routeState.destination.name)}</div>
+      <div style="font-size:11px;color:var(--gray-600);margin:2px 0">📍 ${esc(routeState.destination.address)}</div>
+      <div style="font-size:11px;color:var(--gray-600);margin-top:3px">🚗 ${(routeState.destLeg.distance/1000).toFixed(1)}km · ⏱️ ${Math.round(routeState.destLeg.duration/60)}분</div>
+    </div>`:''}
     <div style="border-top:1px solid #dee2e6;padding-top:8px;margin-top:8px;font-size:12px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 이동${real?'(도로)':'(직선)'}:</span><strong>${((routeState.realTotal?routeState.realTotal.distance:totalDist)/1000).toFixed(1)}km</strong></div>
-      <div style="display:flex;justify-content:space-between"><span>예상 시간:</span><strong>약 ${Math.round((routeState.realTotal?routeState.realTotal.duration:totalTime)/60)}분</strong></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>총 이동${real?'(도로)':'(직선)'}:</span><strong>${((routeState.realTotal?routeState.realTotal.distance:(totalDist+(routeState.destLeg?routeState.destLeg.distance:0)))/1000).toFixed(1)}km</strong></div>
+      <div style="display:flex;justify-content:space-between"><span>예상 시간:</span><strong>약 ${Math.round((routeState.realTotal?routeState.realTotal.duration:(totalTime+(routeState.destLeg?routeState.destLeg.duration:0)))/60)}분</strong></div>
     </div>
     <button class="btn btn-primary" onclick="launchRouteNav()" style="margin-top:10px">🧭 첫번째 배차 네비게이션</button>
     <button class="btn btn-ghost" onclick="closeSheet()" style="margin-top:6px">닫기</button>`;
