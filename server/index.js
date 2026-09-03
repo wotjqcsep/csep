@@ -765,7 +765,6 @@ app.post('/api/computers', wrap(async (req, res) => {
 }));
 
 // BIOS 화면 사진 → 장치정보 자동추출 (Cloud Vision OCR 전용, 무료).
-// env: GOOGLE_VISION_API_KEY (또는 GOOGLE_API_KEY). 키 없으면 503.
 // OCR로 읽은 글자를 서버에서 규칙기반으로 파싱 → CPU/RAM/메인보드/시리얼 추정.
 function parseBiosText(text) {
   const out = { name: '', device_type: 'desktop', cpu: '', gpu: '', serial_number: '', bios_version: '',
@@ -954,37 +953,10 @@ app.post('/api/computers/ai-scan', wrap(async (req, res) => {
   res.json(parsed);
 }));
 
-// ── 범용 OCR 엔드포인트 ──
+// ── 범용 OCR 엔드포인트 (Google Vision 제거 — 클라이언트 ML Kit 사용) ──
+// 서버 OCR은 더 이상 지원하지 않음. 클라이언트에서 ML Kit으로 텍스트 추출 후 전송.
 app.post(API+'/ocr', express.json({limit:'10mb'}), wrap(async(req,res)=>{
-  const key = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) return res.status(503).json({ error: 'OCR 키가 없습니다.' });
-  const {image, lang} = req.body;
-  if (!image) return res.status(400).json({ error: '이미지가 없습니다' });
-  const m = String(image).match(/^data:(image\/[^;]+);base64,(.*)$/s);
-  const b64 = m ? m[2] : String(image);
-  const hints = lang ? [{ languageHints: [lang] }] : [];
-  const resp = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requests: [{ image: { content: b64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }], imageContext: hints[0]||{} }] }),
-  });
-  const data = await resp.json();
-  if (!resp.ok) return res.status(502).json({ error: 'OCR 실패: ' + ((data.error && data.error.message) || resp.status) });
-  const r = data.responses && data.responses[0];
-  const text = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
-  const blocks = [];
-  if (r && r.fullTextAnnotation && r.fullTextAnnotation.pages) {
-    for (const page of r.fullTextAnnotation.pages) {
-      for (const block of (page.blocks||[])) {
-        const lines = [];
-        for (const para of (block.paragraphs||[])) {
-          const words = (para.words||[]).map(w => (w.symbols||[]).map(s => s.text).join('')).join(' ');
-          if (words) lines.push(words);
-        }
-        if (lines.length) blocks.push(lines.join('\n'));
-      }
-    }
-  }
-  res.json({ text, blocks });
+  return res.status(503).json({ error: 'OCR은 네이티브 앱(APK)에서만 지원됩니다. 앱을 사용해주세요.' });
 }));
 
 // 텍스트 프롬프트 → AI JSON (Groq 무료만 사용). 견적 등 범용.
@@ -2343,30 +2315,7 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
     try { const out = await aiJsonFromText(estimatePrompt(textIn)); return res.json({ items: Array.isArray(out.items) ? out.items : [], _src: 'text' }); }
     catch (e) { console.log('[견적붙여넣기] AI 오류:', e.message); return res.status(502).json({ error: 'AI 분석 실패: ' + e.message }); }
   }
-  const image = req.body && req.body.image;
-  if (!image) return res.status(400).json({ error: '이미지 또는 텍스트가 없습니다' });
-  const key = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) return res.status(503).json({ error: 'OCR 키(GOOGLE_VISION_API_KEY)가 없습니다.' });
-  const m = String(image).match(/^data:(image\/[^;]+);base64,(.*)$/s);
-  const b64 = m ? m[2] : String(image);
-  try {
-    const resp = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests: [{ image: { content: b64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) return res.status(502).json({ error: 'OCR 실패: ' + ((data.error && data.error.message) || resp.status) });
-    const r = data.responses && data.responses[0];
-    const ocrText = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
-    let out = { items: [] };
-    try { out = await aiJsonFromText(estimatePrompt(ocrText)); }
-    catch (e) { console.log('[견적스캔] AI 오류:', e.message); return res.status(502).json({ error: 'AI 분석 실패: ' + e.message }); }
-    const items = Array.isArray(out.items) ? out.items : [];
-    res.json({ items, _ocr: ocrText.slice(0, 2000) });
-  } catch (e) {
-    console.log('[견적스캔] 오류:', e.message);
-    res.status(500).json({ error: '스캔 중 오류: ' + e.message });
-  }
+  return res.status(400).json({ error: '텍스트를 입력해주세요. 이미지 OCR은 앱에서 처리됩니다.' });
 }));
 
 app.put('/api/computers/:id', wrap(async (req, res) => {
