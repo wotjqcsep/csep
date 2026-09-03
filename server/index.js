@@ -917,25 +917,11 @@ async function groqParse(ocrText) {
   let text = ''; try { text = data.choices[0].message.content; } catch (e) {}
   return normalizeAiResult(extractJson(text));
 }
-// Gemini (유료 티어 필요) — Google Generative Language
-async function geminiParse(ocrText) {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY 미설정');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${key}`;
-  const resp = await fetch(url, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: biosAiPrompt(ocrText) }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }),
-  });
-  const data = await resp.json();
-  if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
-  let text = ''; try { text = data.candidates[0].content.parts.map(p => p.text || '').join(''); } catch (e) {}
-  return normalizeAiResult(extractJson(text));
-}
-// AI 보완: Groq 우선(무료), 없으면 Gemini. 둘 다 없으면 throw.
+// (Gemini 제거됨 — Groq 무료만 사용)
+// AI 파싱: Groq 무료만 사용
 async function aiParse(ocrText) {
   if (process.env.GROQ_API_KEY) return groqParse(ocrText);
-  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return geminiParse(ocrText);
-  throw new Error('AI 키(GROQ_API_KEY 또는 GEMINI_API_KEY) 미설정');
+  throw new Error('GROQ_API_KEY 미설정');
 }
 app.get('/api/ai-status', wrap(async (req, res) => {
   const hasGroq = !!process.env.GROQ_API_KEY;
@@ -954,73 +940,65 @@ app.get('/api/ai-status', wrap(async (req, res) => {
 }));
 app.post('/api/computers/ai-scan', wrap(async (req, res) => {
   const body = req.body || {};
-  // 1) 수동 AI 정밀분석: {text, ai:true} → Gemini로 재해석
-  if (body.ai && typeof body.text === 'string' && body.text.trim()) {
-    try { const g = await aiParse(body.text); g._ocr = body.text.slice(0, 2000); g._src = 'ai'; return res.json(g); }
-    catch (e) { console.log('[AI정밀분석] 오류:', e.message); return res.status(502).json({ error: 'AI 정밀분석 실패: ' + e.message }); }
+  if (typeof body.text !== 'string' || !body.text.trim()) {
+    return res.status(400).json({ error: 'OCR 텍스트가 없습니다' });
   }
-  // 2) 폰 OCR 텍스트만 → 규칙 파싱(무료)
-  if (typeof body.text === 'string' && body.text.trim() && !body.image) {
-    const parsed = parseBiosText(body.text); parsed._ocr = body.text.slice(0, 2000); parsed._src = 'regex';
-    return res.json(parsed);
+  const ocrText = body.text.trim();
+  // AI 정밀분석 요청 또는 일반 텍스트 → Groq AI 파싱, 실패 시 규칙 파싱 폴백
+  let parsed = parseBiosText(ocrText); parsed._src = 'regex';
+  if (process.env.GROQ_API_KEY) {
+    try { const g = await aiParse(ocrText); g._src = 'ai'; parsed = g; }
+    catch (e) { console.log('[AI] 실패, 규칙 결과 사용:', e.message); parsed._aiError = e.message; }
   }
-  // 3) 이미지 → Vision OCR → 규칙 파싱 → (핵심값 비면) 자동 Gemini 폴백
+  parsed._ocr = ocrText.slice(0, 2000);
+  res.json(parsed);
+}));
+
+// ── 범용 OCR 엔드포인트 ──
+app.post(API+'/ocr', express.json({limit:'10mb'}), wrap(async(req,res)=>{
   const key = process.env.GOOGLE_VISION_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) return res.status(503).json({ error: 'OCR 키가 없습니다. 직접 입력해주세요.' });
-  const image = body.image;
+  if (!key) return res.status(503).json({ error: 'OCR 키가 없습니다.' });
+  const {image, lang} = req.body;
   if (!image) return res.status(400).json({ error: '이미지가 없습니다' });
   const m = String(image).match(/^data:(image\/[^;]+);base64,(.*)$/s);
   const b64 = m ? m[2] : String(image);
-  try {
-    const resp = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests: [{ image: { content: b64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }] }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      console.log('[BIOS스캔] Vision 오류:', JSON.stringify(data).slice(0, 300));
-      return res.status(502).json({ error: 'OCR 실패: ' + ((data.error && data.error.message) || resp.status) });
+  const hints = lang ? [{ languageHints: [lang] }] : [];
+  const resp = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: [{ image: { content: b64 }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }], imageContext: hints[0]||{} }] }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) return res.status(502).json({ error: 'OCR 실패: ' + ((data.error && data.error.message) || resp.status) });
+  const r = data.responses && data.responses[0];
+  const text = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
+  const blocks = [];
+  if (r && r.fullTextAnnotation && r.fullTextAnnotation.pages) {
+    for (const page of r.fullTextAnnotation.pages) {
+      for (const block of (page.blocks||[])) {
+        const lines = [];
+        for (const para of (block.paragraphs||[])) {
+          const words = (para.words||[]).map(w => (w.symbols||[]).map(s => s.text).join('')).join(' ');
+          if (words) lines.push(words);
+        }
+        if (lines.length) blocks.push(lines.join('\n'));
+      }
     }
-    const r = data.responses && data.responses[0];
-    const ocrText = (r && r.fullTextAnnotation && r.fullTextAnnotation.text) || '';
-    let parsed = parseBiosText(ocrText); parsed._src = 'regex';
-    // AI 무료(Groq)이므로 항상 AI로 정리 → 실패하면 규칙 결과를 안전망으로 사용
-    const hasAiKey = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (ocrText && hasAiKey) {
-      try { const g = await aiParse(ocrText); g._src = 'ai'; parsed = g; }
-      catch (e) { console.log('[AI] 실패, 규칙 결과 사용:', e.message); parsed._aiError = e.message; }
-    }
-    parsed._ocr = ocrText.slice(0, 2000);
-    res.json(parsed);
-  } catch (e) {
-    console.log('[BIOS스캔] 오류:', e.message);
-    res.status(500).json({ error: 'OCR 스캔 중 오류: ' + e.message });
   }
+  res.json({ text, blocks });
 }));
 
-// 텍스트 프롬프트 → AI JSON (Groq 우선, 없으면 Gemini). 견적 등 범용.
+// 텍스트 프롬프트 → AI JSON (Groq 무료만 사용). 견적 등 범용.
 async function aiJsonFromText(prompt) {
   const gKey = process.env.GROQ_API_KEY;
-  if (gKey) {
-    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gKey },
-      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'groq/compound', temperature: 0, max_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
-    });
-    const data = await resp.json();
-    if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
-    let t = ''; try { t = data.choices[0].message.content; } catch (e) {}
-    return extractJson(t);
-  }
-  const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (gemKey) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${gemKey}`;
-    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } }) });
-    const data = await resp.json();
-    if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
-    let t = ''; try { t = data.candidates[0].content.parts.map(p => p.text || '').join(''); } catch (e) {}
-    return extractJson(t);
-  }
-  throw new Error('AI 키(GROQ_API_KEY 또는 GEMINI_API_KEY) 미설정');
+  if (!gKey) throw new Error('GROQ_API_KEY 미설정');
+  const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + gKey },
+    body: JSON.stringify({ model: process.env.GROQ_MODEL || 'groq/compound', temperature: 0, max_tokens: 4000, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + resp.status));
+  let t = ''; try { t = data.choices[0].message.content; } catch (e) {}
+  return extractJson(t);
 }
 // 컴퓨존 견적 텍스트/HTML → AI 파싱 프롬프트
 function estimatePrompt(txt) {
@@ -2706,24 +2684,40 @@ app.get('/api/agency-settlement', wrap(async (req, res) => {
   const toY = m === 12 ? y + 1 : y;
   const toM = m === 12 ? 1 : m + 1;
   const to = `${toY}-${String(toM).padStart(2,'0')}-01`;
-  // 카드/세금계산서 대행 건: 완료되고 수수료율>0인 접수(결제수단 또는 세금계산서)
+  // 해당 월에 완료된 접수 건
   const recs = (await pool.query(
     `SELECT r.id, r.customer_id, r.labor_fee, r.parts_fee, r.visit_fee, r.payment_method, r.tax_invoice,
-            r.woori_settled, r.vat_refund, r.estimate_id, r.estimate_amount, r.completed_at, r.symptom,
+            r.woori_settled, r.woori_settled_at, r.vat_refund, r.estimate_id, r.estimate_amount, r.completed_at, r.symptom,
             e.no AS est_no, e.total AS est_total, e.purchase_date, e.opts
      FROM receptions r LEFT JOIN estimates e ON e.id = r.estimate_id
      WHERE r.status='completed' AND r.completed_at >= $1 AND r.completed_at < $2
      ORDER BY r.completed_at`,
     [from, to]
   )).rows;
+  // 전월 이전 미정산 건 (완료됐지만 아직 정산 안 된 건)
+  const overdue = (await pool.query(
+    `SELECT r.id, r.customer_id, r.labor_fee, r.parts_fee, r.visit_fee, r.payment_method, r.tax_invoice,
+            r.woori_settled, r.woori_settled_at, r.vat_refund, r.estimate_id, r.estimate_amount, r.completed_at, r.symptom,
+            e.no AS est_no, e.total AS est_total, e.purchase_date, e.opts
+     FROM receptions r LEFT JOIN estimates e ON e.id = r.estimate_id
+     WHERE r.status='completed' AND r.completed_at < $1 AND (r.woori_settled = false OR r.woori_settled IS NULL)
+     ORDER BY r.completed_at`,
+    [from]
+  )).rows;
   // 매장판매도 포함
   const tag = `${y}-${String(m).padStart(2,'0')}`;
   const sales = (await pool.query(
-    `SELECT id, item_name, total_price, payment_method, tax_invoice, woori_settled, sale_date
+    `SELECT id, item_name, total_price, payment_method, tax_invoice, woori_settled, woori_settled_at, sale_date
      FROM sales WHERE (sale_date||'') LIKE $1||'%'
      ORDER BY sale_date`, [tag]
   )).rows;
-  res.json({ receptions: recs, sales });
+  // 전월 이전 미정산 매장판매
+  const overdueSales = (await pool.query(
+    `SELECT id, item_name, total_price, payment_method, tax_invoice, woori_settled, woori_settled_at, sale_date
+     FROM sales WHERE sale_date < $1 AND (woori_settled = false OR woori_settled IS NULL)
+     ORDER BY sale_date`, [from]
+  )).rows;
+  res.json({ receptions: recs, sales, overdue, overdueSales });
 }));
 
 // 설정 (출장비 기본금액 등)
