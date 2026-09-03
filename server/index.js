@@ -955,7 +955,7 @@ app.post('/api/computers/ai-scan', wrap(async (req, res) => {
 
 // ── 범용 OCR 엔드포인트 (Google Vision 제거 — 클라이언트 ML Kit 사용) ──
 // 서버 OCR은 더 이상 지원하지 않음. 클라이언트에서 ML Kit으로 텍스트 추출 후 전송.
-app.post(API+'/ocr', express.json({limit:'10mb'}), wrap(async(req,res)=>{
+app.post('/api/ocr', express.json({limit:'10mb'}), wrap(async(req,res)=>{
   return res.status(503).json({ error: 'OCR은 네이티브 앱(APK)에서만 지원됩니다. 앱을 사용해주세요.' });
 }));
 
