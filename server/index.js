@@ -19,13 +19,49 @@ function hashPassword(pw) {
 }
 function verifyPassword(pw, stored) {
   if (!stored) return false;
-  if (!stored.includes(':')) return pw === stored; // plain-text legacy
+  if (typeof pw !== 'string') return false;          // 비번 미전송 → 500 대신 인증 실패
+  if (!stored.includes(':')) return timingSafeEq(pw, stored); // plain-text legacy
   const [salt, hash] = stored.split(':');
-  return crypto.scryptSync(pw, salt, 64).toString('hex') === hash;
+  let calc;
+  try { calc = crypto.scryptSync(pw, salt, 64).toString('hex'); } catch (e) { return false; }
+  return timingSafeEq(calc, hash);
+}
+// 길이 노출 없는 상수시간 비교 (타이밍 공격 방지)
+function timingSafeEq(a, b) {
+  const ba = crypto.createHash('sha256').update(String(a)).digest();
+  const bb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ba, bb);
 }
 
-// ── 로그인 세션 저장소 (메모리) ──
+// ── 로그인 세션 저장소 (메모리 캐시 + DB 영속) ──
+// 메모리에만 두면 Render 재배포/슬립 복귀 때 전원 로그아웃되므로 DB에도 저장한다.
 const sessions = new Map();
+async function saveSession(token, s) {
+  sessions.set(token, s);
+  try {
+    await pool.query(
+      `INSERT INTO auth_sessions (token, role, engineer_id, is_admin, expires_at) VALUES ($1,$2,$3,$4,to_timestamp($5/1000.0))
+       ON CONFLICT (token) DO UPDATE SET expires_at=to_timestamp($5/1000.0)`,
+      [token, s.role, s.engineerId || null, !!s.isAdmin, s.expires]);
+  } catch (e) { /* DB 실패해도 메모리 세션으로 동작 */ }
+}
+async function loadSession(token) {
+  if (!token) return null;
+  const hit = sessions.get(token);
+  if (hit) return hit;
+  try {
+    const r = await pool.query('SELECT * FROM auth_sessions WHERE token=$1', [token]);
+    const row = r.rows[0];
+    if (!row) return null;
+    const s = { role: row.role, engineerId: row.engineer_id, isAdmin: row.is_admin, expires: new Date(row.expires_at).getTime() };
+    sessions.set(token, s);
+    return s;
+  } catch (e) { return null; }
+}
+async function dropSession(token) {
+  sessions.delete(token);
+  try { await pool.query('DELETE FROM auth_sessions WHERE token=$1', [token]); } catch (e) {}
+}
 
 // timestamp를 Date 객체가 아닌 문자열로 반환 (필드서비스 방식)
 types.setTypeParser(1114, v => v);
@@ -114,6 +150,7 @@ function broadcastAdmin(event, data) {
 
 // 접속된 모든 기사(대표 포함)에게 실시간 이벤트 → 접수 목록 동기화
 function broadcastEngineers(event, data) {
+  if (!data) return;   // 대상 레코드가 없으면(404 등) 조용히 무시 — 예전엔 여기서 TypeError→500
   const minimal = { id: data.id || data.reception_id };
   const msg = `event: ${event}\ndata: ${JSON.stringify(minimal)}\n\n`;
   engineerClients.forEach((clients, id) => {
@@ -135,17 +172,19 @@ async function broadcastBossEngineers(event, data) {
 
 // 접수 변경을 PC·기사앱 모두에 동시 반영
 function broadcastReception(event, data) {
+  if (!data) return;
   broadcastAdmin(event, data);
   broadcastEngineers(event, data);
 }
 
 // 무효(죽은) FCM 토큰이면 DB에서 삭제
 function isDeadToken(e) {
+  // 정확한 FCM 오류코드만 본다. 예전의 /not.?found/ 광범위 매칭은
+  // 네트워크·권한 등 무관한 오류에도 정상 토큰을 지워버렸음.
   const c = e && e.code || '';
   return c === 'messaging/registration-token-not-registered'
       || c === 'messaging/invalid-registration-token'
-      || c === 'messaging/invalid-argument'
-      || /not.?found/i.test(e && e.message || '');
+      || c === 'messaging/invalid-argument';
 }
 async function fcmSend(token, msg) {
   try {
@@ -162,14 +201,19 @@ async function fcmSend(token, msg) {
 // 기사에게 푸시 (FCM 우선, 웹푸시 폴백)
 async function sendPushToEngineer(engineer_id, title, body) {
   try {
-    const fcm = await pool.query('SELECT fcm_token FROM fcm_tokens WHERE engineer_id=$1', [engineer_id]);
-    if (fcm.rows[0] && admin && process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
-      const ok = await fcmSend(fcm.rows[0].fcm_token, {
-        token: fcm.rows[0].fcm_token,
-        data: { title: String(title), body: String(body), type: 'engineer' },
-        android: { priority: 'high' },
-      });
-      console.log(`[FCM] 기사${engineer_id} → ${ok?'성공':'실패'} | ${title}`);
+    // 기사 1명이 여러 기기(폰+태블릿)를 쓸 수 있으므로 등록된 토큰 전부에 보낸다
+    const fcm = await pool.query('SELECT fcm_token FROM fcm_tokens WHERE engineer_id=$1 AND fcm_token IS NOT NULL', [engineer_id]);
+    if (fcm.rows.length && admin && process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+      let okCount = 0;
+      for (const row of fcm.rows) {
+        const ok = await fcmSend(row.fcm_token, {
+          token: row.fcm_token,
+          data: { title: String(title), body: String(body), type: 'engineer' },
+          android: { priority: 'high' },
+        });
+        if (ok) okCount++;
+      }
+      console.log(`[FCM] 기사${engineer_id} → ${okCount}/${fcm.rows.length}대 전송 | ${title}`);
       return;
     }
     console.log(`[FCM] 기사${engineer_id} 토큰없음 (fcm_token=${fcm.rows.length}건, admin=${!!admin})`);
@@ -401,7 +445,27 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_app_logs_platform ON app_logs(platform);
     CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level);
     CREATE INDEX IF NOT EXISTS idx_app_logs_created ON app_logs(created_at DESC);
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      token TEXT PRIMARY KEY,
+      role TEXT NOT NULL,
+      engineer_id INTEGER,
+      is_admin BOOLEAN DEFAULT FALSE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_auth_sessions_exp ON auth_sessions(expires_at);
   `);
+  // fcm_tokens: 기사 1명이 여러 기기를 쓸 수 있도록 PK(engineer_id) 해제 → 토큰 단위 유니크
+  await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fcm_tokens_pkey') THEN
+        ALTER TABLE fcm_tokens DROP CONSTRAINT fcm_tokens_pkey;
+      END IF;
+    END $$;
+  `);
+  await pool.query(`DELETE FROM fcm_tokens a USING fcm_tokens b WHERE a.ctid < b.ctid AND a.fcm_token = b.fcm_token`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_fcm_tokens_token ON fcm_tokens(fcm_token)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_fcm_tokens_eng ON fcm_tokens(engineer_id)`);
   // 결과 프리셋 기본값 시드 (비어있을 때만)
   const pc = await pool.query('SELECT count(*) FROM result_presets');
   if (Number(pc.rows[0].count) === 0) {
@@ -435,6 +499,7 @@ async function initDB() {
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS work_type TEXT;
     ALTER TABLE receptions ADD COLUMN IF NOT EXISTS vat_refund DOUBLE PRECISION DEFAULT 0;
+    ALTER TABLE receptions ADD COLUMN IF NOT EXISTS accounted BOOLEAN DEFAULT FALSE;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered BOOLEAN DEFAULT FALSE;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
     ALTER TABLE estimates ADD COLUMN IF NOT EXISTS field_discount DOUBLE PRECISION DEFAULT 0;
@@ -461,6 +526,8 @@ async function initDB() {
   await pool.query(`UPDATE receptions SET work_type = substring(initial_memo from '^\\[([^\\]]+)\\]') WHERE work_type IS NULL AND initial_memo ~ '^\\[[^\\]]+\\]'`);
   // 완료된 접수 중 payment_method가 null인 것을 'unpaid'로 통일 (결산 미수금 계산 정합성)
   await pool.query(`UPDATE receptions SET payment_method = 'unpaid' WHERE status = 'completed' AND payment_method IS NULL`);
+  // 기존 완료건은 이미 회계처리된 것으로 표시 (재완료 시 기사실적 중복가산 방지)
+  await pool.query(`UPDATE receptions SET accounted = TRUE WHERE status = 'completed' AND accounted IS NOT TRUE`);
   console.log('DB 초기화 완료');
 }
 
@@ -472,10 +539,10 @@ app.post('/api/admin-login', express.json(), wrap(async (req, res) => {
   const { password } = req.body;
   const dbRow = (await pool.query("SELECT value FROM settings WHERE key='admin_password'")).rows[0];
   const adminPw = dbRow ? dbRow.value : '';
-  if (adminPw && adminPw.length > 0 && password !== adminPw) return res.status(401).json({ error: '비밀번호가 올바르지 않습니다' });
+  if (adminPw && adminPw.length > 0 && !timingSafeEq(String(password ?? ''), adminPw)) return res.status(401).json({ error: '비밀번호가 올바르지 않습니다' });
   const token = crypto.randomUUID();
-  sessions.set(token, { role: 'admin', expires: Date.now() + 24 * 60 * 60 * 1000 });
-  res.json({ token });
+  await saveSession(token, { role: 'admin', isAdmin: true, expires: Date.now() + 24 * 60 * 60 * 1000 });
+  res.json({ token, no_password: !(adminPw && adminPw.length > 0) });
 }));
 
 // 관리자 비밀번호 조회 (공란 여부 확인용)
@@ -493,6 +560,13 @@ app.post('/api/engineer-login', wrap(async (req, res) => {
   if (!e) return res.status(404).json({ error: '기사 없음' });
   if (e.locked) return res.status(423).json({ error: '계정이 잠겼습니다. 관리자(CSEP)에게 문의하세요.', locked: true });
   const hasPw = !!(e.password && String(e.password).length);
+  // 비번 없는 계정은 기사 목록(공개 API)만 알면 누구나 로그인 가능 → 환경변수로 강제 차단 가능
+  if (!hasPw) {
+    if (process.env.REQUIRE_ENGINEER_PASSWORD === '1') {
+      return res.status(403).json({ error: '비밀번호가 설정되지 않은 계정입니다. PC 사업자관리에서 비밀번호를 먼저 설정하세요.' });
+    }
+    console.log(`[보안경고] 기사 #${e.id}(${e.name}) 비밀번호 없이 로그인됨 — PC 사업자관리에서 비밀번호 설정 권장`);
+  }
   if (hasPw && !verifyPassword(password, e.password)) {
     const cnt = (e.login_fail_count || 0) + 1;
     const lock = cnt >= 3;
@@ -506,26 +580,56 @@ app.post('/api/engineer-login', wrap(async (req, res) => {
     pool.query('UPDATE engineers SET password=$2 WHERE id=$1', [e.id, hashPassword(password)]).catch(err => console.error(err));
   }
   const token = crypto.randomUUID();
-  sessions.set(token, { role: 'engineer', engineerId: e.id, expires: Date.now() + 24 * 60 * 60 * 1000 });
+  // 기사앱은 백그라운드 수신감지(전화/SMS)까지 이 토큰을 쓰므로 만료를 30일로 둔다
+  await saveSession(token, { role: 'engineer', engineerId: e.id, isAdmin: !!e.is_admin, expires: Date.now() + 30 * 24 * 60 * 60 * 1000 });
   res.json({ id: e.id, name: e.name, is_admin: e.is_admin, token });
 }));
 
 // ============================================================
 //  인증 미들웨어 — 이후의 모든 /api 라우트(SSE 스트림 포함) 보호
 // ============================================================
-app.use('/api', (req, res, next) => {
-  // 로그인 엔드포인트는 인증 없이 허용
-  if (req.path === '/admin-login' || req.path === '/engineer-login' || req.path === '/admin-password-status' || (req.method === 'GET' && req.path === '/engineers') || req.path === '/logs' || req.path === '/estimate/import' || req.path === '/ai-status') return next();
+// 네이티브 앱(APK)이 토큰 없이 보낼 때 쓰는 기기 공유키 (Render 환경변수, 선택)
+const DEVICE_KEY = process.env.CSEP_DEVICE_KEY || '';
+
+app.use('/api', (req, res, next) => { authGate(req, res, next).catch(e => { console.error('auth', e); res.status(500).json({ error: '인증 처리 오류' }); }); });
+async function authGate(req, res, next) {
+  // 인증 없이 허용되는 공개 엔드포인트
+  const isPublic =
+       req.path === '/admin-login' || req.path === '/engineer-login' || req.path === '/admin-password-status'
+    || (req.method === 'GET' && req.path === '/engineers')      // 기사앱 로그인 목록
+    || (req.method === 'POST' && req.path === '/logs')          // 로그아웃 상태에서도 오류 수집
+    || req.path === '/estimate/import'                          // 북마클릿(외부 사이트에서 실행)
+    || req.path === '/ai-status';
+  if (isPublic) return next();
+
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
-  const session = sessions.get(token);
+  const session = await loadSession(token);
+
+  // 네이티브 수신감지(전화/SMS): 세션이 없으면 기기 공유키로도 허용
+  if ((!session || session.expires < Date.now())
+      && (req.path === '/incoming-call' || req.path === '/incoming-sms')
+      && DEVICE_KEY && req.headers['x-csep-key'] === DEVICE_KEY) {
+    req.user = { role: 'device' };
+    return next();
+  }
+
   if (!session || session.expires < Date.now()) {
-    if (token) sessions.delete(token);
+    if (token) await dropSession(token);
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  session.expires = Date.now() + 24 * 60 * 60 * 1000; // 만료시간 갱신
+  // 만료 연장 (기사 30일 / 관리자 24시간)
+  const ttl = session.role === 'engineer' ? 30 * 24 * 3600 * 1000 : 24 * 3600 * 1000;
+  session.expires = Date.now() + ttl;
+  saveSession(token, session).catch(() => {});
   req.user = session;
   next();
-});
+}
+
+// 대표/관리자 전용 — 일반 기사 계정은 차단
+function requireAdmin(req, res, next) {
+  if (req.user && (req.user.role === 'admin' || req.user.isAdmin)) return next();
+  return res.status(403).json({ error: '대표(관리자) 권한이 필요합니다' });
+}
 
 // ============================================================
 //  SSE 엔드포인트
@@ -600,7 +704,7 @@ app.put('/api/customers/:id', wrap(async (req, res) => {
   res.json(c);
 }));
 
-app.delete('/api/customers/:id', wrap(async (req, res) => {
+app.delete('/api/customers/:id', requireAdmin, wrap(async (req, res) => {
   await pool.query('DELETE FROM customers WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
@@ -616,13 +720,17 @@ app.get('/api/customers/:id/receptions', wrap(async (req, res) => {
 // ============================================================
 //  견적서 저장 (estimates) — 저장/검색/불러오기 + 거래처 자동 등록
 // ============================================================
-app.get('/api/estimates/next-no', wrap(async (req, res) => {
+// 다음 견적번호 계산 (qry: pool 또는 트랜잭션 client)
+async function nextEstimateNo(qry) {
   const today = new Date(Date.now()+9*3600000).toISOString().slice(0, 10).replace(/-/g, '');
   const prefix = 'Q' + today + '-';
-  const { rows } = await pool.query("SELECT no FROM estimates WHERE no LIKE $1 ORDER BY no DESC LIMIT 1", [prefix + '%']);
+  const { rows } = await qry("SELECT no FROM estimates WHERE no LIKE $1 ORDER BY no DESC LIMIT 1", [prefix + '%']);
   let seq = 1;
   if (rows[0]) { const m = rows[0].no.match(/-(\d+)$/); if (m) seq = Number(m[1]) + 1; }
-  res.json({ no: prefix + String(seq).padStart(3, '0') });
+  return prefix + String(seq).padStart(3, '0');
+}
+app.get('/api/estimates/next-no', wrap(async (req, res) => {
+  res.json({ no: await nextEstimateNo(pool.query.bind(pool)) });
 }));
 app.get('/api/estimates', wrap(async (req, res) => {
   const q = String((req.query.q || '')).trim();
@@ -653,11 +761,30 @@ app.post('/api/estimates', wrap(async (req, res) => {
     else { const ins = await pool.query('INSERT INTO customers (name, phone) VALUES ($1,$2) RETURNING id', [cname || phone, phone]); customerId = ins.rows[0].id; customerCreated = true; }
   }
   const items = Array.isArray(b.items) ? b.items : [];
-  const row = await pool.query(
-    `INSERT INTO estimates (no,customer_id,customer_name,phone,company,contact,est_date,memo,items,opts,subtotal,vat,total,purchase_date)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-    [b.no || '', customerId, cname, phone, b.company || '', b.contact || '', b.est_date || '', b.memo || '',
-     JSON.stringify(items), JSON.stringify(b.opts || {}), Number(b.subtotal) || 0, Number(b.vat) || 0, Number(b.total) || 0, b.purchase_date || null]);
+  // 견적번호 채번은 자문 잠금(advisory lock) 안에서 처리 —
+  // 두 명이 동시에 저장하면 같은 번호가 나오던 경쟁 상태를 막는다.
+  const client = await pool.connect();
+  let row;
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('csep_estimate_no'))");
+    const q = client.query.bind(client);
+    let no = String(b.no || '').trim();
+    if (!no) no = await nextEstimateNo(q);
+    else {
+      const dup = (await q('SELECT 1 FROM estimates WHERE no=$1 LIMIT 1', [no])).rows[0];
+      if (dup) no = await nextEstimateNo(q);   // 이미 쓰인 번호면 새로 채번
+    }
+    row = await q(
+      `INSERT INTO estimates (no,customer_id,customer_name,phone,company,contact,est_date,memo,items,opts,subtotal,vat,total,purchase_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [no, customerId, cname, phone, b.company || '', b.contact || '', b.est_date || '', b.memo || '',
+       JSON.stringify(items), JSON.stringify(b.opts || {}), Number(b.subtotal) || 0, Number(b.vat) || 0, Number(b.total) || 0, b.purchase_date || null]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally { client.release(); }
   res.json({ ...row.rows[0], customer_created: customerCreated });
 }));
 app.put('/api/estimates/:id', wrap(async (req, res) => {
@@ -1985,8 +2112,21 @@ app.options('/api/estimate/import', (req, res) => {
   res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' });
   res.sendStatus(204);
 });
+// 무인증 공개 엔드포인트(북마클릿은 쇼핑몰 페이지에서 실행되어 토큰을 못 실음)
+// → IP당 분당 호출수를 제한해 외부 사이트 대량조회(증폭) 남용을 막는다.
+const importHits = new Map();
+function importRateOk(ip) {
+  const now = Date.now(), win = 60 * 1000, max = 20;
+  const arr = (importHits.get(ip) || []).filter(t => now - t < win);
+  arr.push(now);
+  importHits.set(ip, arr);
+  if (importHits.size > 500) { for (const [k, v] of importHits) if (!v.length || now - v[v.length - 1] > win) importHits.delete(k); }
+  return arr.length <= max;
+}
 app.post('/api/estimate/import', express.json({ limit: '1mb' }), wrap(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  if (!importRateOk(ip)) return res.status(429).json({ error: '요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' });
   const html = req.body && req.body.html;
   if (!html) return res.status(400).json({ error: 'html required' });
   let items = [], totalPrice = 0, src = '';
@@ -2315,7 +2455,11 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
     try { const out = await aiJsonFromText(estimatePrompt(textIn)); return res.json({ items: Array.isArray(out.items) ? out.items : [], _src: 'text' }); }
     catch (e) { console.log('[견적붙여넣기] AI 오류:', e.message); return res.status(502).json({ error: 'AI 분석 실패: ' + e.message }); }
   }
-  return res.status(400).json({ error: '텍스트를 입력해주세요. 이미지 OCR은 앱에서 처리됩니다.' });
+  // 이미지가 온 경우: 서버 OCR(Google Vision)은 제거되었으므로 명확히 안내한다.
+  if (req.body && req.body.image) {
+    return res.status(501).json({ error: '서버 이미지 OCR은 지원하지 않습니다. 기사앱(APK)의 📷 OCR 탭에서 텍스트를 추출한 뒤 [소스·텍스트]에 붙여넣으세요.' });
+  }
+  return res.status(400).json({ error: 'URL 또는 텍스트를 입력해주세요.' });
 }));
 
 app.put('/api/computers/:id', wrap(async (req, res) => {
@@ -2350,7 +2494,7 @@ app.get('/api/engineers/:id', wrap(async (req, res) => {
   res.json(maskEngineer(rows[0]));
 }));
 
-app.post('/api/engineers', wrap(async (req, res) => {
+app.post('/api/engineers', requireAdmin, wrap(async (req, res) => {
   const b = req.body;
   if (b.password) b.password = hashPassword(b.password);
   const { rows } = await pool.query(
@@ -2361,7 +2505,7 @@ app.post('/api/engineers', wrap(async (req, res) => {
   res.json(maskEngineer(rows[0]));
 }));
 
-app.put('/api/engineers/:id', wrap(async (req, res) => {
+app.put('/api/engineers/:id', requireAdmin, wrap(async (req, res) => {
   const b = req.body; const sets = [], vals = []; let i = 1;
   if (b.password) b.password = hashPassword(b.password);
   if (b.name !== undefined)     { sets.push(`name=$${i++}`); vals.push(b.name); }
@@ -2389,7 +2533,7 @@ app.put('/api/engineers/:id/location', wrap(async (req, res) => {
   res.json(maskEngineer(rows[0]));
 }));
 
-app.delete('/api/engineers/:id', wrap(async (req, res) => {
+app.delete('/api/engineers/:id', requireAdmin, wrap(async (req, res) => {
   await pool.query('DELETE FROM engineers WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 }));
@@ -2446,6 +2590,8 @@ app.put('/api/receptions/:id/assign', wrap(async (req, res) => {
 app.put('/api/receptions/:id/status', wrap(async (req, res) => {
   const status = req.query.status || req.body.status;
   if (status === 'completed') return res.status(400).json({ error: '완료 처리는 결제/처리완료 API를 사용해주세요' });
+  const ALLOWED = ['new', 'assigned', 'in_progress', 'repairing', 'cancelled'];
+  if (!ALLOWED.includes(status)) return res.status(400).json({ error: '허용되지 않는 상태값: ' + status });
   const { rows } = await pool.query(`UPDATE receptions SET status=$1 WHERE id=$2 RETURNING *`, [status, req.params.id]);
   if (!rows[0]) return res.status(404).json({ error: 'Not found' });
   broadcastReception('reception_update', rows[0]);
@@ -2505,8 +2651,16 @@ app.put('/api/receptions/:id/payment', wrap(async (req, res) => {
   const fields = ['labor_fee','parts_fee','payment_method','tax_invoice','solution','estimate_amount','visit_fee','outcome','estimate_id'];
   const sets = [], vals = [];
   fields.forEach(f => { if (b[f] !== undefined) { vals.push(b[f]); sets.push(`${f}=$${vals.length}`); } });
-  if (b.complete) sets.push("status='completed'", 'completed_at=NOW()');
-  if (!sets.length) { const { rows } = await pool.query('SELECT * FROM receptions WHERE id=$1',[req.params.id]); return res.json(rows[0]); }
+  if (b.complete) {
+    sets.push("status='completed'", 'completed_at=NOW()');
+    // 완료인데 결제수단이 지정되지 않으면 '미수'로 확정 (NULL로 남으면 결산·통계에서 누락됨)
+    if (b.payment_method === undefined) sets.push("payment_method=COALESCE(payment_method,'unpaid')");
+  }
+  if (!sets.length) {
+    const { rows } = await pool.query('SELECT * FROM receptions WHERE id=$1',[req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
+    return res.json(rows[0]);
+  }
   const prev = (await pool.query('SELECT status, payment_method, customer_id, labor_fee, parts_fee, visit_fee FROM receptions WHERE id=$1', [req.params.id])).rows[0];
   if (!prev) return res.status(404).json({ error: '접수 없음' });
   const wasCompleted = prev.status === 'completed';
@@ -2524,16 +2678,15 @@ app.put('/api/receptions/:id/payment', wrap(async (req, res) => {
     }
     await processCompletionAccounting(pool.query.bind(pool), req.params.id);
   }
-  // 완료된 접수의 결제수단 변경 시 미수금 조정
-  if (wasCompleted && b.payment_method !== undefined && prev.payment_method !== b.payment_method) {
-    const oldUnpaid = prev.payment_method === 'unpaid';
-    const newUnpaid = b.payment_method === 'unpaid';
-    if (oldUnpaid !== newUnpaid && rows[0].customer_id) {
-      const amt = (Number(rows[0].labor_fee) || 0) + (Number(rows[0].parts_fee) || 0) + (Number(rows[0].visit_fee) || 0);
-      if (amt > 0) {
-        if (oldUnpaid && !newUnpaid) await pool.query('UPDATE customers SET outstanding_amount = GREATEST(0, COALESCE(outstanding_amount,0) - $2) WHERE id=$1', [rows[0].customer_id, amt]);
-        if (!oldUnpaid && newUnpaid) await pool.query('UPDATE customers SET outstanding_amount = COALESCE(outstanding_amount,0) + $2 WHERE id=$1', [rows[0].customer_id, amt]);
-      }
+  // 이미 완료된 접수를 수정한 경우: 미수금을 '이전 반영분 → 새 반영분' 차액으로 재계산.
+  // (결제수단 변경뿐 아니라 공임비·부품비·출장비 수정도 미수금에 반영되어야 함)
+  if (wasCompleted && rows[0].customer_id) {
+    const amtOf = r => (Number(r.labor_fee) || 0) + (Number(r.parts_fee) || 0) + (Number(r.visit_fee) || 0);
+    const oldOutstanding = prev.payment_method === 'unpaid' ? amtOf(prev) : 0;
+    const newOutstanding = rows[0].payment_method === 'unpaid' ? amtOf(rows[0]) : 0;
+    const delta = newOutstanding - oldOutstanding;
+    if (delta !== 0) {
+      await pool.query('UPDATE customers SET outstanding_amount = GREATEST(0, COALESCE(outstanding_amount,0) + $2) WHERE id=$1', [rows[0].customer_id, delta]);
     }
   }
   broadcastReception('reception_update', rows[0]);
@@ -2574,8 +2727,12 @@ async function processCompletionAccounting(qry, recId) {
   const recTotal = (Number(rec.labor_fee) || 0) + (Number(rec.parts_fee) || 0) + (Number(rec.visit_fee) || 0);
   const jobRow = (await qry('SELECT id FROM jobs WHERE reception_id=$1', [recId])).rows[0];
   const jobId = jobRow && jobRow.id;
-  const exists = jobId ? (await qry('SELECT id FROM payments WHERE job_id=$1', [jobId])).rows[0] : null;
+  // 중복 회계처리 방지: payments 행 유무로만 판단하면 0원 완료건은 매번 통과해
+  // 기사 실적(total_jobs)이 중복 가산됨 → 접수의 accounted 플래그로 확정 판정한다.
+  const exists = rec.accounted === true
+    || (jobId ? !!(await qry('SELECT id FROM payments WHERE job_id=$1', [jobId])).rows[0] : false);
   if (exists) return;
+  await qry('UPDATE receptions SET accounted=TRUE WHERE id=$1', [recId]);
   if (rec.assigned_engineer_id) await qry('UPDATE engineers SET total_jobs=total_jobs+1, total_revenue=total_revenue+$2 WHERE id=$1', [rec.assigned_engineer_id, recTotal]);
   if (recTotal > 0) {
     const method = rec.payment_method || 'unpaid';
@@ -2679,11 +2836,15 @@ app.put('/api/settings/:key', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-app.put('/api/admin-password', express.json(), wrap(async (req, res) => {
+app.put('/api/admin-password', requireAdmin, express.json(), wrap(async (req, res) => {
   const { oldPassword, newPassword } = req.body;
   const dbRow = (await pool.query("SELECT value FROM settings WHERE key='admin_password'")).rows[0];
-  const currentPw = dbRow ? dbRow.value : (process.env.ADMIN_PASSWORD || 'csep2026!');
-  if (currentPw && currentPw.length > 0 && oldPassword !== currentPw) return res.status(403).json({ error: '현재 비밀번호가 올바르지 않습니다' });
+  // 로그인 쪽과 기준을 통일한다. 설정된 적이 없으면 '비번 없음'이므로 현재 비번 확인을 건너뛴다.
+  // (기존 'csep2026!' 기본값 때문에 신규 설치에서 비밀번호를 최초 설정할 수 없었음)
+  const currentPw = dbRow ? dbRow.value : '';
+  if (currentPw && currentPw.length > 0 && !timingSafeEq(String(oldPassword ?? ''), currentPw)) {
+    return res.status(403).json({ error: '현재 비밀번호가 올바르지 않습니다' });
+  }
   await pool.query("INSERT INTO settings (key, value) VALUES ('admin_password', $1) ON CONFLICT (key) DO UPDATE SET value=$1", [newPassword ?? '']);
   res.json({ ok: true });
 }));
@@ -2737,6 +2898,7 @@ app.put('/api/jobs/:id', wrap(async (req, res) => {
   if (!sets.length) { const { rows } = await pool.query('SELECT * FROM jobs WHERE id=$1', [req.params.id]); return res.json(rows[0]); }
   vals.push(req.params.id);
   const { rows } = await pool.query(`UPDATE jobs SET ${sets.join(',')} WHERE id=$${vals.length} RETURNING *`, vals);
+  if (!rows[0]) return res.status(404).json({ error: '작업 없음' });
   broadcastAdmin('job_update', rows[0]);
   res.json(rows[0]);
 }));
@@ -2863,7 +3025,7 @@ app.get('/api/dashboard', wrap(async (req, res) => {
   const receptions = (await pool.query('SELECT * FROM receptions')).rows;
   const customers = (await pool.query('SELECT id, outstanding_amount FROM customers')).rows;
   const inventory = (await pool.query('SELECT id, quantity, reorder_level FROM inventory')).rows;
-  const engineers = (await pool.query('SELECT * FROM engineers ORDER BY id')).rows;
+  const engineers = (await pool.query('SELECT * FROM engineers ORDER BY id')).rows.map(maskEngineer);
   const todayR = receptions.filter(r => (r.received_at || '').slice(0, 10) === today);
   res.json({
     today_new: todayR.filter(r => r.status === 'new').length,
@@ -2915,7 +3077,7 @@ app.get('/api/stats', wrap(async (req, res) => {
 // ============================================================
 //  데이터 초기화
 // ============================================================
-app.post('/api/admin/reset', wrap(async (req, res) => {
+app.post('/api/admin/reset', requireAdmin, wrap(async (req, res) => {
   const { targets, confirmText } = req.body;
   if (confirmText !== '정말 초기화 하겠습니다') return res.status(400).json({ error: '확인 문구가 일치하지 않습니다' });
   if (!Array.isArray(targets) || targets.length === 0) return res.status(400).json({ error: '초기화 대상을 선택해주세요' });
@@ -2974,8 +3136,10 @@ function trimIncoming(arr) { if (arr.length > MAX_INCOMING) arr.splice(0, arr.le
 
 async function matchCustomer(phone) {
   const clean = digits(phone);
-  const { rows } = await pool.query('SELECT * FROM customers');
-  const matched = rows.find(c => digits(c.phone) === clean || digits(c.phone2) === clean) || null;
+  // 번호가 없으면 매칭하지 않는다. (예전엔 '' === '' 로 전화번호 없는 첫 고객이 잘못 매칭됨)
+  if (!clean) return { matched: null, recent: [] };
+  const { rows } = await pool.query("SELECT * FROM customers WHERE COALESCE(phone,'') <> '' OR COALESCE(phone2,'') <> ''");
+  const matched = rows.find(c => (digits(c.phone) && digits(c.phone) === clean) || (digits(c.phone2) && digits(c.phone2) === clean)) || null;
   let recent = [];
   if (matched) recent = (await pool.query('SELECT * FROM receptions WHERE customer_id=$1 ORDER BY received_at DESC LIMIT 3', [matched.id])).rows;
   return { matched, recent };
@@ -3116,7 +3280,9 @@ app.post('/api/route-order', wrap(async (req, res) => {
     return d;
   };
   // 최근접이웃 (실제 도로거리 기준)
-  const remaining = stops.slice();
+  // 좌표가 없는 지점은 계산에서 제외 (NaN이 섞이면 최근접 선택이 전부 실패해 크래시)
+  const remaining = stops.filter(s => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)));
+  if (!remaining.length) return res.json({ ok: false, reason: 'no_coords' });
   const order = [];
   let cur = origin, anyReal = false;
   while (remaining.length) {
@@ -3124,9 +3290,10 @@ app.post('/api/route-order', wrap(async (req, res) => {
     for (let i = 0; i < remaining.length; i++) {
       const d = await roadDist(cur, remaining[i]);
       if (!d.fallback) anyReal = true;
-      if (d.distance < bd) { bd = d.distance; bi = i; bres = d; }
+      if (Number.isFinite(d.distance) && d.distance < bd) { bd = d.distance; bi = i; bres = d; }
     }
     const next = remaining.splice(bi, 1)[0];
+    if (!bres) bres = { distance: 0, duration: 0 };   // 전부 계산 실패 시에도 순서는 유지
     order.push({ id: next.id, lat: next.lat, lng: next.lng, distance: bres.distance, duration: bres.duration });
     cur = next;
   }
@@ -3181,12 +3348,12 @@ app.delete('/api/incoming-sms/:id', wrap(async (req, res) => {
 // ============================================================
 app.post('/api/fcm-token', wrap(async (req, res) => {
   const { engineer_id, fcm_token } = req.body;
-  // 같은 폰(토큰)을 다른 계정에서 쓰던 기록 제거 → 토큰은 현재 로그인한 1명에게만 귀속
-  // (기사로 로그인 시 대표 계정에 남은 토큰 제거 → 수신 테스트는 대표 로그인 때만 울림)
-  await pool.query('DELETE FROM fcm_tokens WHERE fcm_token=$1 AND engineer_id<>$2', [fcm_token, engineer_id]);
+  if (!engineer_id || !fcm_token) return res.status(400).json({ error: 'engineer_id, fcm_token 필수' });
+  // 토큰(=기기) 단위로 귀속. 같은 폰을 다른 계정에서 쓰던 기록은 현재 로그인 계정으로 이전된다.
+  // (기사 1명이 여러 기기를 등록할 수 있도록 engineer_id 기본키를 해제했음)
   await pool.query(
     `INSERT INTO fcm_tokens (engineer_id, fcm_token, updated_at) VALUES ($1,$2,NOW())
-     ON CONFLICT (engineer_id) DO UPDATE SET fcm_token=$2, updated_at=NOW()`,
+     ON CONFLICT (fcm_token) DO UPDATE SET engineer_id=$1, updated_at=NOW()`,
     [engineer_id, fcm_token]
   );
   res.json({ ok: true });
@@ -3367,6 +3534,7 @@ app.get('/api/engineer/:id/receptions', wrap(async (req, res) => {
 // 작업 시작
 app.put('/api/engineer/receptions/:id/start', wrap(async (req, res) => {
   const { rows } = await pool.query(`UPDATE receptions SET status='in_progress' WHERE id=$1 RETURNING *`, [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
   await pool.query(`UPDATE jobs SET status='in_progress', started_at=NOW() WHERE reception_id=$1`, [req.params.id]);
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
@@ -3381,7 +3549,8 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
   try {
     await client.query('BEGIN');
     const prev = (await client.query('SELECT status FROM receptions WHERE id=$1', [req.params.id])).rows[0];
-    const wasCompleted = prev && prev.status === 'completed';
+    if (!prev) { await client.query('ROLLBACK'); return res.status(404).json({ error: '접수 없음' }); }
+    const wasCompleted = prev.status === 'completed';
     const { rows } = await client.query(`UPDATE receptions SET status='completed', completed_at=NOW(), solution=$2, customer_request=$3, labor_fee=$4, parts_fee=$5, payment_method=$6, tax_invoice=$7, reserved_date=NULL WHERE id=$1 RETURNING *`,
       [req.params.id, b.work_description || '', b.customer_request || null, Number(b.cost_labor) || 0, Number(b.cost_parts) || 0, payMethod, !!b.tax_invoice]);
     await client.query(`UPDATE jobs SET status='completed', completed_at=NOW(), work_description=$2, parts_used=$3, cost_parts=$4, cost_labor=$5, total_cost=$6, next_visit_parts=$7 WHERE reception_id=$1`,
@@ -3390,7 +3559,7 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
     await client.query('COMMIT');
     await syncEstimateFromReception(rows[0]);
     await calcAndStoreVatRefund(pool.query.bind(pool), req.params.id);
-    broadcastAdmin('job_update', { reception_id: req.params.id, total_cost: total });
+    broadcastAdmin('job_update', { reception_id: Number(req.params.id), total_cost: total });
     broadcastReception('reception_update', rows[0]);
     res.json(rows[0]);
   } catch (e) {
@@ -3405,6 +3574,7 @@ app.put('/api/engineer/receptions/:id/complete', wrap(async (req, res) => {
 app.put('/api/engineer/receptions/:id/reserve', wrap(async (req, res) => {
   const b = req.body;
   const { rows } = await pool.query(`UPDATE receptions SET reserved_date=$2, status='assigned', customer_request=$3 WHERE id=$1 RETURNING *`, [req.params.id, b.reserved_date || null, b.customer_request || null]);
+  if (!rows[0]) return res.status(404).json({ error: '접수 없음' });
   await pool.query(`UPDATE jobs SET work_description=$2, parts_used=$3, next_visit_parts=$4 WHERE reception_id=$1`, [req.params.id, b.work_description || '', b.parts_used || '', b.next_visit_parts || null]);
   broadcastReception('reception_update', rows[0]);
   res.json(rows[0]);
@@ -3427,7 +3597,7 @@ app.post('/api/logs', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/logs', async (req, res) => {
+app.get('/api/logs', requireAdmin, async (req, res) => {
   try {
     const { platform, level, tag, from, to, limit: lim } = req.query;
     const conds = [];
@@ -3445,7 +3615,7 @@ app.get('/api/logs', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/logs', async (req, res) => {
+app.delete('/api/logs', requireAdmin, async (req, res) => {
   try {
     const { before } = req.query;
     if (!before) return res.status(400).json({ error: 'before 날짜 필수' });
@@ -3476,17 +3646,39 @@ async function backfillVatRefund() {
   } catch (e) { console.log('[백필] 매입부가세 환급 오류:', e.message); }
 }
 
+// 지난 일정 정리 — 예전엔 '어제까지' 전부 즉시 삭제해서 과거 기록이 사라졌다.
+// 달력에서 지난달을 되돌아볼 수 있도록 90일치는 남긴다.
 async function cleanupExpiredSchedules() {
   try {
-    const today = new Date(Date.now()+9*3600000).toISOString().slice(0, 10);
-    const { rowCount } = await pool.query("DELETE FROM schedules WHERE date IS NOT NULL AND date < $1", [today]);
-    if (rowCount) console.log(`[정리] 지난 일정 ${rowCount}건 자동 삭제`);
+    const keepFrom = new Date(Date.now() + 9 * 3600000 - 90 * 86400000).toISOString().slice(0, 10);
+    const { rowCount } = await pool.query("DELETE FROM schedules WHERE date IS NOT NULL AND date < $1", [keepFrom]);
+    if (rowCount) console.log(`[정리] 90일 지난 일정 ${rowCount}건 자동 삭제`);
   } catch (e) { console.log('[정리] 일정 삭제 오류:', e.message); }
+}
+
+// 앱 로그 정리 — 무한 증식 방지 (info/warn 30일, error 90일 보관)
+async function cleanupOldLogs() {
+  try {
+    const r1 = await pool.query("DELETE FROM app_logs WHERE level <> 'error' AND created_at < NOW() - INTERVAL '30 days'");
+    const r2 = await pool.query("DELETE FROM app_logs WHERE level = 'error' AND created_at < NOW() - INTERVAL '90 days'");
+    const n = (r1.rowCount || 0) + (r2.rowCount || 0);
+    if (n) console.log(`[정리] 오래된 앱로그 ${n}건 삭제`);
+  } catch (e) { console.log('[정리] 앱로그 삭제 오류:', e.message); }
+}
+
+// 만료 세션 정리 (DB)
+async function cleanupExpiredSessions() {
+  try {
+    const { rowCount } = await pool.query('DELETE FROM auth_sessions WHERE expires_at < NOW()');
+    if (rowCount) console.log(`[정리] 만료 세션 ${rowCount}건 삭제`);
+  } catch (e) {}
 }
 
 initDB()
   .then(() => { cleanupOldPhotos(); setInterval(cleanupOldPhotos, 24 * 60 * 60 * 1000); })
   .then(() => { cleanupExpiredSchedules(); setInterval(cleanupExpiredSchedules, 24 * 60 * 60 * 1000); })
+  .then(() => { cleanupOldLogs(); setInterval(cleanupOldLogs, 24 * 60 * 60 * 1000); })
+  .then(() => { cleanupExpiredSessions(); setInterval(cleanupExpiredSessions, 60 * 60 * 1000); })
   .then(() => backfillVatRefund())
   .then(() => app.listen(PORT, () => console.log(`CSEP 서버 실행: http://localhost:${PORT}`)))
   .catch(e => { console.error('DB 초기화 실패:', e.message); app.listen(PORT, () => console.log(`CSEP 서버 실행(DB오류): http://localhost:${PORT}`)); });
