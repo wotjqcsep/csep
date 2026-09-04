@@ -2125,6 +2125,8 @@ async function printAgencySettlement(year, month){
   try{ data=await api('GET',`/agency-settlement?year=${year}&month=${month}`); }
   catch(e){ showToast('정산 데이터 조회 실패','#e03131'); return; }
   const recs=data.receptions||[], sales=data.sales||[];
+  const overdueRecs=(data.overdue||[]).filter(r=>feeRateRec(r)>0);
+  const overdueSales=(data.overdueSales||[]).filter(s=>feeRateRec(s)>0);
   const agName=agencyName(), brName=brandName()||agName;
   const st=state.settings||{};
   const myBizName=(st.company_name||'').trim()||(st.brand_name||'').trim()||'';
@@ -2191,7 +2193,46 @@ async function printAgencySettlement(year, month){
     </tr>`;
   });
 
-  const grandTotal=agencyTotalPay+vatTotal;
+  // 전월 이전 미수금 (미정산 건)
+  let overdueNum=0, overdueRows='', overdueTotalRev=0, overdueTotalFee=0, overdueTotalPay=0;
+  overdueRecs.forEach(r=>{
+    const rev=recRevenue(r);
+    const fee=wooriCut(r);
+    const pay=rev-fee;
+    overdueTotalRev+=rev; overdueTotalFee+=fee; overdueTotalPay+=pay;
+    overdueNum++;
+    const cAt=r.completed_at?r.completed_at.slice(0,4)+'년 '+Number(r.completed_at.slice(5,7))+'월':'';
+    overdueRows+=`<tr>
+      <td style="text-align:center">${overdueNum}</td>
+      <td style="text-align:center;color:#e03131;font-weight:700">${cAt}</td>
+      <td style="text-align:center">${kstDate(r.completed_at)}</td>
+      <td>${r.est_no||('#'+r.id)}</td>
+      <td style="text-align:center">${PM_LABEL[r.payment_method]||r.payment_method||''}${r.tax_invoice?'/계산서':''}</td>
+      <td style="text-align:right">${won(rev)}</td>
+      <td style="text-align:right;color:#c00">${won(fee)}</td>
+      <td style="text-align:right;font-weight:700">${won(pay)}</td>
+    </tr>`;
+  });
+  overdueSales.forEach(s=>{
+    const rev=Number(s.total_price)||0;
+    const fee=Math.floor(rev*feeRateRec(s));
+    const pay=rev-fee;
+    overdueTotalRev+=rev; overdueTotalFee+=fee; overdueTotalPay+=pay;
+    overdueNum++;
+    const sMonth=(s.sale_date||'').slice(0,4)+'년 '+Number((s.sale_date||'').slice(5,7))+'월';
+    overdueRows+=`<tr>
+      <td style="text-align:center">${overdueNum}</td>
+      <td style="text-align:center;color:#e03131;font-weight:700">${sMonth}</td>
+      <td style="text-align:center">${(s.sale_date||'').slice(0,10)}</td>
+      <td>판매: ${esc(s.item_name)}</td>
+      <td style="text-align:center">${PM_LABEL[s.payment_method]||s.payment_method||''}${s.tax_invoice?'/계산서':''}</td>
+      <td style="text-align:right">${won(rev)}</td>
+      <td style="text-align:right;color:#c00">${won(fee)}</td>
+      <td style="text-align:right;font-weight:700">${won(pay)}</td>
+    </tr>`;
+  });
+
+  const grandTotal=agencyTotalPay+vatTotal+overdueTotalPay;
 
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>외주업체 정산서 ${year}년 ${month}월</title>
 <style>
@@ -2257,10 +2298,23 @@ async function printAgencySettlement(year, month){
   <div class="section-title">2. 매입부가세 환급</div>
   <p style="color:#999;text-align:center;padding:12px">해당 월 매입부가세 환급 건이 없습니다.</p>`}
 
+  ${overdueRows?`
+  <div class="section-title" style="color:#e03131">3. 전월 미수금 (미정산 ${overdueNum}건)</div>
+  <table class="settle">
+    <thead><tr><th>No</th><th>귀속월</th><th>완료일</th><th>건명</th><th>결제수단</th><th>결제금액</th><th>수수료</th><th>미수금액</th></tr></thead>
+    <tbody>${overdueRows}</tbody>
+    <tfoot><tr>
+      <td colspan="5" style="text-align:center">미수금 합계</td>
+      <td style="text-align:right">${won(overdueTotalRev)}</td>
+      <td style="text-align:right;color:#c00">${won(overdueTotalFee)}</td>
+      <td style="text-align:right;color:#e03131;font-weight:700">${won(overdueTotalPay)}</td>
+    </tr></tfoot>
+  </table>`:''}
+
   <div class="grand-total">
     총 지급 요청액: <strong>${won(grandTotal)}</strong>
     <div style="font-size:12px;color:#666;margin-top:4px">
-      (대행잔액 ${won(agencyTotalPay)} + 매입VAT환급 ${won(vatTotal)})
+      (대행잔액 ${won(agencyTotalPay)} + 매입VAT환급 ${won(vatTotal)}${overdueTotalPay?' + 전월미수 '+won(overdueTotalPay):''})
     </div>
   </div>
 
@@ -2320,9 +2374,21 @@ async function printAgencySettlement(year, month){
   </table>`:`
   <div style="font-size:15px;font-weight:700;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #333">2. 매입부가세 환급</div>
   <p style="color:#999;text-align:center;padding:12px">해당 월 매입부가세 환급 건이 없습니다.</p>`}
+  ${overdueRows?`
+  <div style="font-size:15px;font-weight:700;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #e03131;color:#e03131">3. 전월 미수금 (미정산 ${overdueNum}건)</div>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+    <thead><tr>${['No','귀속월','완료일','건명','결제수단','결제금액','수수료','미수금액'].map(h=>'<th style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#f0f0f0;font-weight:700;text-align:center">'+h+'</th>').join('')}</tr></thead>
+    <tbody>${overdueRows}</tbody>
+    <tfoot><tr>
+      <td colspan="5" style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:center">미수금 합계</td>
+      <td style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:right">${won(overdueTotalRev)}</td>
+      <td style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:right;color:#c00">${won(overdueTotalFee)}</td>
+      <td style="border:1px solid #999;padding:5px 8px;font-size:12px;background:#fafafa;font-weight:700;text-align:right;color:#e03131">${won(overdueTotalPay)}</td>
+    </tr></tfoot>
+  </table>`:''}
   <div style="text-align:center;margin:24px 0;padding:14px;background:#f7f7ff;border:2px solid #7048e8;border-radius:8px;font-size:16px">
     총 지급 요청액: <strong style="color:#7048e8;font-size:20px">${won(grandTotal)}</strong>
-    <div style="font-size:12px;color:#666;margin-top:4px">(대행잔액 ${won(agencyTotalPay)} + 매입VAT환급 ${won(vatTotal)})</div>
+    <div style="font-size:12px;color:#666;margin-top:4px">(대행잔액 ${won(agencyTotalPay)} + 매입VAT환급 ${won(vatTotal)}${overdueTotalPay?' + 전월미수 '+won(overdueTotalPay):''})</div>
   </div>
   <div style="display:flex;justify-content:space-between;margin-top:40px">
     <div style="width:45%;text-align:center"><div style="border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:12px">제출자: ${esc(myBizName)} (인)</div></div>
@@ -2337,6 +2403,7 @@ function renderPayments(){
   if(settleState.y==null){ settleState.y=now.getFullYear(); settleState.m=now.getMonth(); }
   const y=settleState.y, m=settleState.m;
   const inMonth=r=>{ const d=recDate(r.completed_at); return d && d.getFullYear()===y && d.getMonth()===m; };
+  const inMonthBySettled=r=>{ const d=recDate(r.woori_settled_at||r.completed_at); return d && d.getFullYear()===y && d.getMonth()===m; };
   const done=(state.receptions||[]).filter(r=>r.status==='completed' && recRevenue(r)>0);
   const md=done.filter(inMonth);
   // 판매(매장판매 포함) 이달 합산 — 카드/계산서는 대행 경유(수수료 차감), 현금/이체는 전액
@@ -2345,13 +2412,24 @@ function renderPayments(){
   const salesMonth=(state.sales||[]).filter(s=>(s.sale_date||'').slice(0,7)===monthTag);
   const saleWoori=s=>Math.floor((Number(s.total_price)||0)*feeRateRec(s));
   const saleMine=s=>(Number(s.total_price)||0)-saleWoori(s);
-  const salesSettled=salesMonth.filter(s=>feeRateRec(s)<=0||s.woori_settled);   // 대행 경유 매장판매도 정산받은 것만
-  const salesRev=salesSettled.reduce((t,s)=>t+(Number(s.total_price)||0),0);
-  const salesWoori=salesSettled.reduce((t,s)=>t+saleWoori(s),0);
+  // 매장판매 정산: 외주 경유는 정산받은 날짜(woori_settled_at) 기준 월로 집계
+  const saleSettledMonth=s=>{ const d=recDate(s.woori_settled_at||s.sale_date); return d && d.getFullYear()===y && d.getMonth()===m; };
+  const salesSettledMonth=(state.sales||[]).filter(s=>{
+    if(feeRateRec(s)<=0) return (s.sale_date||'').slice(0,7)===monthTag;
+    return s.woori_settled && saleSettledMonth(s);
+  });
+  const salesRev=salesSettledMonth.reduce((t,s)=>t+(Number(s.total_price)||0),0);
+  const salesWoori=salesSettledMonth.reduce((t,s)=>t+saleWoori(s),0);
   const salesMine=salesRev-salesWoori;
   const salesWpend=AG?(state.sales||[]).filter(s=>feeRateRec(s)>0&&!s.woori_settled):[];
   const salesWpendAmt=salesWpend.reduce((t,s)=>t+saleMine(s),0);
-  const mdSettled=md.filter(r=>!isWoori(r)||r.woori_settled);   // 대행 경유는 정산받은 것만 매출 집계
+  // 정산 집계: 비외주=완료월 기준, 외주=정산받은 날(woori_settled_at) 기준 월
+  const mdSettled=[
+    ...done.filter(r=>!isWoori(r) && inMonth(r)),
+    ...done.filter(r=>isWoori(r) && r.woori_settled && inMonthBySettled(r))
+  ];
+  const revCompleted=md.reduce((s,r)=>s+recRevenue(r),0);
+  const salesMonthRev=salesMonth.reduce((t,s)=>t+(Number(s.total_price)||0),0);
   const rev=mdSettled.reduce((s,r)=>s+recRevenue(r),0);
   const myTotal=mdSettled.reduce((s,r)=>s+mySettle(r),0);
   const wooriMonth=mdSettled.reduce((s,r)=>s+wooriCut(r),0);
@@ -2362,7 +2440,7 @@ function renderPayments(){
   const unpaid=done.filter(r=>r.payment_method==='unpaid');
   const unpaidAmt=unpaid.reduce((s,r)=>s+recRevenue(r),0);
   const byPM={cash:0,transfer:0,cashreceipt:0,card:0,tax:0,unpaid:0}; mdSettled.forEach(r=>{ if(byPM[r.payment_method]!==undefined) byPM[r.payment_method]+=recRevenue(r); });
-  salesSettled.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
+  salesSettledMonth.forEach(s=>{ if(byPM[s.payment_method]!==undefined) byPM[s.payment_method]+=Number(s.total_price)||0; });
   const vatRefundMonth=mdSettled.reduce((s,r)=>s+recVatRefund(r),0);
   const byCust={}; mdSettled.filter(r=>isWoori(r)).forEach(r=>{ const k=r.customer_id; const o=(byCust[k]=byCust[k]||{labor:0,parts:0,rev:0,woori:0,mine:0,refund:0,settledDates:[],payments:new Set()}); o.labor+=Number(r.labor_fee)||0; o.parts+=Number(r.parts_fee)||0; o.rev+=recRevenue(r); o.woori+=wooriCut(r); o.mine+=mySettle(r); o.refund+=recVatRefund(r); if(r.woori_settled_at) o.settledDates.push(kstDate(r.woori_settled_at)); o.payments.add(payLabel(r)); });
   const custRows=Object.entries(byCust).sort((a,b)=>b[1].rev-a[1].rev);
@@ -2376,9 +2454,9 @@ function renderPayments(){
     </div>
   </div>
   <div class="stat-grid">
-    ${statCard('이달 매출', won(rev+salesRev), '', 20)}
+    ${statCard('이달 매출', won(revCompleted+salesMonthRev), '', 20)}
     ${statCard('이달 정산액', won(myTotal+salesMine), 'var(--success)', 20)}
-    ${statCard('이달 매장판매', won(salesRev), salesRev>0?'var(--primary)':'', 18)}
+    ${statCard('이달 매장판매', won(salesMonthRev), salesMonthRev>0?'var(--primary)':'', 18)}
     ${AG?statCard(`${agencyName()} 받을 정산액`, won(wooriPendingAmt+salesWpendAmt), (wooriPendingAmt+salesWpendAmt)>0?'var(--warning)':'', 18):''}
     ${vatRefundMonth>0?statCard('매입부가세 환급', '+'+won(vatRefundMonth), '#0ca678', 18):''}
     ${statCard('고객 미수금', won(unpaidAmt), unpaidAmt>0?'var(--danger)':'', 18)}
@@ -2427,7 +2505,7 @@ function renderPayments(){
       <td style="text-align:right;color:#0ca678">${o.refund?'+'+won(o.refund):'-'}</td>
       <td style="text-align:right;color:var(--success)"><strong>${won(o.mine)}</strong></td></tr>`;}).join('') : `<tr><td colspan="${AG?9:8}" class="empty-state">이달 완료·결제 내역이 없습니다</td></tr>`}
     </tbody></table></div>
-  <div style="font-weight:700;margin:18px 2px 8px">🔧 이달 완료 작업·납품 내역 — ${md.length}건 · 매출 ${won(rev)}</div>
+  <div style="font-weight:700;margin:18px 2px 8px">🔧 이달 완료 작업·납품 내역 — ${md.length}건 · 매출 ${won(revCompleted)}</div>
   <div class="table-container"><table class="table">
     <thead><tr><th>일자</th><th>거래처</th><th>내용</th><th>담당</th><th>결제수단</th><th style="text-align:right">매출</th>${AG?`<th style="text-align:right">${esc(agencyName())} 수수료</th><th style="text-align:right;color:#0ca678">환급</th><th style="text-align:right">정산액</th>`:''}</tr></thead>
     <tbody>${md.length? [...md].sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||'')||b.id-a.id).map(r=>`<tr id="rec_${r.id}" style="${_wpIds.has(r.id)?'border-left:4px solid #fab005;background:rgba(250,176,5,0.08)':''}">

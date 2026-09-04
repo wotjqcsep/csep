@@ -16,3 +16,6 @@ project(':capacitor-preferences').projectDir = new File('../node_modules/@capaci
 
 include ':capacitor-push-notifications'
 project(':capacitor-push-notifications').projectDir = new File('../node_modules/@capacitor/push-notifications/android')
+
+include ':jcesarmobile-capacitor-ocr'
+project(':jcesarmobile-capacitor-ocr').projectDir = new File('../node_modules/@jcesarmobile/capacitor-ocr/android')
