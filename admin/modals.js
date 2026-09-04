@@ -80,6 +80,38 @@ function partOpts(kind){ return (typeof state!=='undefined' && state.partOptions
 function customOpts(kind){ return partOpts(kind).map(o=>o.value).filter(Boolean); }
 function customGroups(kind, first){ return [...new Set(partOpts(kind).filter(o=>(o.grp||'').split('||')[0]===first).map(o=>(o.grp||'').split('||')[1]).filter(Boolean))]; }
 function customVals(kind, first, second){ return partOpts(kind).filter(o=>{ const pp=(o.grp||'').split('||'); return pp[0]===first && (!second || pp[1]===second); }).map(o=>o.value); }
+// 저장된 CPU 모델명 → 플랫폼/세대 역추론 (편집 시 드롭다운 프리필용)
+function inferCpu(name){
+  const n=String(name||'');
+  if(!n) return {plat:'',sub:''};
+  let plat='';
+  if(/Ryzen|라이젠|Athlon|Phenom|FX-|AMD/i.test(n)) plat='AMD';
+  else if(/Intel|Core|Xeon|Pentium|Celeron/i.test(n)) plat='Intel';
+  let sub='';
+  if(plat && CPU_DATA[plat]){
+    const g=CPU_DATA[plat].groups;
+    for(const k in g){ if(g[k].some(m=>m.toLowerCase()===n.trim().toLowerCase())){ sub=k; break; } }
+    if(!sub) for(const k in g){ if(g[k].some(m=>n.toLowerCase().includes(m.toLowerCase()))){ sub=k; break; } }
+  }
+  return {plat,sub};
+}
+// 저장된 VGA 모델명 → 제조사/시리즈 역추론
+function inferVga(name){
+  const n=String(name||'');
+  if(!n) return {maker:'',series:''};
+  let maker='';
+  if(/내장|UHD|Iris|HD Graphics/i.test(n)) maker='내장 그래픽';
+  else if(/GeForce|RTX|GTX|NVIDIA|Quadro/i.test(n)) maker='NVIDIA';
+  else if(/Radeon|RX/i.test(n)) maker='AMD';
+  else if(/Arc/i.test(n)) maker='Intel Arc';
+  let series='';
+  if(maker && VGA_DATA[maker]){
+    const g=VGA_DATA[maker].groups;
+    for(const k in g){ if(g[k].some(m=>m.toLowerCase()===n.trim().toLowerCase())){ series=k; break; } }
+    if(!series) for(const k in g){ if(g[k].some(m=>n.toLowerCase().includes(m.toLowerCase()))){ series=k; break; } }
+  }
+  return {maker,series};
+}
 function updateCpuSub(){
   const p=v('p_cpu_plat'); const sel=document.getElementById('p_cpu_sub');
   const preset=(p&&CPU_DATA[p])?Object.keys(CPU_DATA[p].groups):[];
@@ -248,6 +280,8 @@ function openComputerModal(id, customerId){
   const pwType = allPwTypes.slice().sort((a,b)=>b.length-a.length).find(t=>(c.power||'').includes(t)) || '';
   const pwWatt = (c.power||'').replace(pwType,'').trim();
   const mon = monParse(c.monitor);
+  const cpuG = inferCpu(c.cpu);      // 편집 시 CPU 플랫폼/세대 프리필
+  const vgaG = inferVga(c.gpu);      // 편집 시 VGA 제조사/시리즈 프리필
   const body = `
     <div class="form-group"><label>거래처 (고정)</label>
       <input type="hidden" id="p_cust" value="${cid||''}">
@@ -261,7 +295,7 @@ function openComputerModal(id, customerId){
     <div class="form-section">하드웨어 <span style="font-weight:400;color:var(--gray-400);font-size:11px">(추후 스마트폰 AI 사진으로 자동 입력 예정)</span></div>
     <div class="form-group"><label>CPU</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <select id="p_cpu_plat" onchange="updateCpuSub()" style="flex:none;width:90px"><option value="">플랫폼</option><option>Intel</option><option>AMD</option></select>
+        <select id="p_cpu_plat" onchange="updateCpuSub()" style="flex:none;width:90px"><option value="">플랫폼</option><option ${cpuG.plat==='Intel'?'selected':''}>Intel</option><option ${cpuG.plat==='AMD'?'selected':''}>AMD</option></select>
         <select id="p_cpu_sub" onchange="updateCpuModels()" style="flex:none;width:120px"><option value="">세대/소켓</option></select>
         <input id="p_cpu" list="cpu_list" value="${esc(c.cpu)||''}" placeholder="모델 선택/입력" style="flex:1;min-width:150px" autocomplete="off">
         <datalist id="cpu_list"></datalist>
@@ -278,7 +312,7 @@ function openComputerModal(id, customerId){
       <datalist id="mb_chipset_list"></datalist></div>
     <div class="form-group"><label>VGA (그래픽카드)</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <select id="p_vga_maker" onchange="updateVgaSeries()" style="flex:none;width:110px"><option value="">제조사</option><option>내장 그래픽</option><option>NVIDIA</option><option>AMD</option><option>Intel Arc</option></select>
+        <select id="p_vga_maker" onchange="updateVgaSeries()" style="flex:none;width:110px"><option value="">제조사</option>${['내장 그래픽','NVIDIA','AMD','Intel Arc'].map(o=>`<option ${vgaG.maker===o?'selected':''}>${o}</option>`).join('')}</select>
         <select id="p_vga_series" onchange="updateVgaModels()" style="flex:none;width:110px"><option value="">시리즈</option></select>
         <input id="p_gpu" list="vga_list" value="${esc(c.gpu)||''}" placeholder="모델 선택/입력" style="flex:1;min-width:150px" autocomplete="off">
         <datalist id="vga_list"></datalist>
@@ -324,7 +358,10 @@ function openComputerModal(id, customerId){
     ${area('p_notes','메모',c.notes)}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveComputer(${id||'null'})">저장</button></div>`;
   modal(isEdit?'장치 수정':'장치 추가', body, true);
-  calcMulti('ram'); updateCpuSub(); updateMbChipset(); updateVgaSeries();
+  calcMulti('ram'); updateMbChipset();
+  // 플랫폼이 프리필된 상태에서 세대·시리즈 목록을 만들고, 저장값에 해당하는 항목을 선택한다
+  updateCpuSub(); if(cpuG.sub){ const e=document.getElementById('p_cpu_sub'); if(e){ e.value=cpuG.sub; updateCpuModels(); } }
+  updateVgaSeries(); if(vgaG.series){ const e=document.getElementById('p_vga_series'); if(e){ e.value=vgaG.series; updateVgaModels(); } }
 }
 async function saveComputer(id){
   const data = {

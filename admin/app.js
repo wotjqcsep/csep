@@ -2346,6 +2346,7 @@ function renderPayments(){
       <strong>${y}년 ${m+1}월</strong>
       <button class="btn btn-sm btn-secondary" onclick="settleMove(1)">▶</button>
       <button class="btn btn-sm" style="background:#7048e8;margin-left:8px" onclick="printAgencySettlement(${y},${m+1})">📄 외주업체 정산서</button>
+      <button class="btn btn-sm btn-secondary" onclick="openOutstandingAudit()" title="저장된 미수금과 실제 완료·미수 합계가 맞는지 검사합니다">🧮 미수금 점검</button>
     </div>
   </div>
   <div class="stat-grid">
@@ -2424,6 +2425,57 @@ function renderPayments(){
       ${AG?`<td style="text-align:right;color:var(--warning)">${saleWoori(s)?won(saleWoori(s)):'-'}</td>
       <td style="text-align:right;color:var(--success)"><strong>${won(saleMine(s))}</strong></td>`:''}</tr>`).join('') : `<tr><td colspan="${AG?7:5}" class="empty-state">이달 판매 내역이 없습니다</td></tr>`}
     </tbody></table></div>`;
+}
+
+// ── 미수금 정합성 점검 ──
+// 대시보드는 customers.outstanding_amount(저장값), 결산·통계는 완료·미수 접수 합계(계산값)를 쓴다.
+// 과거 버그·수동편집으로 둘이 어긋날 수 있어 차이를 보여주고 확인 후 보정한다.
+async function openOutstandingAudit(){
+  modal('🧮 미수금 정합성 점검', '<div class="loading">검사 중...</div>', true);
+  let d;
+  try{ d = await api('GET','/admin/outstanding-audit'); }
+  catch(e){ modal('🧮 미수금 정합성 점검', '<div style="color:var(--danger)">검사 실패: '+esc(e&&e.message?e.message:e)+'</div><div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">닫기</button></div>', true); return; }
+  const diff = d.computed_sum - d.stored_sum;
+  const body = d.mismatched===0
+    ? `<div style="padding:24px;text-align:center">
+         <div style="font-size:40px">✅</div>
+         <div style="font-weight:700;margin-top:8px">미수금이 정확합니다</div>
+         <div style="color:var(--gray-500);font-size:13px;margin-top:6px">고객 ${d.total_customers}명 전부 저장값과 계산값이 일치합니다.</div>
+       </div>
+       <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">닫기</button></div>`
+    : `<div style="background:var(--gray-50);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;line-height:1.8">
+         <div>검사 대상 고객 <strong>${d.total_customers}명</strong> 중 <strong style="color:var(--danger)">${d.mismatched}명</strong>이 어긋납니다.</div>
+         <div>저장된 합계 <strong>${won(d.stored_sum)}</strong> → 실제 합계 <strong>${won(d.computed_sum)}</strong>
+           <span style="color:${diff>=0?'var(--success)':'var(--danger)'}">(${diff>=0?'+':''}${won(diff)})</span></div>
+       </div>
+       <div class="table-container" style="max-height:280px;overflow:auto"><table class="table" style="font-size:13px">
+         <thead><tr><th>고객</th><th style="text-align:right">저장값</th><th style="text-align:right">실제</th><th style="text-align:right">차이</th></tr></thead>
+         <tbody>${d.rows.map(r=>`<tr><td>${esc(r.name)}</td>
+           <td style="text-align:right">${won(r.stored)}</td>
+           <td style="text-align:right"><strong>${won(r.computed)}</strong></td>
+           <td style="text-align:right;color:${r.delta>=0?'var(--success)':'var(--danger)'}">${r.delta>=0?'+':''}${won(r.delta)}</td></tr>`).join('')}</tbody>
+       </table></div>
+       <div style="font-size:12px;color:var(--gray-500);margin-top:10px;line-height:1.6">
+         ※ '실제'는 <strong>완료 + 결제수단 미수</strong>인 접수의 공임·부품·출장비 합계입니다.<br>
+         ※ 고객 수정에서 미수금을 <strong>손으로 넣은 값이 있으면 함께 덮어써집니다.</strong> 표를 확인하고 진행하세요.
+       </div>
+       <div class="form-group" style="margin-top:12px"><label>확인 문구 입력</label>
+         <input id="oa_confirm" placeholder="미수금 재계산" autocomplete="off"></div>
+       <div class="form-actions">
+         <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+         <button class="btn btn-danger" onclick="doOutstandingRecalc()">재계산 실행</button>
+       </div>`;
+  modal('🧮 미수금 정합성 점검', body, true);
+}
+async function doOutstandingRecalc(){
+  const t=(v('oa_confirm')||'').trim();
+  if(t!=='미수금 재계산'){ alert('"미수금 재계산"을 정확히 입력해주세요.'); return; }
+  try{
+    const r=await api('POST','/admin/outstanding-recalc',{confirmText:t});
+    csepLog('warn','ACCOUNTING','미수금 재계산 '+r.updated+'건');
+    closeModal(); await loadAll(); render();
+    showToast('✅ 미수금 '+r.updated+'건을 보정했습니다');
+  }catch(e){ alert('재계산 실패: '+(e&&e.message?e.message:e)); }
 }
 
 // ── 통계 ──

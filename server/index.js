@@ -3127,6 +3127,54 @@ app.post('/api/admin/reset', requireAdmin, wrap(async (req, res) => {
 }));
 
 // ============================================================
+//  미수금 정합성 검사·재계산
+//  customers.outstanding_amount 는 완료/수정 때마다 증분 갱신되는 값이라
+//  과거 버그·수동편집으로 실제(완료+미수 접수 합계)와 어긋날 수 있다.
+//  검사(GET)로 차이를 먼저 보여주고, 확인 후 재계산(POST)한다.
+// ============================================================
+const OUTSTANDING_SQL = `
+  SELECT c.id, c.name, c.company_name, COALESCE(c.outstanding_amount,0)::float8 AS stored,
+         COALESCE(SUM(CASE WHEN r.status='completed' AND r.payment_method='unpaid'
+                    THEN COALESCE(r.labor_fee,0)+COALESCE(r.parts_fee,0)+COALESCE(r.visit_fee,0)
+                    ELSE 0 END),0)::float8 AS computed
+  FROM customers c
+  LEFT JOIN receptions r ON r.customer_id = c.id
+  GROUP BY c.id, c.name, c.company_name, c.outstanding_amount
+  ORDER BY c.id`;
+
+app.get('/api/admin/outstanding-audit', requireAdmin, wrap(async (req, res) => {
+  const rows = (await pool.query(OUTSTANDING_SQL)).rows;
+  const diffs = rows.filter(r => Math.round(r.stored) !== Math.round(r.computed));
+  res.json({
+    total_customers: rows.length,
+    mismatched: diffs.length,
+    stored_sum: rows.reduce((s, r) => s + r.stored, 0),
+    computed_sum: rows.reduce((s, r) => s + r.computed, 0),
+    rows: diffs.map(r => ({ id: r.id, name: r.name || r.company_name || ('고객' + r.id),
+                            stored: r.stored, computed: r.computed, delta: r.computed - r.stored })),
+  });
+}));
+
+app.post('/api/admin/outstanding-recalc', requireAdmin, wrap(async (req, res) => {
+  if (!req.body || req.body.confirmText !== '미수금 재계산') {
+    return res.status(400).json({ error: '확인 문구가 일치하지 않습니다' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const rows = (await client.query(OUTSTANDING_SQL)).rows;
+    const diffs = rows.filter(r => Math.round(r.stored) !== Math.round(r.computed));
+    for (const r of diffs) {
+      await client.query('UPDATE customers SET outstanding_amount=$2 WHERE id=$1', [r.id, r.computed]);
+    }
+    await client.query('COMMIT');
+    console.log('[미수금 재계산] ' + diffs.length + '건 보정');
+    res.json({ ok: true, updated: diffs.length });
+  } catch (e) { await client.query('ROLLBACK'); throw e; }
+  finally { client.release(); }
+}));
+
+// ============================================================
 //  전화 수신 (CTI) — 메모리 임시 저장
 // ============================================================
 const incomingCalls = [];
