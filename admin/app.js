@@ -1803,7 +1803,7 @@ function stdStatement(sup,buy,items,sub,vat,total,ctx,memo,copyLabel){
   const header=`<table style="border-collapse:collapse;width:100%;table-layout:fixed;margin-top:4px"><tbody>
     <tr><td rowspan="4" style="width:48%;vertical-align:top;${B}">${left}</td>
         <td style="width:66px;${L}">등록번호</td><td colspan="3" style="${B}">${sup.bizno}</td></tr>
-    <tr><td style="${L}">상　호</td><td style="${B}">${sup.nm}</td><td style="width:42px;${L}">성명</td><td style="${B}">${sup.ceo}<span style="position:relative;display:inline-block"> (인)<img src="${(state.settings||{}).stamp_img||''}" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;object-fit:contain;opacity:0.85"></span></td></tr>
+    <tr><td style="${L}">상　호</td><td style="${B}">${sup.nm}</td><td style="width:42px;${L}">성명</td><td style="${B}">${sup.ceo}<span style="position:relative;display:inline-block"> (인)${stampImg(36)}</span></td></tr>
     <tr><td style="${L}">사업장<br>소재지</td><td colspan="3" style="${B}">${sup.addr}</td></tr>
     <tr><td style="${L}">업　태</td><td style="${B}">${sup.bt}</td><td style="${L}">종목</td><td style="${B}">${sup.bi}</td></tr>
   </tbody></table>`;
@@ -2032,7 +2032,7 @@ function estPrint(target){
 // Google Vision·Gemini는 사용하지 않고 키도 없으므로 호출부(캡처 버튼)와 함께 삭제했다.
 // [제거됨] 캡처(이미지) AI 가져오기 — 서버 OCR(Google Vision)이 제거되면서
 // /estimate/scan 은 image 를 처리하지 않아 항상 실패했다. 버튼도 함께 삭제.
-// 이미지에서 뽑으려면 기사앱(APK) 📷 OCR 탭으로 텍스트를 추출해 [소스·텍스트]에 붙여넣는다.
+// 견적 가져오기는 [🔗 URL 공유] / [📋 소스·텍스트] / [⭐ 북마클릿] 세 경로를 사용한다.
 async function estPasteImport(btn,mode){
   const t=(v('est_paste')||'').trim();
   if(!t){ showToast('붙여넣은 내용이 없습니다. 컴퓨존 견적서 소스복사의 [텍스트]를 붙여넣으세요.','#e68900'); return; }
@@ -2220,99 +2220,8 @@ async function printAgencySettlement(year, month){
 
   const grandTotal=agencyTotalPay+vatTotal+overdueTotalPay;
 
-  const html=`<!doctype html><html><head><meta charset="utf-8"><title>외주업체 정산서 ${year}년 ${month}월</title>
-<style>
-  body{font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#222;padding:20px;max-width:820px;margin:auto;font-size:13px}
-  h1{font-size:20px;text-align:center;margin:0 0 4px;letter-spacing:2px}
-  .period{text-align:center;font-size:14px;color:#555;margin-bottom:16px}
-  .info-box{display:flex;justify-content:space-between;margin-bottom:16px;font-size:12px}
-  .info-box .col{width:48%}
-  .info-box .col td{padding:2px 6px}
-  .info-box .col td:first-child{font-weight:700;color:#555;white-space:nowrap}
-  table.settle{width:100%;border-collapse:collapse;margin-bottom:20px}
-  table.settle th,table.settle td{border:1px solid #999;padding:5px 8px;font-size:12px}
-  table.settle th{background:#f0f0f0;font-weight:700;text-align:center}
-  table.settle tfoot td{background:#fafafa;font-weight:700}
-  .section-title{font-size:15px;font-weight:700;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #333}
-  .grand-total{text-align:center;margin:24px 0;padding:14px;background:#f7f7ff;border:2px solid #7048e8;border-radius:8px;font-size:16px}
-  .grand-total strong{color:#7048e8;font-size:20px}
-  .sign-area{display:flex;justify-content:space-between;margin-top:40px}
-  .sign-box{width:45%;text-align:center}
-  .sign-box .line{border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:12px}
-  .no-print{margin-bottom:16px;text-align:center}
-  @media print{.no-print{display:none} @page{size:A4 portrait;margin:12mm}}
-</style></head><body>
-  <div class="no-print"><button onclick="window.print()" style="padding:8px 24px;font-size:14px;cursor:pointer;border:1px solid #7048e8;background:#7048e8;color:#fff;border-radius:6px">🖨️ 인쇄</button></div>
-  <h1>외주업체 정산서</h1>
-  <div class="period">${year}년 ${month}월</div>
-  <div class="info-box">
-    <table class="col"><tbody>
-      <tr><td>제출처</td><td>${esc(agName)}</td></tr>
-    </tbody></table>
-    <table class="col"><tbody>
-      <tr><td>제출자</td><td>${esc(myBizName)}${myCeo?' / '+esc(myCeo):''}</td></tr>
-      ${myBizNo?`<tr><td>사업자번호</td><td>${esc(myBizNo)}</td></tr>`:''}
-      <tr><td>작성일</td><td>${kstNow()}</td></tr>
-    </tbody></table>
-  </div>
-
-  ${agencyRows?`
-  <div class="section-title">1. 대행 수금 정산 (카드/세금계산서)</div>
-  <table class="settle">
-    <thead><tr><th>No</th><th>완료일</th><th>건명</th><th>결제수단</th><th>결제금액</th><th>수수료</th><th>지급요청액</th></tr></thead>
-    <tbody>${agencyRows}</tbody>
-    <tfoot><tr>
-      <td colspan="4" style="text-align:center">합 계</td>
-      <td style="text-align:right">${won(agencyTotalRev)}</td>
-      <td style="text-align:right;color:#c00">${won(agencyTotalFee)}</td>
-      <td style="text-align:right">${won(agencyTotalPay)}</td>
-    </tr></tfoot>
-  </table>`:`
-  <div class="section-title">1. 대행 수금 정산</div>
-  <p style="color:#999;text-align:center;padding:12px">해당 월 대행 수금 건이 없습니다.</p>`}
-
-  ${vatRows?`
-  <div class="section-title">2. 매입부가세 환급</div>
-  <table class="settle">
-    <thead><tr><th>No</th><th>매입확정일</th><th>건명</th><th>견적합계</th><th>매입가</th><th>환급금</th></tr></thead>
-    <tbody>${vatRows}</tbody>
-    <tfoot><tr>
-      <td colspan="5" style="text-align:center">환급 합계</td>
-      <td style="text-align:right;color:#0ca678">${won(vatTotal)}</td>
-    </tr></tfoot>
-  </table>`:`
-  <div class="section-title">2. 매입부가세 환급</div>
-  <p style="color:#999;text-align:center;padding:12px">해당 월 매입부가세 환급 건이 없습니다.</p>`}
-
-  ${overdueRows?`
-  <div class="section-title" style="color:#e03131">3. 전월 미수금 (미정산 ${overdueNum}건)</div>
-  <table class="settle">
-    <thead><tr><th>No</th><th>귀속월</th><th>완료일</th><th>건명</th><th>결제수단</th><th>결제금액</th><th>수수료</th><th>미수금액</th></tr></thead>
-    <tbody>${overdueRows}</tbody>
-    <tfoot><tr>
-      <td colspan="5" style="text-align:center">미수금 합계</td>
-      <td style="text-align:right">${won(overdueTotalRev)}</td>
-      <td style="text-align:right;color:#c00">${won(overdueTotalFee)}</td>
-      <td style="text-align:right;color:#e03131;font-weight:700">${won(overdueTotalPay)}</td>
-    </tr></tfoot>
-  </table>`:''}
-
-  <div class="grand-total">
-    총 지급 요청액: <strong>${won(grandTotal)}</strong>
-    <div style="font-size:12px;color:#666;margin-top:4px">
-      (대행잔액 ${won(agencyTotalPay)} + 매입VAT환급 ${won(vatTotal)}${overdueTotalPay?' + 전월미수 '+won(overdueTotalPay):''})
-    </div>
-  </div>
-
-  <div class="sign-area">
-    <div class="sign-box">
-      <div class="line">제출자: ${esc(myBizName)} (인)</div>
-    </div>
-    <div class="sign-box">
-      <div class="line">확인자: ${esc(agName)} (인)</div>
-    </div>
-  </div>
-</body></html>`;
+  // [제거됨] 미사용 html 변수(93줄) — 실제 출력은 아래 overlay.innerHTML 이 담당한다.
+  //          두 벌이 중복 유지되며 서로 어긋날 위험이 있어 삭제.
 
   const overlay=document.createElement('div');
   overlay.id='agency-settle-overlay';

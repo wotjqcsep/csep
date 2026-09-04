@@ -2459,7 +2459,7 @@ app.post('/api/estimate/scan', wrap(async (req, res) => {
   }
   // 이미지가 온 경우: 서버 OCR(Google Vision)은 제거되었으므로 명확히 안내한다.
   if (req.body && req.body.image) {
-    return res.status(501).json({ error: '서버 이미지 OCR은 지원하지 않습니다. 기사앱(APK)의 📷 OCR 탭에서 텍스트를 추출한 뒤 [소스·텍스트]에 붙여넣으세요.' });
+    return res.status(501).json({ error: '서버 이미지 OCR은 지원하지 않습니다. 견적은 [🔗 URL 공유] 또는 [📋 소스·텍스트]를 이용해주세요.' });
   }
   return res.status(400).json({ error: 'URL 또는 텍스트를 입력해주세요.' });
 }));

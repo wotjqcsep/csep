@@ -451,7 +451,7 @@ async function saveReception(){
     // 고객명 또는 전화번호로 기존 고객 검색
     let existingCust = null;
     if(name) existingCust = state.customers.find(c => (c.name || '').toLowerCase() === name.toLowerCase());
-    if(!existingCust && phone) existingCust = state.customers.find(c => c.phone === phone);
+    if(!existingCust && phone){ const pd=digits(phone); if(pd) existingCust = state.customers.find(c => digits(c.phone)===pd || digits(c.phone2)===pd); }
 
     if(existingCust){
       // 기존 고객 발견
@@ -502,7 +502,7 @@ async function saveEngineer(id){
 function openSaleModal(){
   const custOptions = state.customers.map(x=>`<option value="${x.id}">${esc(x.name)||esc(x.phone)||('고객'+x.id)}</option>`).join('');
   const body = `
-    <div class="form-group"><label>고객 *</label><select id="s_cust">${custOptions}</select></div>
+    <div class="form-group"><label>고객 *</label><select id="s_cust"><option value="">— 고객을 선택하세요 —</option>${custOptions}</select></div>
     <div class="form-row">${field('s_item','품목명 *','')}<div class="form-group"><label>품목 유형</label><select id="s_type"><option value="part">부품</option><option value="product">완제품</option><option value="service">서비스</option></select></div></div>
     <div class="form-row">${field('s_qty','수량','1','number')}${field('s_price','단가','0','number')}</div>
     <div class="form-row">${field('s_date','판매일',kstNow(),'date')}<div class="form-group"><label>결제수단</label><select id="s_method"><option value="cash">현금</option><option value="card">카드</option><option value="transfer">계좌이체</option></select></div></div>
