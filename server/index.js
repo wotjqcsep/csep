@@ -891,8 +891,10 @@ app.post('/api/computers', wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
-// BIOS 화면 사진 → 장치정보 자동추출 (Cloud Vision OCR 전용, 무료).
-// OCR로 읽은 글자를 서버에서 규칙기반으로 파싱 → CPU/RAM/메인보드/시리얼 추정.
+// BIOS 화면 사진 → 장치정보 자동추출.
+// OCR은 기사앱(APK)의 온디바이스 ML Kit이 담당하고, 서버는 그 '텍스트'만 받아 파싱한다.
+// (Google Cloud Vision·Gemini는 사용하지 않으며 관련 키도 없다 — AI 보정은 Groq만 사용)
+// 규칙기반 파싱 → CPU/RAM/메인보드/시리얼 추정.
 function parseBiosText(text) {
   const out = { name: '', device_type: 'desktop', cpu: '', gpu: '', serial_number: '', bios_version: '',
     motherboard: { plat: '', maker: '', chipset: '', model: '' }, ram: [], ssd: [], hdd: [] };

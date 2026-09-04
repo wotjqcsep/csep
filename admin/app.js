@@ -2028,13 +2028,8 @@ function estPrint(target){
   const w=window.open(openUrl,'_blank'); if(!w){ showToast('팝업이 차단되었습니다. 허용 후 다시 시도하세요.','#e03131'); return; }
   w.document.write(html); w.document.close();
 }
-// 컴퓨존 견적 스크린샷 → 서버(Vision+AI) → 견적 항목 자동 채움
-function estCompress(file){ return new Promise(resolve=>{ const rd=new FileReader();
-  rd.onload=e=>{ const img=new Image(); img.onload=()=>{ let w=img.width,h=img.height; const max=1700;
-    if(w>max||h>max){ if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
-    const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
-    resolve(c.toDataURL('image/jpeg',0.85)); }; img.onerror=()=>resolve(e.target.result); img.src=e.target.result; };
-  rd.readAsDataURL(file); }); }
+// [제거됨] 견적 스크린샷 압축 유틸(estCompress) — 서버 이미지 OCR을 쓰던 시절의 잔재.
+// Google Vision·Gemini는 사용하지 않고 키도 없으므로 호출부(캡처 버튼)와 함께 삭제했다.
 // [제거됨] 캡처(이미지) AI 가져오기 — 서버 OCR(Google Vision)이 제거되면서
 // /estimate/scan 은 image 를 처리하지 않아 항상 실패했다. 버튼도 함께 삭제.
 // 이미지에서 뽑으려면 기사앱(APK) 📷 OCR 탭으로 텍스트를 추출해 [소스·텍스트]에 붙여넣는다.
