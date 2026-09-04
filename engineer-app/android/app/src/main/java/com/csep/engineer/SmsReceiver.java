@@ -36,15 +36,18 @@ public class SmsReceiver extends BroadcastReceiver {
             if (phone == null) phone = sms.getOriginatingAddress();
             body.append(sms.getMessageBody());
         }
-        postSms(phone, body.toString());
+        postSms(context, phone, body.toString());
     }
 
     private boolean isBoss(Context ctx) {
-        SharedPreferences sp = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
-        return "대표".equals(sp.getString("csep_role", "none"));
+        // boolean 플래그 우선 — 한글 리터럴은 빌드 인코딩에 따라 깨질 수 있어 폴백으로만 쓴다.
+        String isBoss = Prefs.get(ctx, "csep_is_boss", "");
+        if (!isBoss.isEmpty()) return "1".equals(isBoss);
+        return "대표".equals(Prefs.get(ctx, "csep_role", "none"));
     }
 
-    private void postSms(final String phone, final String message) {
+    private void postSms(Context ctx, final String phone, final String message) {
+        final Context app = ctx.getApplicationContext();
         new Thread(new Runnable() {
             public void run() {
                 try {
@@ -56,13 +59,20 @@ public class SmsReceiver extends BroadcastReceiver {
                     HttpURLConnection c = (HttpURLConnection) url.openConnection();
                     c.setRequestMethod("POST");
                     c.setRequestProperty("Content-Type", "application/json");
+                    // 2026-08-11 서버 전역 인증 도입 이후 토큰 없는 요청은 401로 버려졌다.
+                    Prefs.auth(app, c);
                     c.setConnectTimeout(10000);
                     c.setReadTimeout(10000);
                     c.setDoOutput(true);
                     c.getOutputStream().write(b.toString().getBytes("UTF-8"));
-                    Log.d(TAG, "incoming-sms POST " + c.getResponseCode());
+                    int code = c.getResponseCode();
+                    Log.d(TAG, "incoming-sms POST " + code);
+                    if (code < 200 || code >= 300) Prefs.remoteLog(API, "SMS_POST_FAIL", "HTTP " + code);
                     c.disconnect();
-                } catch (Exception e) { Log.e(TAG, "post fail", e); }
+                } catch (Exception e) {
+                    Log.e(TAG, "post fail", e);
+                    Prefs.remoteLog(API, "SMS_POST_FAIL", String.valueOf(e.getMessage()));
+                }
             }
         }).start();
     }

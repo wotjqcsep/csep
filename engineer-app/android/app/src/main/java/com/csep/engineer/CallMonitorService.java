@@ -27,6 +27,7 @@ public class CallMonitorService extends Service {
             getSystemService(NotificationManager.class).createNotificationChannel(ch);
         }
         Intent tap = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (tap == null) tap = new Intent(this, MainActivity.class);   // null 이면 PendingIntent 생성 시 예외
         PendingIntent pi = PendingIntent.getActivity(this, 0, tap,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)

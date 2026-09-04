@@ -52,7 +52,7 @@ public class CallReceiver extends BroadcastReceiver {
             Log.d(TAG, "IDLE 도달 wasIncoming=" + wasIncoming + " phone=" + phone);
             if (wasIncoming && isBoss(context)) {
                 String p = (phone == null || phone.isEmpty()) ? "unknown" : phone;
-                postIncomingCall(p);
+                postIncomingCall(context, p);
                 notifyIncoming(context, p);
                 bringForeground(context);
             }
@@ -63,26 +63,39 @@ public class CallReceiver extends BroadcastReceiver {
     }
 
     private boolean isBoss(Context ctx) {
-        SharedPreferences sp = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
-        String role = sp.getString("csep_role", "none");
+        // 대표 판정은 boolean 플래그를 우선 사용한다.
+        // 예전엔 "대표" 한글 리터럴만 비교했는데, 빌드 인코딩(javac 기본 charset)이
+        // UTF-8이 아니면 리터럴이 깨져서 영원히 false가 되는 위험이 있었다.
+        String isBoss = Prefs.get(ctx, "csep_is_boss", "");
+        if (!isBoss.isEmpty()) return "1".equals(isBoss);
+        String role = Prefs.get(ctx, "csep_role", "none");
         Log.d(TAG, "csep_role=" + role);
-        return "대표".equals(role);
+        return "대표".equals(role);   // "대표" (인코딩 안전 표기)
     }
 
-    private void postIncomingCall(final String phone) {
+    private void postIncomingCall(Context ctx, final String phone) {
+        final Context app = ctx.getApplicationContext();
         new Thread(new Runnable() {
             public void run() {
                 try {
                     URL url = new URL(API + "/incoming-call?phone=" + URLEncoder.encode(phone, "UTF-8"));
                     HttpURLConnection c = (HttpURLConnection) url.openConnection();
                     c.setRequestMethod("POST");
+                    c.setRequestProperty("Content-Type", "application/json");
+                    // 2026-08-11 서버에 /api 전역 인증이 도입되면서 토큰 없는 요청은 401로 버려졌다.
+                    Prefs.auth(app, c);
                     c.setConnectTimeout(10000);
                     c.setReadTimeout(10000);
                     c.setDoOutput(true);
                     c.getOutputStream().write("{}".getBytes("UTF-8"));
-                    Log.d(TAG, "incoming-call POST " + c.getResponseCode());
+                    int code = c.getResponseCode();
+                    Log.d(TAG, "incoming-call POST " + code);
+                    if (code < 200 || code >= 300) Prefs.remoteLog(API, "CALL_POST_FAIL", "HTTP " + code + " (phone=" + phone + ")");
                     c.disconnect();
-                } catch (Exception e) { Log.e(TAG, "post fail", e); }
+                } catch (Exception e) {
+                    Log.e(TAG, "post fail", e);
+                    Prefs.remoteLog(API, "CALL_POST_FAIL", String.valueOf(e.getMessage()));
+                }
             }
         }).start();
     }
@@ -94,6 +107,7 @@ public class CallReceiver extends BroadcastReceiver {
             nm.createNotificationChannel(ch);
         }
         Intent i = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+        if (i == null) i = new Intent(ctx, MainActivity.class);   // null 이면 PendingIntent 생성 시 예외
         PendingIntent pi = PendingIntent.getActivity(ctx, 0, i,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification n = new NotificationCompat.Builder(ctx, CH)

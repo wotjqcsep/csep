@@ -29,6 +29,9 @@ public class MyFCMService extends MessagingService {
 
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
+        // Capacitor 기본 처리(웹뷰의 pushNotificationReceived 이벤트 전달)를 반드시 먼저 호출한다.
+        // 예전엔 super 를 부르지 않아 기사앱 JS의 푸시 리스너(목록 즉시 갱신)가 죽어 있었다.
+        try { super.onMessageReceived(remoteMessage); } catch (Exception e) { /* 무시 */ }
         Map<String, String> data = remoteMessage.getData();
         String title = "CSEP";
         String body = "";
@@ -120,7 +123,10 @@ public class MyFCMService extends MessagingService {
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setGroup("csep")
             .setContentIntent(pi);
-        nm.notify((int) System.currentTimeMillis(), b.build());
+        // 예전엔 알림 id 로 현재시각을 써서 푸시마다 새 알림이 무한 누적됐다.
+        // 같은 종류는 갱신되도록 제목 기반 고정 id 사용.
+        nm.notify(Math.abs(("csep:" + title).hashCode()), b.build());
     }
 }
