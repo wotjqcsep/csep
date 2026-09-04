@@ -426,13 +426,25 @@ async function checkAuth(){
     const r = await fetch(API+'/admin-password-status');
     const d = await r.json();
     if(!d.hasPassword){
-      // 비밀번호가 공란 → 자동 로그인
+      // 비밀번호가 공란 → 자동 로그인 (단, 이 상태는 인터넷에 ERP가 무방비로 열린 것과 같음)
       const lr = await fetch(API+'/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:''})});
-      if(lr.ok){ const ld=await lr.json(); sessionStorage.setItem('authToken',ld.token); startApp(); return; }
+      if(lr.ok){ const ld=await lr.json(); sessionStorage.setItem('authToken',ld.token); startApp(); showNoPasswordWarning(); return; }
     }
   }catch(e){}
   if(!localStorage.getItem('csep_has_logged_in')) document.getElementById('loginHint').style.display='block';
   document.getElementById('loginScreen').style.display='flex';
+}
+
+// 관리자 비밀번호가 비어 있으면 서버 주소만 알면 누구나 들어올 수 있다 → 상단 경고 띠
+function showNoPasswordWarning(){
+  if(document.getElementById('noPwWarn')) return;
+  const d=document.createElement('div');
+  d.id='noPwWarn';
+  d.style.cssText='position:sticky;top:0;z-index:150;background:#e03131;color:#fff;padding:9px 16px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:12px';
+  d.innerHTML='<span>⚠️ 관리자 비밀번호가 설정되어 있지 않습니다 — 주소를 아는 누구나 이 ERP에 접속할 수 있습니다.</span>'
+    +'<span style="display:flex;gap:6px;flex-shrink:0"><button class="btn btn-sm" style="background:#fff;color:#e03131" onclick="go(\'engineers\')">지금 설정</button>'
+    +'<button class="btn btn-sm" style="background:transparent;color:#fff;border:1px solid #fff" onclick="this.closest(\'#noPwWarn\').remove()">닫기</button></span>';
+  document.querySelector('.topbar').prepend(d);
 }
 
 // ── 로그 전송 (모니터링용 — fire-and-forget) ──
@@ -454,6 +466,13 @@ async function api(method, url, body){
   if(!r.ok){ const errMsg=(await r.json().catch(()=>({}))).error||r.status; csepLog('error','API_ERROR',method+' '+url+' → '+r.status,String(errMsg)); throw new Error(errMsg); }
   return r.json();
 }
+// 사진/이미지 URL — <img src> 요청엔 Authorization 헤더가 안 실리므로 토큰을 쿼리로 붙인다
+// (안 붙이면 /api/* 인증 미들웨어가 401 → 작업사진·채팅사진이 전부 깨짐)
+function imgUrl(u){
+  if(!u) return u;
+  if(!/^\/api\//.test(u)) return u;
+  return u + (u.includes('?')?'&':'?') + 'token=' + encodeURIComponent(sessionStorage.getItem('authToken')||'');
+}
 const digits = s => (s||'').replace(/\D/g,'');
 const won = n => '₩'+(Number(n)||0).toLocaleString();
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -463,11 +482,12 @@ function kstNow(){ return kstDate(new Date()); }
 // ── 데이터 로딩 (백그라운드) ──
 let firstLoad = true;
 let _loadAllTimer = null, _loadAllRunning = false;
+let _loadAllPending = false;
 async function loadAll(showLoading){
   // SSE 등으로 짧은 시간에 여러 번 호출되면 마지막 1건만 실행 (debounce 300ms)
   if(!showLoading && !firstLoad){
+    if(_loadAllRunning){ _loadAllPending = true; return; }   // 실행 중이면 끝난 뒤 1회 더 (예전엔 갱신이 유실됐음)
     clearTimeout(_loadAllTimer);
-    if(_loadAllRunning) return;   // 이미 실행 중이면 스킵
     return new Promise(resolve=>{
       _loadAllTimer = setTimeout(()=>_doLoadAll(false).then(resolve), 300);
     });
@@ -475,7 +495,7 @@ async function loadAll(showLoading){
   return _doLoadAll(showLoading);
 }
 async function _doLoadAll(showLoading){
-  if(_loadAllRunning) return;
+  if(_loadAllRunning){ _loadAllPending = true; return; }
   _loadAllRunning = true;
   try{
   if(showLoading && firstLoad) document.getElementById('page').innerHTML='<div class="loading">불러오는 중...</div>';
@@ -493,7 +513,10 @@ async function _doLoadAll(showLoading){
   const ae = document.activeElement;
   const typing = ae && ( (ae.classList && ae.classList.contains('vd-search')) || ae.tagName==='INPUT' || ae.tagName==='TEXTAREA');
   if(firstLoad){ firstLoad=false; render(); if(typeof initCompletionTracking==='function') initCompletionTracking(); } else if(!document.querySelector('.modal-overlay') && !typing && state.page!=='estimates') render();
-  }finally{ _loadAllRunning = false; }
+  }finally{
+    _loadAllRunning = false;
+    if(_loadAllPending){ _loadAllPending = false; setTimeout(()=>loadAll(false), 100); }
+  }
 }
 
 // ── 네비게이션 (상단 탭) ──

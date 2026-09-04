@@ -251,7 +251,7 @@ async function openReceptionDetail(recId){
     ${rows.map(([k,val,raw])=>`<div class="detail-row"><span class="detail-label">${k}</span><span class="detail-value">${raw?val:esc(val)}</span></div>`).join('')}
     <div class="form-section">증상 / 요청</div>
     <div style="background:var(--gray-50);border-radius:8px;padding:10px;font-size:13px;white-space:pre-wrap">${esc(r.symptom)||'-'}${r.customer_request?'\n\n[고객요청] '+esc(r.customer_request):''}${(r.initial_memo&&!_memoDup(r.symptom,r.initial_memo))?'\n\n[메모] '+esc(r.initial_memo):''}</div>
-    ${photos.length?`<div class="form-section">현장 사진 (${photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${photos.map(p=>`<img src="${p.photo}" style="width:92px;height:92px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--gray-200)" onclick="window.open(this.src,'_blank')">`).join('')}</div>`:''}
+    ${photos.length?`<div class="form-section">현장 사진 (${photos.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${photos.map(p=>`<img src="${imgUrl(p.photo)}" style="width:92px;height:92px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--gray-200)" onclick="window.open(this.src,'_blank')">`).join('')}</div>`:''}
     <div class="form-section">처리 · 결제 (처리하기)</div>
     <textarea id="rd_sol" style="width:100%;min-height:60px" placeholder="처리한 내용을 입력하세요">${esc(r.solution||'')}</textarea>
     ${(()=>{ const cm=(state.settings||{}).cost_input_mode||'both';
@@ -295,7 +295,9 @@ function calcPay(){
 }
 async function savePayment(recId, complete){
   const tax = !!(document.getElementById('rd_tax') && document.getElementById('rd_tax').checked);
-  const data={ labor_fee:Number((v('rd_labor')||'').replace(/[^\d]/g,''))||0, parts_fee:Number((v('rd_parts')||'').replace(/[^\d]/g,''))||0, payment_method:v('rd_pm')||null, tax_invoice:tax, solution:v('rd_sol'), complete: !!complete };
+  const data={ labor_fee:Number((v('rd_labor')||'').replace(/[^\d]/g,''))||0, parts_fee:Number((v('rd_parts')||'').replace(/[^\d]/g,''))||0, tax_invoice:tax, solution:v('rd_sol'), complete: !!complete };
+  // 결제수단을 고르지 않았으면 아예 보내지 않는다 (null 을 보내면 서버가 '미수 해제'로 보고 미수금을 깎아버림)
+  const pm=v('rd_pm'); if(pm) data.payment_method=pm;
   if(complete && !data.payment_method){ if(!confirm('결제수단이 없습니다. 그래도 완료할까요?')) return; }
   else if(complete && !confirm('완료 처리하시겠습니까?')) return;
   try{ await api('PUT',`/receptions/${recId}/payment`, data); }
@@ -843,7 +845,7 @@ function renderEngineers(){
       <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${engColor(e.id)};margin-right:7px;vertical-align:middle"></span><strong style="color:${engColor(e.id)}">${esc(e.name)}</strong></td><td>${esc(e.phone)||'-'}</td>
       <td><span class="chip">${statusLabel(e.status)}</span></td>
       <td>${e.is_admin?'<span class="badge assigned">대표</span>':'기사'}</td>
-      <td>${e.locked?'<span style="color:var(--danger);font-weight:700">🔒 잠김</span>':(e.has_password?'🔑 비번 설정됨':'<span style="color:var(--gray-400)">비번 없음</span>')}</td>
+      <td>${e.locked?'<span style="color:var(--danger);font-weight:700">🔒 잠김</span>':(e.has_password?'🔑 비번 설정됨':'<span style="color:var(--danger);font-weight:700" title="비밀번호가 없으면 기사 목록만 알면 누구나 이 계정으로 로그인할 수 있습니다">⚠️ 비번 없음 (보안취약)</span>')}</td>
       <td><span style="display:flex;gap:6px">${e.locked?`<button class="btn btn-sm btn-success" onclick="unlockEngineer(${e.id})">잠금해제</button>`:''}<button class="btn btn-sm btn-secondary" onclick="openEngineerModal(${e.id})">편집</button><button class="btn btn-sm btn-danger" onclick="deleteEngineer(${e.id})">삭제</button></span></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">기사가 없습니다</td></tr>'}
     </tbody></table></div>
   <div class="vd-card" style="margin-top:24px">
@@ -1177,7 +1179,6 @@ function renderEstimates(){ estInit(); const s=estState;
       <div style="display:flex;gap:6px;align-items:center;font-weight:800;flex-wrap:wrap">품목
         <button class="btn btn-sm" style="background:var(--badge-progress-bg);color:var(--badge-progress-c);margin:0;font-weight:700" onclick="estToggle('est_url_box')">🔗 URL 공유 <span style="font-size:10px;background:var(--success);color:#fff;border-radius:8px;padding:1px 6px;margin-left:2px">권장</span></button><span style="font-size:10px;color:var(--gray-400)"><a href="https://www.compuzone.co.kr" target="_blank" style="color:inherit">컴퓨존</a>·<a href="https://shop.danawa.com" target="_blank" style="color:inherit">다나와</a>·<a href="https://www.icoda.co.kr" target="_blank" style="color:inherit">아이코다</a>·<a href="https://www.mypcshop.co.kr" target="_blank" style="color:inherit">마이피씨샵</a></span>
         <button class="btn btn-sm" style="background:#e7f5ff;color:#1971c2;margin:0;font-weight:700" onclick="estToggle('est_paste_box')">📋 소스·텍스트</button><span style="font-size:10px;color:var(--gray-400)"><a href="https://www.compuzone.co.kr" target="_blank" style="color:inherit">컴퓨존</a>·<a href="https://www.assacom.com" target="_blank" style="color:inherit">아싸컴</a>·<a href="https://www.joyzen.co.kr" target="_blank" style="color:inherit">조이젠</a></span>
-        <label class="btn btn-sm" style="cursor:pointer;background:var(--badge-repair-bg);color:var(--badge-repair-c);margin:0;font-weight:700">📷 캡처하기<input type="file" accept="image/*" onchange="estAiImport(this)" style="display:none"></label><span style="font-size:10px;color:var(--gray-400)">전체(AI)</span>
         <button class="btn btn-sm" style="background:#fff3bf;color:#e67700;margin:0;font-weight:700" onclick="estToggle('est_bookmarklet_box')">⭐ 북마클릿</button><span style="font-size:10px;color:var(--gray-400)"><a href="https://www.compuzone.co.kr" target="_blank" style="color:inherit">컴퓨존</a>·<a href="https://www.assacom.com" target="_blank" style="color:inherit">아싸컴</a>·<a href="https://www.joyzen.co.kr" target="_blank" style="color:inherit">조이젠</a>·<a href="https://shop.danawa.com" target="_blank" style="color:inherit">다나와</a>·<a href="https://www.icoda.co.kr" target="_blank" style="color:inherit">아이코다</a>·<a href="https://www.mypcshop.co.kr" target="_blank" style="color:inherit">마이피씨샵</a> <b style="color:#0ca678">장바구니</b></span></div>
       <div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;color:var(--gray-500)">일괄 마진</span>
         <input id="est_bulk" type="number" value="${s.bulk}" style="width:56px"> %
@@ -2034,19 +2035,9 @@ function estCompress(file){ return new Promise(resolve=>{ const rd=new FileReade
     const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
     resolve(c.toDataURL('image/jpeg',0.85)); }; img.onerror=()=>resolve(e.target.result); img.src=e.target.result; };
   rd.readAsDataURL(file); }); }
-async function estAiImport(input){
-  const f=input.files&&input.files[0]; input.value='';
-  if(!f) return;
-  const lbl=input.parentNode; const prev=lbl?lbl.innerHTML:''; if(lbl) lbl.textContent='⏳ 분석 중…';
-  let r;
-  try{ const d=await estCompress(f); r=await api('POST','/estimate/scan',{image:d}); }
-  catch(e){ showToast('AI 가져오기 실패: '+(e&&e.message?e.message:e),'#e03131'); if(lbl)lbl.innerHTML=prev; return; }
-  if(lbl)lbl.innerHTML=prev;
-  const items=(r&&r.items)||[];
-  if(!items.length){ showToast('견적 항목을 인식하지 못했습니다. 견적 목록이 잘 보이게 캡처했는지 확인해주세요.','#e68900'); return; }
-  estAddItems(items);
-  showToast(items.length+'개 항목을 가져왔습니다. 매입가·마진 확인 후 인쇄하세요.');
-}
+// [제거됨] 캡처(이미지) AI 가져오기 — 서버 OCR(Google Vision)이 제거되면서
+// /estimate/scan 은 image 를 처리하지 않아 항상 실패했다. 버튼도 함께 삭제.
+// 이미지에서 뽑으려면 기사앱(APK) 📷 OCR 탭으로 텍스트를 추출해 [소스·텍스트]에 붙여넣는다.
 async function estPasteImport(btn,mode){
   const t=(v('est_paste')||'').trim();
   if(!t){ showToast('붙여넣은 내용이 없습니다. 컴퓨존 견적서 소스복사의 [텍스트]를 붙여넣으세요.','#e68900'); return; }

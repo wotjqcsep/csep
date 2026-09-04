@@ -551,7 +551,7 @@ function adminChatBubble(m){
   const mine=m.sender==='admin';
   return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px">
     <div style="max-width:78%;padding:8px 12px;border-radius:12px;background:${mine?'var(--primary)':'var(--gray-100)'};color:${mine?'#fff':'var(--gray-700)'};font-size:14px;word-break:break-word">
-      ${m.photo?`<img src="${m.photo}" style="max-width:100%;border-radius:8px;${m.text?'margin-bottom:4px':''}">`:''}
+      ${m.photo?`<img src="${imgUrl(m.photo)}" style="max-width:100%;border-radius:8px;${m.text?'margin-bottom:4px':''}">`:''}
       ${m.text?esc(m.text):''}
     </div></div>`;
 }
@@ -602,7 +602,8 @@ async function pollChatUnread(){
 
 // ── 전화 수신 테스트 ──
 function testCall(){
-  const engs=(window.S&&S.engineers)||[];
+  // PC 관리자 앱의 상태 객체는 state (기사앱이 S). 예전엔 window.S 를 봐서 목록이 늘 비어 있었음
+  const engs=(typeof state!=='undefined'&&state.engineers)||[];
   const engOpts=engs.map(e=>`<option value="${e.phone||''}">${esc(e.name)}${e.is_admin?' (대표)':' (기사)'} — ${e.phone||'번호없음'}</option>`).join('');
   const html=`<div>
     <div style="margin-bottom:12px">
@@ -622,7 +623,8 @@ function testCall(){
       <button class="btn btn-primary" style="flex:1" onclick="doTestCall('call')">📞 전화 테스트</button>
       <button class="btn" style="flex:1;background:#20c997;color:#fff" onclick="doTestCall('sms')">💬 문자 테스트</button>
     </div>
-    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal()">닫기</button>
+    <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="closeModal()">닫기</button>
+    <div style="margin-top:10px;font-size:11px;color:var(--gray-400);line-height:1.5">※ 이 테스트는 PC에서 직접 보내는 것이라 항상 동작합니다.<br>실제 전화 감지는 대표 폰의 APK가 서버로 보내야 하므로, 여기서 된다고 폰에서도 되는 것은 아닙니다.</div>
   </div>`;
   modal('📞 수신 테스트', html);
 }
@@ -850,22 +852,40 @@ function connectSSE(){
       if(adminChatOpen==d.reception_id){ openAdminChat(d.reception_id); }
       else { adminChatUnread[d.reception_id]=(adminChatUnread[d.reception_id]||0)+1; if(!document.querySelector('.modal-overlay'))renderInto(); }
     });
-    es.onerror = ()=>{ if(es.readyState === EventSource.CLOSED){ csepLog('warn','SSE','PC SSE 연결 끊김 — 재연결'); setTimeout(connectSSE, 3000); } };
+    es.onerror = ()=>{
+      if(es.readyState !== EventSource.CLOSED) return;   // 브라우저가 알아서 재연결 중
+      // 토큰이 만료되면 계속 401 → 무한 재연결이 되므로 시도 간격을 늘리고 상한을 둔다
+      _sseRetry++;
+      if(_sseRetry > 10){ csepLog('warn','SSE','PC SSE 재연결 중단 — 새로고침 필요'); return; }
+      const wait = Math.min(30000, 3000 * _sseRetry);
+      csepLog('warn','SSE','PC SSE 연결 끊김 — '+(wait/1000)+'초 후 재연결 ('+_sseRetry+'/10)');
+      setTimeout(connectSSE, wait);
+    };
+    es.addEventListener('open', ()=>{ _sseRetry=0; });
   }catch(e){ csepLog('error','SSE','PC SSE 초기화 실패',e.message); }
 }
+let _sseRetry=0;
 
 // ============================================================
 //  초기화
 // ============================================================
+let _appStarted=false;
 function startApp(){
+  if(_appStarted) return;   // 로그인 경로가 둘(자동/수동)이라 중복 시작 방지
+  _appStarted=true;
   csepLog('info','STARTUP','PC 관리자 앱 시작');
   renderNav();
   loadAll(true);
-  setInterval(()=>loadAll(false), 30000);
+  // 폴링 주기 완화 — 실시간 갱신은 SSE가 담당한다.
+  // 예전: 전체로드 30초 + 팝업 3초 + 채팅 5초 → /dashboard·/stats 풀스캔이 30초마다 반복돼
+  // Render 무료 인스턴스에서 부하·비용이 컸음. SSE 이벤트로 즉시 갱신되므로 백업 주기만 남긴다.
+  setInterval(()=>{ if(!document.hidden) loadAll(false); }, 120000);
   pollPopups();
-  setInterval(pollPopups, 3000);
+  setInterval(()=>{ if(!document.hidden) pollPopups(); }, 15000);
   pollChatUnread();
-  setInterval(pollChatUnread, 5000);
+  setInterval(()=>{ if(!document.hidden) pollChatUnread(); }, 20000);
+  // 탭을 다시 볼 때 즉시 최신화 (백그라운드에서 폴링을 쉬는 대신)
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ loadAll(false); pollPopups(); pollChatUnread(); } });
   connectSSE();
 }
 checkLicense();
