@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "컴퓨터 A/S ERP - 접수/기사/고객/SMS·전화 관리",
   "main": "server/index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node server/index.js"
   },

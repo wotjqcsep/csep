@@ -5,7 +5,7 @@ firebase-service-account.json
 *.base64.txt
 secrets/
 
-# Android (android_app)
+# Android (android_app) — 구 경로
 android_app/.gradle/
 android_app/.idea/
 android_app/build/
@@ -15,6 +15,22 @@ android_app/**/*.iml
 android_app/captures/
 android_app/.kotlin/
 google-services.json
+
+# Android (engineer-app) — 실제 사용 경로
+engineer-app/.idea/
+engineer-app/android/.gradle/
+engineer-app/android/.idea/
+engineer-app/android/build/
+engineer-app/android/app/build/
+engineer-app/android/app/debug/
+engineer-app/android/app/release/
+engineer-app/android/local.properties
+engineer-app/android/**/*.iml
+engineer-app/android/captures/
+engineer-app/android/.kotlin/
+
+# Windows에서 `> nul` 리다이렉트로 잘못 생성되는 파일
+nul
 
 # APK 서명 키 (절대 커밋 금지 — 별도 백업 필수)
 engineer-app/android/signing.keystore
