@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+// ============================================================
+//  ⬇⬇ 앱 업데이트할 때 이 두 줄만 올리세요 ⬇⬇
+//  versionName : APK 파일명에 그대로 들어감 (예: 1.1 → csep-v1.1.apk)
+//  versionCode : 안드로이드가 "더 새 버전"인지 판단하는 정수. 반드시 같이 올릴 것.
+// ============================================================
+def appVersionName = "1.1"
+def appVersionCode = 2
+
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
 if (keystorePropertiesFile.exists()) {
@@ -22,8 +30,8 @@ android {
         applicationId "com.csep.engineer"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -39,6 +47,16 @@ android {
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
             }
+        }
+    }
+    // 산출물 파일명을 버전에 맞춰 자동 생성 — 손으로 이름 바꿀 필요 없음.
+    //   디버그 : csep-v1.0.apk        릴리즈 : csep-v1.0-release.apk
+    // 위 appVersionName 만 올리면 파일명이 따라 바뀌어, 어느 빌드인지 파일명으로 구분된다.
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = variant.buildType.name == "debug"
+                ? "csep-v${appVersionName}.apk"
+                : "csep-v${appVersionName}-release.apk"
         }
     }
     buildTypes {
