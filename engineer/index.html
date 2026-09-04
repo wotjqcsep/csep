@@ -87,6 +87,16 @@ const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt
 const won=n=>'₩'+(Number(n)||0).toLocaleString('ko-KR');
 function kstDate(dt){ if(!dt) return ''; const d=new Date(dt); const k=new Date(d.getTime()+9*3600000); return k.toISOString().slice(0,10); }
 function kstNow(){ return kstDate(new Date()); }
+// DB 타임스탬프("2026-08-28 09:00:00.123+09") → ms.
+// 예전엔 이 값을 ISO 문자열("...T...Z")과 직접 문자열 비교해서
+// 같은 날짜의 건이 공백(0x20) < 'T'(0x54) 때문에 누락됐다.
+function tsMs(t){
+  if(!t) return 0;
+  let s=String(t).replace(' ','T').replace(/\.\d+/,'');
+  if(/[+-]\d{2}$/.test(s)) s+=':00';
+  else if(!/([+-]\d{2}:\d{2}|Z)$/.test(s)) s+='Z';
+  const d=new Date(s); return isNaN(d.getTime())?0:d.getTime();
+}
 const WO_TYPE_COLOR={출장:'#1971c2',납품:'#e67700','견적서 납품':'#7048e8'};
 function woTypeBadge(memo){
   if(!memo) return '';
@@ -131,6 +141,13 @@ function csepLog(level,tag,message,detail){
 window.onerror=function(msg,src,line,col,err){ csepLog('error','JS_ERROR',msg,(src||'')+':'+line+':'+col+'\n'+(err&&err.stack||'')); };
 window.addEventListener('unhandledrejection',function(e){ csepLog('error','PROMISE',String(e.reason),(e.reason&&e.reason.stack)||''); });
 
+// 사진/이미지 URL — <img src> 요청엔 Authorization 헤더가 안 실리므로 토큰을 쿼리로 붙인다
+// (안 붙이면 /api/* 인증 미들웨어가 401 → 작업사진·채팅사진이 전부 깨짐)
+function imgUrl(u){
+  if(!u) return u;
+  if(!/^\/api\//.test(u)) return u;
+  return u + (u.includes('?')?'&':'?') + 'token=' + encodeURIComponent(localStorage.getItem('authToken')||'');
+}
 async function api(m,u,b){
   const headers={'Content-Type':'application/json'};
   const token=localStorage.getItem('authToken');
@@ -168,10 +185,21 @@ function logout(){ csepLog('info','AUTH','기사 로그아웃'); localStorage.re
 // 네이티브(APK) 전화감지 게이팅용 역할 저장 (대표만 감지)
 function setNativeRole(){
   try{ const P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Preferences;
-    if(P&&S.engineer){ P.set({key:'csep_role',value:S.engineer.is_admin?'대표':'기사'}); P.set({key:'csep_api',value:API}); }
+    if(P&&S.engineer){
+      // 한글 비교가 빌드 인코딩에 좌우되지 않도록 boolean 문자열도 함께 저장 (네이티브는 is_boss 를 본다)
+      P.set({key:'csep_role',value:S.engineer.is_admin?'대표':'기사'});
+      P.set({key:'csep_is_boss',value:S.engineer.is_admin?'1':'0'});
+      P.set({key:'csep_api',value:API});
+      // 네이티브 전화/SMS 감지가 서버에 POST할 때 쓸 인증 토큰
+      P.set({key:'csep_token',value:localStorage.getItem('authToken')||''});
+    }
   }catch(e){}
 }
-function clearNativeRole(){ try{ const P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Preferences; if(P)P.set({key:'csep_role',value:'none'}); }catch(e){} }
+function clearNativeRole(){
+  try{ const P=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Preferences;
+    if(P){ P.set({key:'csep_role',value:'none'}); P.set({key:'csep_is_boss',value:'0'}); P.set({key:'csep_token',value:''}); }
+  }catch(e){}
+}
 
 // ── toast (alert 대체 — 비차단) ──
 function engToast(msg,color){
@@ -288,7 +316,7 @@ function render(){
   else if(S.tab==='info'){ content=`<div id="infoTab"></div>`; }
   else if(S.tab==='ocr'){ content=`<div id="ocrTab"></div>`; }
   else if(S.tab==='sched'){ content=`<div id="schedInline"></div>`; }
-  else if(S.tab==='done'){ const weekAgo=new Date(Date.now()-7*24*60*60*1000).toISOString(); const dl=(isAdmin?done:done.filter(r=>r.assigned_engineer_id==myId)).filter(r=>(r.completed_at||r.received_at||'')>=weekAgo); content=(dl.length?dl.map(cardHtml).join(''):'<div class="empty">최근 1주일 완료 작업이 없습니다</div>')+'<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px">최근 1주일 이력만 표시 · 이전 이력은 📅 일정 탭에서 확인</div>'; }
+  else if(S.tab==='done'){ const weekAgo=Date.now()-7*24*60*60*1000; const dl=(isAdmin?done:done.filter(r=>r.assigned_engineer_id==myId)).filter(r=>tsMs(r.completed_at||r.received_at)>=weekAgo); content=(dl.length?dl.map(cardHtml).join(''):'<div class="empty">최근 1주일 완료 작업이 없습니다</div>')+'<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:13px">최근 1주일 이력만 표시 · 이전 이력은 📅 일정 탭에서 확인</div>'; }
   else if(isAdmin){
     const f=S.statusFilter||'all';
     const today=kstNow();
@@ -575,7 +603,7 @@ function renderProcDone(r){
 }
 function addProcPhoto(input){ const f=input.files&&input.files[0]; if(!f)return; compressImage(f,d=>{ S.procPhotos.push(d); renderProcPhotos(); }); input.value=''; }
 function renderProcPhotos(){ const el=document.getElementById('p_photos'); if(!el)return;
-  el.innerHTML=[...S.procExisting.map(p=>`<img src="${esc(p.photo)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;opacity:.6">`),
+  el.innerHTML=[...S.procExisting.map(p=>`<img src="${esc(imgUrl(p.photo))}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;opacity:.6">`),
     ...S.procPhotos.map((p,i)=>`<div style="position:relative"><img src="${p}" style="width:64px;height:64px;object-fit:cover;border-radius:8px"><span onclick="S.procPhotos.splice(${i},1);renderProcPhotos()" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border-radius:50%;width:18px;height:18px;text-align:center;line-height:18px;font-size:12px;cursor:pointer">×</span></div>`)].join('');
 }
 async function uploadProcPhotos(id){ for(const p of S.procPhotos){ try{ await api('POST',`/receptions/${id}/photos`,{photo:p}); }catch(e){} } S.procPhotos=[]; }
@@ -1241,7 +1269,7 @@ async function openPhotos(id){
   document.body.insertAdjacentHTML('beforeend',`
     <div class="overlay" id="ov" onclick="if(event.target===this)closeSheet()">
       <div class="sheet"><h3>작업 사진 (${photos.length})</h3>
-        ${photos.length? photos.map(p=>`<img src="${esc(p.photo)}" style="width:100%;border-radius:10px;margin-bottom:8px">`).join('') : '<div class="empty">사진이 없습니다</div>'}
+        ${photos.length? photos.map(p=>`<img src="${esc(imgUrl(p.photo))}" style="width:100%;border-radius:10px;margin-bottom:8px">`).join('') : '<div class="empty">사진이 없습니다</div>'}
         <button class="btn btn-ghost" onclick="closeSheet()">닫기</button>
       </div>
     </div>`);
@@ -1260,7 +1288,7 @@ function chatBubble(m){
   const mine=m.sender==='engineer';
   return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px">
     <div style="max-width:78%;padding:8px 12px;border-radius:12px;background:${mine?'var(--primary)':'#f1f3f5'};color:${mine?'#fff':'#343a40'};font-size:14px;word-break:break-word">
-      ${m.photo?`<img src="${esc(m.photo)}" style="max-width:100%;border-radius:8px;${m.text?'margin-bottom:4px':''}">`:''}
+      ${m.photo?`<img src="${esc(imgUrl(m.photo))}" style="max-width:100%;border-radius:8px;${m.text?'margin-bottom:4px':''}">`:''}
       ${m.text?esc(m.text):''}
     </div></div>`;
 }
@@ -1496,8 +1524,9 @@ async function saveCustomerAdd(){
 
 async function openCustomerEdit(custId){
   let c;
-  try{ const list=await api('GET','/customers?search='); c=list.find(x=>x.id==custId); }catch(e){}
-  if(!c){ c=woState.customer||S.customers.find(x=>x.id==custId); }
+  // 예전엔 /customers?search= 로 전체 목록을 받아 찾았다 (거래처가 많으면 매우 느림)
+  try{ c=await api('GET','/customers/'+custId); }catch(e){}
+  if(!c){ c=woState.customer||(S.customers||[]).find(x=>x.id==custId); }
   if(!c){ alert('고객 정보를 찾을 수 없습니다'); return; }
   document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="ov2" onclick="if(event.target===this)document.getElementById('ov2').remove()">
     <div class="sheet"><h3>✏️ 고객정보 수정</h3>
@@ -2745,7 +2774,7 @@ function renderOcrTab(){
           <input type="file" accept="image/*" onchange="ocrPickImage(this)" style="display:none">
         </label>
       </div>
-      ${!hasNative?'<div style="padding:8px 12px;background:#fff3bf;border-radius:8px;font-size:13px;margin-bottom:12px">⚠️ 네이티브 앱에서만 OCR 사용 가능합니다. 서버 OCR로 대체합니다.</div>':''}
+      ${!hasNative?'<div style="padding:8px 12px;background:#ffe3e3;border-radius:8px;font-size:13px;margin-bottom:12px">⚠️ OCR은 설치형 앱(APK)에서만 동작합니다. 브라우저에서는 사용할 수 없습니다.</div>':''}
       ${ocrState.imgSrc?`<div style="margin-bottom:12px;text-align:center"><img src="${ocrState.imgSrc}" style="max-width:100%;max-height:240px;border-radius:8px;border:1px solid #dee2e6"></div>`:''}
       ${ocrState.loading?'<div style="text-align:center;padding:20px;color:var(--primary);font-size:14px"><div style="display:inline-block;width:24px;height:24px;border:3px solid #dee2e6;border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite"></div><div style="margin-top:8px">텍스트 인식 중...</div></div>':''}
       ${ocrState.text?`
@@ -2915,8 +2944,16 @@ function renderInfoTab(){
   csepLog('info','STARTUP','기사앱 시작 — 로그인 필요');
   renderLogin();
 })();
-setInterval(()=>{ if(S.engineer)loadReceptions(); }, 15000);
-setInterval(pollIncoming, 3000);
+// 폴링 완화 — 실시간 갱신은 SSE(reception_*/incoming_*)가 담당한다.
+// 예전: 목록 15초 + 수신팝업 3초 를 화면이 꺼져 있어도 계속 돌려 배터리·데이터를 크게 먹었음.
+setInterval(()=>{ if(S.engineer && !document.hidden) loadReceptions(); }, 60000);
+setInterval(()=>{ if(S.engineer && !document.hidden) pollIncoming(); }, 20000);
+// 앱을 다시 보면 즉시 최신화 (백그라운드에선 쉬는 대신)
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden || !S.engineer) return;
+  loadReceptions(); pollIncoming();
+  if(!_currentES || _currentES.readyState===2) connectSSE();   // 절전으로 끊긴 SSE 복구
+});
 </script>
 </body>
 </html>
