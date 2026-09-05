@@ -794,14 +794,22 @@ function quickReception(custId, type, itemId){
 function splitAddressDetail(addr){
   if(!addr) return {address:'', detail:''};
   let a=String(addr).trim(); const det=[];
-  const RE_UNIT=/[,\s]*((?:지하\s*)?\d+\s*(?:호실|호|층)|B\d+)\s*$/;
-  // 아파트 동은 숫자 앞에 공백이 있는 것만. '상계1동'처럼 한글에 붙은 행정동은 주소에 남긴다.
-  const RE_DONG=/([\s,])(\d{1,4}\s*동)\s*$/;
+  const BW='(?:아파트|빌딩|타워|상가|오피스텔|맨션|빌라|캐슬|파크|프라자|플라자|센터|하이츠|자이|푸르지오|래미안|힐스테이트)';
+  // 호·층·지하·B1·필지 — 네비가 인식하지 못하는 표기
+  const RE_UNIT=/[,\s]*((?:지하\s*)?\d+\s*(?:호실|호|층)|B\d+|(?:외\s*)?\d+\s*필지)\s*$/;
+  // 아파트 '동'은 세 가지 형태로 잡는다. '상계1동'같은 행정동은 어느 것에도 걸리지 않는다.
+  const RE_DONG_SP =/([\s,])(\d{1,4}\s*동)\s*$/;                    // 공백 뒤:  롯데캐슬 105동
+  const RE_DONG_BW =new RegExp('('+BW+')\\s*(\\d{1,4}동)\\s*$');   // 건물명에 붙음: 삼성아파트101동
+  const RE_DONG_NUM=/(\d{3,}\s*동)\s*$/;                            // 3자리 이상: 행정동은 1~2자리뿐
   for(;;){
     let m=a.match(RE_UNIT);
     if(m){ det.unshift(m[1].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); continue; }
-    m=a.match(RE_DONG);
+    m=a.match(RE_DONG_SP);
     if(m){ det.unshift(m[2].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); continue; }
+    m=a.match(RE_DONG_BW);
+    if(m){ det.unshift(m[2].replace(/\s+/g,'')); a=a.slice(0,m.index+m[1].length).trim(); continue; }
+    m=a.match(RE_DONG_NUM);
+    if(m){ det.unshift(m[1].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); continue; }
     break;
   }
   return { address:a.replace(/[,\s]+$/,''), detail:det.join(' ') };
@@ -811,12 +819,19 @@ function extractAddress(text){
   const SIDO='(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|충청|전라|경상)(?:특별자치시|특별자치도|특별시|광역시|도)?';
   const SGG ='[가-힣]{1,8}(?:시|군|구)';
   const ROAD='[가-힣A-Za-z0-9]{1,12}(?:대로|로|길)';
-  const EMD ='[가-힣0-9]{1,8}(?:읍|면|동|리|가)';
-  const BLDG='[가-힣A-Za-z0-9]{1,14}(?:아파트|빌딩|타워|상가|오피스텔|맨션|빌라|캐슬|파크|프라자|플라자|센터|하이츠|자이|푸르지오|래미안|힐스테이트)';
-  const UNIT='(?:지하\\s*)?\\d+(?:동|호|층)|B\\d+';   // 지하1층·B1 도 주소 구간에 포함시켜야 상세주소로 분리된다
+  // 뒤에 한글이 더 붙으면 동/리가 아니다 ('우리빌'의 '우리'를 里로 오인하지 않도록)
+  const EMD ='[가-힣0-9]{1,8}(?:읍|면|동|리|가)(?![가-힣])';
+  const BLDG='[가-힣A-Za-z0-9]{1,14}(?:아파트|빌딩|빌라|오피스텔|타워|상가|맨션|캐슬|파크|프라자|플라자|센터|하이츠|자이|푸르지오|래미안|힐스테이트|하우스|타운|시티|팰리스|스퀘어|빌)';
+  // 모르는 낱말이라도 바로 뒤에 동/호/층이 오면 건물명으로 본다 ('우리빌 203동')
+  const BLDGX='[가-힣A-Za-z0-9]{2,14}(?=\\s*\\d{1,4}\\s*(?:동|호|층))';
+  // 동/호/층/지하/B1/필지 — 네비가 못 읽는 표기들. 주소 구간에 일단 포함시켜야 상세주소로 뗄 수 있다.
+  // '101동502호'처럼 붙여 쓴 경우도 한 덩어리로 잡히도록 반복(+) 허용.
+  const UNIT='(?:(?:지하\\s*)?\\d+\\s*(?:호실|호|층|동))+|B\\d+|(?:외\\s*)?\\d+\\s*필지';
   const NUM ='(?:산\\s*)?\\d+(?:-\\d+)?(?:번지|번길)?';   // '산12번지'(산지번)도 엄연한 주소의 일부
-  const TOK ='(?:'+SIDO+'|'+SGG+'|'+ROAD+'|'+BLDG+'|'+EMD+'|'+UNIT+'|'+NUM+')';
-  const SEQ =new RegExp(TOK+'(?:[\\s,]+'+TOK+')+','g');
+  const TOK ='(?:'+SIDO+'|'+SGG+'|'+ROAD+'|'+BLDG+'|'+EMD+'|'+UNIT+'|'+BLDGX+'|'+NUM+')';
+  // 구분자를 선택적으로 — '삼성아파트101동502호'처럼 붙여 쓴 것도 한 구간으로 잡는다.
+  // 폭주 방지를 위해 반복 횟수는 12회로 제한.
+  const SEQ =new RegExp(TOK+'(?:[\\s,]*'+TOK+'){1,12}','g');
   const STRONG=/[가-힣](시|군|구|읍|면|동|리|로|길)/;
   const HEAD=new RegExp('(?:'+SIDO+'|'+SGG+')');
   // 사람이름꼴(성씨+2자 이상). 2글자 지명('천안')을 이름으로 오인하지 않도록 3자 이상만.
@@ -871,7 +886,10 @@ function parseSmsMessage(msg){
   // 메모 = 원문에서 주소·이름·상호를 '빼고' 남은 것.
   // 예전엔 '주소와 똑같은 줄'만 제외해서, 주소가 줄의 일부이거나 쉼표를 넘어가면
   // 메모에 주소가 그대로 중복 기입됐다.
+  // 상세주소는 공백을 지운 형태('외1필지')로 저장되므로 원문('외 1필지')과 일치하지 않는다.
+  // 그래서 '추출된 주소 원문(addr)'을 먼저 통째로 빼야 주소·상세가 메모에 남지 않는다.
   let rest=String(msg);
+  if(addr) rest=rest.split(addr).join(' ');
   if(result.address) rest=rest.split(result.address).join(' ');
   if(result.address_detail) rest=rest.split(result.address_detail).join(' ');
   if(result.name) rest=rest.split(result.name).join(' ');
