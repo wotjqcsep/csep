@@ -1421,11 +1421,60 @@ function registerIncoming(id){
   api('DELETE','/incoming-call/'+id).catch(()=>{});
 }
 async function dismissIncomingSms(id){ try{ await api('DELETE','/incoming-sms/'+id);}catch(e){} S.incomingSms=S.incomingSms.filter(s=>s.id!=id); renderIncoming(); }
+// SMS 본문에서 주소만 뽑아낸다.
+// 예전 정규식은 "충남 천안시…"처럼 시/도로 시작할 때만 잡아서
+// "천안시 서북구…" 같은 일반적인 표기를 전부 놓쳤다(인식률 2/10).
+function extractAddress(text){
+  if(!text) return '';
+  const SIDO='(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|충청|전라|경상)(?:특별자치시|특별자치도|특별시|광역시|도)?';
+  const SGG ='[가-힣]{1,8}(?:시|군|구)';
+  const ROAD='[가-힣A-Za-z0-9]{1,12}(?:대로|로|길)';
+  const EMD ='[가-힣0-9]{1,8}(?:읍|면|동|리|가)';
+  const BLDG='[가-힣A-Za-z0-9]{1,14}(?:아파트|빌딩|타워|상가|오피스텔|맨션|빌라|캐슬|파크|프라자|플라자|센터|하이츠|자이|푸르지오|래미안|힐스테이트)';
+  const UNIT='\\d+(?:동|호|층)';
+  const NUM ='\\d+(?:-\\d+)?(?:번지|번길)?';
+  const TOK ='(?:'+SIDO+'|'+SGG+'|'+ROAD+'|'+BLDG+'|'+EMD+'|'+UNIT+'|'+NUM+')';
+  const SEQ =new RegExp(TOK+'(?:[\\s,]+'+TOK+')+','g');
+  const STRONG=/[가-힣](시|군|구|읍|면|동|리|로|길)/;
+  const HEAD=new RegExp('(?:'+SIDO+'|'+SGG+')');
+  // 사람이름꼴(성씨+2자 이상). 2글자 지명('천안')을 이름으로 오인하지 않도록 3자 이상만.
+  const SURNAME=/^(?:김|이|박|최|정|강|조|윤|장|임|한|오|서|신|권|황|안|송|류|유|전|홍|고|문|양|손|배|백|허|남|심|노|하|곽|성|차|주|우|구|민|진|지|채|원|천|방|공|현|함|변|추|도|석|소|설|선|마|길|연|위|표|명|기|반|라|왕|금|옥|육|인|맹|제|모|탁|국|어|은|편|용|예|경|봉|사|부|가|복|태|목|피|감|당|탕|점)[가-힣]{2,3}$/;
+  const reSido=new RegExp('^'+SIDO), reSgg=new RegExp(SGG), reRoad=new RegExp(ROAD), reEmd=new RegExp(EMD), reBldg=new RegExp(BLDG);
+  const lines=String(text).split(/\n/).map(s=>s.trim()).filter(Boolean);
+  let best='', bestScore=-1;
+  for(const line of (lines.length?lines:[String(text).trim()])){
+    SEQ.lastIndex=0;
+    let m;
+    while((m=SEQ.exec(line))!==null){
+      let a=m[0].trim().replace(/[,\s]+$/,'');
+      if(!STRONG.test(a)) continue;
+      const h=a.match(HEAD);                    // "홍길동 천안시…" → 이름 앞머리 제거
+      if(h && h.index>0){ const prefix=a.slice(0,h.index).trim(); if(SURNAME.test(prefix)) a=a.slice(h.index).trim(); }
+      // "천안 서북구…" 처럼 구/군 앞 도시명은 토큰이 아니라 빠진다 → 앞 낱말 하나를 끌어옴
+      if(/^[가-힣]{1,8}(?:구|군)(\s|$)/.test(a)){
+        const before=line.slice(0,m.index).trim();
+        const w=(before.match(/([가-힣]{2,4})$/)||[])[1];
+        if(w && !SURNAME.test(w) && !/(시|군|구|읍|면|동|리|로|길)$/.test(w)) a=w+' '+a;
+      }
+      if(a.length<5) continue;
+      let sc=0;
+      if(reSido.test(a)) sc+=3;
+      if(reSgg.test(a)) sc+=3;
+      if(reRoad.test(a)) sc+=2;
+      if(reEmd.test(a)) sc+=2;
+      if(/\d/.test(a)) sc+=2;
+      if(reBldg.test(a)) sc+=1;
+      sc+=Math.min(a.length/20,1);
+      if(sc>bestScore){ bestScore=sc; best=a; }
+    }
+  }
+  return best;
+}
 function parseSmsMessage(msg){
   if(!msg) return {};
   const result={};
-  const addrMatch=msg.match(/((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|충청|전라|경상)[^\n,]*(?:시|군|구|동|읍|면|리|로|길|번지|아파트|빌딩|오피스텔|상가)[^\n,]*)/);
-  if(addrMatch) result.address=addrMatch[1].trim();
+  const addr=extractAddress(msg);
+  if(addr) result.address=addr;
   const lines=msg.split(/[\n,\/]/).map(s=>s.trim()).filter(Boolean);
   for(const line of lines){
     if(result.address && line.includes(result.address)) continue;
