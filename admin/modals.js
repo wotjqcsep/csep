@@ -800,7 +800,12 @@ function splitAddressDetail(addr){
   // 번호가 없으면 건물명이 유일한 위치 단서라 주소에 남겨야 한다. (예: '두정동 삼성아파트')
   const RE_BLDG =new RegExp('[\\s,]([가-힣A-Za-z0-9]{1,14}'+BW+')\\s*$');
   const RE_ETC  =/[\s,]([가-힣A-Za-z0-9]{1,14})\s*$/;   // 목록에 없는 건물명 ('삼영맨숀')
-  const HAS_NUM =/\d\s*(?:번지|번길)?$/;                 // 앞부분이 번지·번호로 끝나는가
+  const HAS_NUM =/\d\s*(?:번지|번길)?[\s,]*$/;            // 앞부분이 번지·번호로 끝나는가(쉼표 허용)
+  const ENDS_BW =new RegExp(BW+'\\s*$');                  // 앞부분이 건물명으로 끝나는가
+  // 숫자가 아닌 동(A동·나동)과 별관·본관 — 앞이 건물명이나 번지일 때만 뗀다.
+  // ('창동'같은 한 글자 법정동을 잘라먹지 않도록 하는 안전장치)
+  const RE_DONG_LT=/[\s,]((?:[A-Za-z]{1,2}|[가-힣])\s*동)\s*$/;
+  const RE_ANNEX  =/[\s,](별관|본관|신관|구관)\s*$/;
   const NOT_BLDG=/(?:읍|면|동|리|가|로|길|시|군|구|번지|번길|층|호)$/;
   // 호·층·지하·B1·필지 — 네비가 인식하지 못하는 표기
   const RE_UNIT=/[,\s]*((?:지하\s*)?\d+\s*(?:호실|호|층)|B\d+|(?:외\s*)?\d+\s*필지)\s*$/;
@@ -817,6 +822,14 @@ function splitAddressDetail(addr){
     if(m){ det.unshift(m[2].replace(/\s+/g,'')); a=a.slice(0,m.index+m[1].length).trim(); continue; }
     m=a.match(RE_DONG_NUM);
     if(m){ det.unshift(m[1].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); continue; }
+    m=a.match(RE_ANNEX);
+    if(m && (HAS_NUM.test(a.slice(0,m.index))||ENDS_BW.test(a.slice(0,m.index)))){
+      det.unshift(m[1]); a=a.slice(0,m.index).trim(); continue;
+    }
+    m=a.match(RE_DONG_LT);
+    if(m && (HAS_NUM.test(a.slice(0,m.index))||ENDS_BW.test(a.slice(0,m.index)))){
+      det.unshift(m[1].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); continue;
+    }
     // 알려진 건물명 — 앞에 번지가 남을 때만 상세주소로 뗀다
     m=a.match(RE_BLDG);
     if(m && HAS_NUM.test(a.slice(0,m.index))){ det.unshift(m[1]); a=a.slice(0,m.index).trim(); continue; }
@@ -829,8 +842,18 @@ function splitAddressDetail(addr){
   }
   return { address:a.replace(/[,\s]+$/,''), detail:det.join(' ') };
 }
+// 괄호는 도로명주소의 '(법정동, 건물명)' 참고정보이거나 상세주소를 감싼 것이다.
+// 그대로 두면 괄호에서 주소 구간이 끊겨 뒤의 '101동 201호'가 통째로 사라진다.
+//   동/호/층 숫자가 들어 있으면 → 괄호만 벗겨 이어서 읽는다
+//   없으면(법정동·건물명 참고정보) → 통째로 버린다
+function stripParens(text){
+  return String(text||'').replace(/[（(]([^)）]*)[)）]/g, function(_,inner){
+    return /\d\s*(?:동|호|층)/.test(inner) ? ' '+inner+' ' : ' ';
+  });
+}
 function extractAddress(text){
   if(!text) return '';
+  text=stripParens(text);
   const SIDO='(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|충청|전라|경상)(?:특별자치시|특별자치도|특별시|광역시|도)?';
   const SGG ='[가-힣]{1,8}(?:시|군|구)';
   const ROAD='[가-힣A-Za-z0-9]{1,12}(?:대로|로|길)';
@@ -903,7 +926,7 @@ function parseSmsMessage(msg){
   // 메모에 주소가 그대로 중복 기입됐다.
   // 상세주소는 공백을 지운 형태('외1필지')로 저장되므로 원문('외 1필지')과 일치하지 않는다.
   // 그래서 '추출된 주소 원문(addr)'을 먼저 통째로 빼야 주소·상세가 메모에 남지 않는다.
-  let rest=String(msg);
+  let rest=stripParens(msg);   // 주소와 같은 형태로 맞춰야 split 으로 지워진다
   if(addr) rest=rest.split(addr).join(' ');
   if(result.address) rest=rest.split(result.address).join(' ');
   if(result.address_detail) rest=rest.split(result.address_detail).join(' ');
