@@ -5,8 +5,8 @@ apply plugin: 'com.android.application'
 //  versionName : APK 파일명에 그대로 들어감 (예: 1.1 → csep-v1.1.apk)
 //  versionCode : 안드로이드가 "더 새 버전"인지 판단하는 정수. 반드시 같이 올릴 것.
 // ============================================================
-def appVersionName = "1.1"
-def appVersionCode = 2
+def appVersionName = "1.2"
+def appVersionCode = 3
 
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
@@ -32,6 +32,12 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode
         versionName appVersionName
+        // 실기기(ARM)만 패키징 — x86/x86_64 는 PC 에뮬레이터 전용이라 실제 폰에는 쓰이지 않는다.
+        // OCR(ML Kit) 네이티브 라이브러리가 ABI 4종에 각각 들어가 APK 가 45MB 로 부푼 원인.
+        // OCR 기능·모델은 그대로 앱에 포함되며 API 키 없이 오프라인 인식이 계속 동작한다.
+        ndk {
+            abiFilters "arm64-v8a", "armeabi-v7a"
+        }
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
