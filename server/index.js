@@ -3571,6 +3571,7 @@ app.get('/api/engineer/:id/receptions', wrap(async (req, res) => {
   const where = all ? '' : 'WHERE r.assigned_engineer_id=$1';
   const { rows } = await pool.query(`
     SELECT r.*, c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address,
+           c.address_detail AS customer_address_detail,
            c.company_name AS customer_company,
            j.id AS job_id, j.work_description, j.parts_used, j.cost_parts, j.cost_labor, j.total_cost, j.next_visit_parts
     FROM receptions r

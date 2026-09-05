@@ -726,6 +726,18 @@ function quickReception(custId, type, itemId){
 // SMS 본문에서 주소만 뽑아낸다.
 // 예전 정규식은 "충남 천안시…"처럼 시/도로 시작할 때만 잡아서
 // "천안시 서북구…" 같은 일반적인 표기를 전부 놓쳤다(인식률 2/10).
+// 네비 인식용 주소 / 상세주소 분리.
+// 티맵·카카오맵과 주소API는 '동'까지만 인식하고 호수·층수는 모른다.
+// "…불당대로 100, 3층" → 주소 "…불당대로 100" + 상세 "3층"
+// "…롯데캐슬 105동 1201호" → 주소 "…롯데캐슬 105동" + 상세 "1201호"  (동은 주소에 남김)
+function splitAddressDetail(addr){
+  if(!addr) return {address:'', detail:''};
+  let a=String(addr).trim(); const det=[];
+  const RE=/[,\s]*((?:지하\s*)?\d+\s*(?:호실|호|층)|B\d+)\s*$/;
+  let m;
+  while((m=a.match(RE))){ det.unshift(m[1].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); }
+  return { address:a.replace(/[,\s]+$/,''), detail:det.join(' ') };
+}
 function extractAddress(text){
   if(!text) return '';
   const SIDO='(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|충청|전라|경상)(?:특별자치시|특별자치도|특별시|광역시|도)?';
@@ -733,7 +745,7 @@ function extractAddress(text){
   const ROAD='[가-힣A-Za-z0-9]{1,12}(?:대로|로|길)';
   const EMD ='[가-힣0-9]{1,8}(?:읍|면|동|리|가)';
   const BLDG='[가-힣A-Za-z0-9]{1,14}(?:아파트|빌딩|타워|상가|오피스텔|맨션|빌라|캐슬|파크|프라자|플라자|센터|하이츠|자이|푸르지오|래미안|힐스테이트)';
-  const UNIT='\\d+(?:동|호|층)';
+  const UNIT='(?:지하\\s*)?\\d+(?:동|호|층)|B\\d+';   // 지하1층·B1 도 주소 구간에 포함시켜야 상세주소로 분리된다
   const NUM ='\\d+(?:-\\d+)?(?:번지|번길)?';
   const TOK ='(?:'+SIDO+'|'+SGG+'|'+ROAD+'|'+BLDG+'|'+EMD+'|'+UNIT+'|'+NUM+')';
   const SEQ =new RegExp(TOK+'(?:[\\s,]+'+TOK+')+','g');
@@ -776,7 +788,11 @@ function parseSmsMessage(msg){
   if(!msg) return {};
   const result={};
   const addr=extractAddress(msg);
-  if(addr) result.address=addr;
+  if(addr){
+    const sp=splitAddressDetail(addr);        // 호/층은 네비가 못 읽으므로 상세주소로 분리
+    result.address=sp.address;
+    if(sp.detail) result.address_detail=sp.detail;
+  }
   const lines=msg.split(/[\n,\/]/).map(s=>s.trim()).filter(Boolean);
   for(const line of lines){
     if(result.address && line.includes(result.address)) continue;
@@ -784,8 +800,16 @@ function parseSmsMessage(msg){
       result.company_name=line; result.customer_type='business';
     } else if(/^[가-힣]{2,4}$/.test(line) && /^(?:김|이|박|최|정|강|조|윤|장|임|한|오|서|신|권|황|안|송|류|유|전|홍|고|문|양|손|배|백|허|남|심|노|하|곽|성|차|주|우|구|민|진|지|채|원|천|방|공|현|함|변|추|도|석|소|설|선|마|길|연|위|표|명|기|반|라|왕|금|옥|육|인|맹|제|모|탁|국|어|은|편|용|예|경|봉|사|부|가|복|태|목|피|감|당|탕|점)/.test(line) && !/^(?:안녕|감사|부탁|연락|문의|고장|수리|방문|확인|예약|접수|상담|주문|배송|결제|취소|요청|답변|처리|완료|진행|대기|긴급|참고|전달)/.test(line) && !result.name) result.name=line;
   }
-  const remaining=lines.filter(l=> l!==(result.address||'') && l!==(result.name||'') && l!==(result.company_name||'')).join(' ');
-  if(remaining) result.memo=remaining;
+  // 메모 = 원문에서 주소·이름·상호를 '빼고' 남은 것.
+  // 예전엔 '주소와 똑같은 줄'만 제외해서, 주소가 줄의 일부이거나 쉼표를 넘어가면
+  // 메모에 주소가 그대로 중복 기입됐다.
+  let rest=String(msg);
+  if(result.address) rest=rest.split(result.address).join(' ');
+  if(result.address_detail) rest=rest.split(result.address_detail).join(' ');
+  if(result.name) rest=rest.split(result.name).join(' ');
+  if(result.company_name) rest=rest.split(result.company_name).join(' ');
+  rest=rest.split(/[\n,\/]/).map(s=>s.trim()).filter(Boolean).join(' ').replace(/\s{2,}/g,' ').trim();
+  if(rest) result.memo=rest;
   return result;
 }
 // 미등록 번호 → 전화번호 채운 고객 등록 모달
