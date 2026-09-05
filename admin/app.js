@@ -371,7 +371,8 @@ function openSiteModal(customerId, siteId){
     ${field('s_name','현장명 *',s.name)}
     <div class="form-row">${field('s_contact','담당자',s.contact_person)}${field('s_phone','전화번호',s.phone)}</div>
     ${field('s_addr','주소',s.address)}
-    ${field('s_addr2','상세주소',s.address_detail)}
+    ${postcodeBtn('s_addr','s_addr2')}
+    ${field('s_addr2','상세주소 (동/호/층)',s.address_detail)}
     <div class="form-group"><label>상태</label><select id="s_status"><option value="active" ${s.status!=='inactive'?'selected':''}>사용</option><option value="inactive" ${s.status==='inactive'?'selected':''}>해지</option></select></div>
     ${area('s_memo','메모',s.memo)}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeModal()">취소</button><button class="btn" onclick="saveSite(${customerId},${siteId||'null'})">저장</button></div>`;

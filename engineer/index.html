@@ -1576,6 +1576,64 @@ async function startVoice(targetId, append){
   alert('키보드가 뜨면 키보드의 마이크(🎤) 버튼을 눌러 말씀하세요.');
 }
 
+// ============================================================
+//  카카오(다음) 우편번호 서비스 — API 키 불필요
+//  정규식 추측 대신 실제 존재하는 주소를 고르게 해서 네비 인식률을 보장한다.
+//  APK 웹뷰에서는 팝업이 막힐 수 있어 레이어(embed) 방식만 사용.
+// ============================================================
+let _postcodeLoading=null;
+function loadPostcodeScript(){
+  if(window.daum && window.daum.Postcode) return Promise.resolve();
+  if(_postcodeLoading) return _postcodeLoading;
+  _postcodeLoading=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    s.onload=()=>resolve();
+    s.onerror=()=>{ _postcodeLoading=null; reject(new Error('스크립트 로드 실패')); };
+    document.head.appendChild(s);
+  });
+  return _postcodeLoading;
+}
+async function openPostcode(addrId, detailId){
+  const addrEl=document.getElementById(addrId);
+  try{ await loadPostcodeScript(); }
+  catch(e){ alert('주소 검색을 열 수 없습니다.\n인터넷 연결을 확인하거나 직접 입력해주세요.'); return; }
+  const wrap=document.createElement('div');
+  wrap.id='postcodeOv';
+  wrap.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center';
+  wrap.onclick=e=>{ if(e.target===wrap) wrap.remove(); };
+  const box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:520px;height:88vh;overflow:hidden;display:flex;flex-direction:column';
+  const bar=document.createElement('div');
+  bar.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e9ecef;font-weight:700;flex-shrink:0';
+  bar.innerHTML='<span>🔍 주소 검색</span>';
+  const close=document.createElement('button');
+  close.textContent='✕';
+  close.style.cssText='border:none;background:none;font-size:22px;cursor:pointer;color:#868e96;line-height:1';
+  close.onclick=()=>wrap.remove();
+  bar.appendChild(close);
+  const host=document.createElement('div');
+  host.style.cssText='flex:1;min-height:0';
+  box.appendChild(bar); box.appendChild(host); wrap.appendChild(box);
+  document.body.appendChild(wrap);
+  new daum.Postcode({
+    oncomplete: d=>{
+      let a=(d.userSelectedType==='J') ? d.jibunAddress : d.roadAddress;
+      if(!a) a=d.roadAddress || d.jibunAddress || '';
+      if(d.userSelectedType!=='J' && d.buildingName) a += ' (' + d.buildingName + ')';
+      if(addrEl){ addrEl.value=a; addrEl.dispatchEvent(new Event('input',{bubbles:true})); }
+      wrap.remove();
+      const de=detailId && document.getElementById(detailId);
+      if(de) de.focus();   // 동/호/층 이어서 입력
+    },
+    width:'100%', height:'100%',
+  }).embed(host, { q:(addrEl && addrEl.value.trim()) || '', autoClose:false });
+}
+// 주소칸 아래 검색 버튼
+function postcodeBtn(addrId, detailId){
+  return `<button type="button" class="btn" style="margin:-6px 0 12px;background:#e7f5ff;color:#1971c2;font-size:14px;padding:11px" onclick="openPostcode('${addrId}','${detailId||''}')">🔍 주소 검색 (네비 인식되는 주소로 입력)</button>`;
+}
+
 // ── 대표: 현장 고객 등록 ──
 function openCustomerAdd(prefillPhone, smsData){
   const pre=smsData||{};
@@ -1585,6 +1643,7 @@ function openCustomerAdd(prefillPhone, smsData){
       ${micField('ca_name','고객명 (선택)',pre.name||'','예: 홍길동')}
       ${micField('ca_phone','전화번호 *',prefillPhone||'','')}
       ${micField('ca_addr','주소',pre.address||'','예: 천안시 서북구...')}
+      ${postcodeBtn('ca_addr','ca_addr2')}
       ${micField('ca_addr2','상세주소 (동/호/층 — 네비에는 안 씀)',pre.address_detail||'','예: 101동 1201호')}
       ${micField('ca_memo','메모',pre.memo||'','증상·특이사항')}
       <button class="btn btn-primary" onclick="saveCustomerAdd()">저장 + 작업지시</button>
@@ -1620,6 +1679,7 @@ async function openCustomerEdit(custId){
       ${micField('ce_phone2','보조전화',c.phone2||'','')}
       ${micField('ce_company','회사명',c.company_name||'','')}
       ${micField('ce_addr','주소',c.address||'','')}
+      ${postcodeBtn('ce_addr','ce_addr2')}
       ${micField('ce_addr2','상세주소 (동/호/층 — 네비에는 안 씀)',c.address_detail||'','예: 101동 1201호')}
       ${micField('ce_memo','메모',c.memo||'','')}
       <button class="btn btn-primary" onclick="saveCustomerEdit(${c.id})">저장</button>

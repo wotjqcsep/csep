@@ -15,6 +15,66 @@ function modal(title, bodyHtml, wide){
 function field(id,label,val,type){ return `<div class="form-group"><label>${label}</label><input id="${id}" type="${type||'text'}" value="${esc(val)||''}"></div>`; }
 function area(id,label,val){ return `<div class="form-group"><label>${label}</label><textarea id="${id}">${esc(val)||''}</textarea></div>`; }
 const v = id => { const e=document.getElementById(id); return e?e.value:''; };
+
+// ============================================================
+//  카카오(다음) 우편번호 서비스 — API 키 불필요
+//  정규식 추측이 아니라 실제 존재하는 주소를 고르게 해서
+//  네비가 100% 인식하는 도로명주소를 얻는다. 상세주소는 별도 칸으로 유도.
+// ============================================================
+let _postcodeLoading = null;
+function loadPostcodeScript(){
+  if(window.daum && window.daum.Postcode) return Promise.resolve();
+  if(_postcodeLoading) return _postcodeLoading;
+  _postcodeLoading = new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    s.onload=()=>resolve();
+    s.onerror=()=>{ _postcodeLoading=null; reject(new Error('스크립트 로드 실패')); };
+    document.head.appendChild(s);
+  });
+  return _postcodeLoading;
+}
+// addrId: 주소 입력칸 id, detailId: 상세주소 입력칸 id (선택)
+async function openPostcode(addrId, detailId){
+  const addrEl=document.getElementById(addrId);
+  try{ await loadPostcodeScript(); }
+  catch(e){ alert('주소 검색을 열 수 없습니다.\n네트워크를 확인하거나 직접 입력해주세요.'); return; }
+  const wrap=document.createElement('div');
+  wrap.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px';
+  wrap.onclick=e=>{ if(e.target===wrap) wrap.remove(); };
+  const box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:12px;width:100%;max-width:520px;height:78vh;max-height:620px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3)';
+  const bar=document.createElement('div');
+  bar.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:11px 15px;border-bottom:1px solid #e9ecef;font-weight:700;color:#343a40;flex-shrink:0';
+  bar.innerHTML='<span>🔍 주소 검색</span>';
+  const close=document.createElement('button');
+  close.textContent='✕';
+  close.style.cssText='border:none;background:none;font-size:20px;cursor:pointer;color:#868e96;line-height:1';
+  close.onclick=()=>wrap.remove();
+  bar.appendChild(close);
+  const host=document.createElement('div');
+  host.style.cssText='flex:1;min-height:0';
+  box.appendChild(bar); box.appendChild(host); wrap.appendChild(box);
+  document.body.appendChild(wrap);
+  new daum.Postcode({
+    oncomplete: d=>{
+      // 도로명 우선. 사용자가 지번을 골랐으면 지번.
+      let a = (d.userSelectedType==='J') ? d.jibunAddress : d.roadAddress;
+      if(!a) a = d.roadAddress || d.jibunAddress || '';
+      if(d.userSelectedType!=='J' && d.buildingName) a += ' (' + d.buildingName + ')';
+      if(addrEl){ addrEl.value=a; addrEl.dispatchEvent(new Event('input',{bubbles:true})); }
+      wrap.remove();
+      const de=detailId && document.getElementById(detailId);
+      if(de) de.focus();   // 동/호/층은 여기에 이어서 입력
+    },
+    width:'100%', height:'100%',
+  }).embed(host, { q: (addrEl && addrEl.value.trim()) || '', autoClose:false });
+}
+// 주소칸 아래에 붙이는 검색 버튼
+function postcodeBtn(addrId, detailId){
+  return `<div style="margin:-8px 0 12px"><button type="button" class="btn btn-sm btn-secondary" onclick="openPostcode('${addrId}','${detailId||''}')">🔍 주소 검색</button>
+    <span style="font-size:11px;color:var(--gray-400);margin-left:6px">검색해서 고르면 네비가 인식하는 주소로 입력됩니다</span></div>`;
+}
 // 선택(목록) + 직접입력 겸용 필드 (datalist)
 function comboField(id,label,val,listId,options){
   return `<div class="form-group"><label>${label}</label>
@@ -231,7 +291,8 @@ function openCustomerModal(id, prefill){
     <div class="form-row">${field('c_name','고객명/식별명 (선택)',c.name)}${field('c_phone','전화번호 *',c.phone)}</div>
     <div class="form-row">${field('c_phone2','보조전화',c.phone2)}${field('c_email','이메일',c.email)}</div>
     ${field('c_address','주소',c.address)}
-    ${field('c_addr2','상세주소',c.address_detail)}
+    ${postcodeBtn('c_address','c_addr2')}
+    ${field('c_addr2','상세주소 (동/호/층)',c.address_detail)}
     <div style="margin-top:6px;font-size:12px;color:#1971c2;font-weight:600">사업자정보 (선택 — 견적서·명세서·계산서 자동입력용)</div>
     <div class="form-row">${field('c_ceo','대표자',c.ceo_name)}${field('c_bizno','사업자번호',c.biz_no)}</div>
     <div class="form-row">${field('c_biztype','업태',c.biz_type)}${field('c_bizitem','종목',c.biz_item)}</div>
