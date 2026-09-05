@@ -1431,7 +1431,14 @@ async function dismissIncomingSms(id){ try{ await api('DELETE','/incoming-sms/'+
 function splitAddressDetail(addr){
   if(!addr) return {address:'', detail:''};
   let a=String(addr).trim(); const det=[];
-  const BW='(?:아파트|빌딩|타워|상가|오피스텔|맨션|빌라|캐슬|파크|프라자|플라자|센터|하이츠|자이|푸르지오|래미안|힐스테이트)';
+  // extractAddress 의 BLDG 와 같은 목록
+  const BW='(?:아파트|빌딩|빌라|오피스텔|타워|상가|맨션|캐슬|파크|프라자|플라자|센터|하이츠|자이|푸르지오|래미안|힐스테이트|하우스|타운|시티|팰리스|스퀘어|빌)';
+  // 건물명은 네비가 못 읽는다. 단, 떼고 나서도 앞에 지번·도로명 번호가 남을 때만 뗀다.
+  // 번호가 없으면 건물명이 유일한 위치 단서라 주소에 남겨야 한다. (예: '두정동 삼성아파트')
+  const RE_BLDG =new RegExp('[\\s,]([가-힣A-Za-z0-9]{1,14}'+BW+')\\s*$');
+  const RE_ETC  =/[\s,]([가-힣A-Za-z0-9]{1,14})\s*$/;   // 목록에 없는 건물명 ('삼영맨숀')
+  const HAS_NUM =/\d\s*(?:번지|번길)?$/;                 // 앞부분이 번지·번호로 끝나는가
+  const NOT_BLDG=/(?:읍|면|동|리|가|로|길|시|군|구|번지|번길|층|호)$/;
   // 호·층·지하·B1·필지 — 네비가 인식하지 못하는 표기
   const RE_UNIT=/[,\s]*((?:지하\s*)?\d+\s*(?:호실|호|층)|B\d+|(?:외\s*)?\d+\s*필지)\s*$/;
   // 아파트 '동'은 세 가지 형태로 잡는다. '상계1동'같은 행정동은 어느 것에도 걸리지 않는다.
@@ -1447,6 +1454,14 @@ function splitAddressDetail(addr){
     if(m){ det.unshift(m[2].replace(/\s+/g,'')); a=a.slice(0,m.index+m[1].length).trim(); continue; }
     m=a.match(RE_DONG_NUM);
     if(m){ det.unshift(m[1].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); continue; }
+    // 알려진 건물명 — 앞에 번지가 남을 때만 상세주소로 뗀다
+    m=a.match(RE_BLDG);
+    if(m && HAS_NUM.test(a.slice(0,m.index))){ det.unshift(m[1]); a=a.slice(0,m.index).trim(); continue; }
+    // 목록에 없는 건물명 — 이미 동/호/층을 뗀 뒤여야 하고(그 앞은 건물명일 확률이 높다) 앞에 번지도 남아야 한다
+    m=det.length ? a.match(RE_ETC) : null;
+    if(m && /[가-힣]/.test(m[1]) && !NOT_BLDG.test(m[1]) && HAS_NUM.test(a.slice(0,m.index))){
+      det.unshift(m[1]); a=a.slice(0,m.index).trim(); continue;
+    }
     break;
   }
   return { address:a.replace(/[,\s]+$/,''), detail:det.join(' ') };
