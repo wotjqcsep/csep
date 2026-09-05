@@ -733,9 +733,16 @@ function quickReception(custId, type, itemId){
 function splitAddressDetail(addr){
   if(!addr) return {address:'', detail:''};
   let a=String(addr).trim(); const det=[];
-  const RE=/[,\s]*((?:지하\s*)?\d+\s*(?:호실|호|층)|B\d+)\s*$/;
-  let m;
-  while((m=a.match(RE))){ det.unshift(m[1].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); }
+  const RE_UNIT=/[,\s]*((?:지하\s*)?\d+\s*(?:호실|호|층)|B\d+)\s*$/;
+  // 아파트 동은 숫자 앞에 공백이 있는 것만. '상계1동'처럼 한글에 붙은 행정동은 주소에 남긴다.
+  const RE_DONG=/([\s,])(\d{1,4}\s*동)\s*$/;
+  for(;;){
+    let m=a.match(RE_UNIT);
+    if(m){ det.unshift(m[1].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); continue; }
+    m=a.match(RE_DONG);
+    if(m){ det.unshift(m[2].replace(/\s+/g,'')); a=a.slice(0,m.index).trim(); continue; }
+    break;
+  }
   return { address:a.replace(/[,\s]+$/,''), detail:det.join(' ') };
 }
 function extractAddress(text){

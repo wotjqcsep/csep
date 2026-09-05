@@ -3214,34 +3214,66 @@ app.get('/api/customer-lookup', wrap(async (req, res) => {
   res.json({ phone: digits(req.query.phone), customer: matched, recent_receptions: recent });
 }));
 
+// 주소 문자열을 '좌표를 찾을 가능성이 높은 순서'로 단계적으로 단순화한 후보 목록.
+// 카카오 주소검색은 상세주소(동·호·층)나 건물명이 붙으면 실패하는 경우가 많아,
+// 원문 → 상세제거 → 도로명만 → 지번만 → 건물명만 순으로 줄여가며 시도한다.
+function addressCandidates(raw) {
+  const out = [];
+  const push = s => {
+    s = String(s || '').replace(/\s+/g, ' ').trim().replace(/[,\s]+$/, '');
+    if (s && s.length >= 4 && !out.includes(s)) out.push(s);
+  };
+  const a = String(raw || '').replace(/\s+/g, ' ').trim();
+  push(a);
+  push(a.replace(/번지/g, ''));
+  // 끝에 붙은 상세주소(1201호 / 3층 / 지하1층 / B1 / 105동)를 반복 제거
+  let t = a, prev;
+  do {
+    prev = t;
+    t = t.replace(/[,\s]*((?:지하\s*)?\d+\s*(?:호실|호|층)|B\d+)\s*$/, '');
+    t = t.replace(/([\s,])\d{1,4}\s*동\s*$/, '$1');   // '105동'만. '상계1동'처럼 붙어있는 건 남긴다
+    t = t.trim();
+  } while (t !== prev);
+  push(t);
+  // 도로명 주소만 추출 (시/도·시군구를 최대 3단계까지 유지 + 도로명 + 건물번호)
+  const road = t.match(/(?:[가-힣]{2,10}(?:특별시|광역시|시|군|구|도)\s+){0,3}[가-힣A-Za-z0-9]{1,12}(?:대로|로|길)\s*\d+(?:-\d+)?/);
+  if (road) push(road[0]);
+  // 지번 주소만 추출 (시/도·시군구 + 읍면동리 + 번지)
+  const jibun = t.match(/(?:[가-힣]{2,10}(?:특별시|광역시|시|군|구|도)\s+){1,3}[가-힣0-9]{1,10}(?:읍|면|동|리|가)\s*\d+(?:-\d+)?/);
+  if (jibun) push(jibun[0]);
+  // 동네 + 건물명 (아파트 등) — 키워드 검색으로 잡히는 경우가 많다
+  const bldg = t.match(/[가-힣0-9]{1,10}(?:동|리)\s+[가-힣A-Za-z0-9]{2,14}(?:아파트|빌딩|타워|상가|오피스텔|맨션|빌라|캐슬|파크|프라자|플라자|센터|하이츠|자이|푸르지오|래미안|힐스테이트)/);
+  if (bldg) push(bldg[0]);
+  return out.slice(0, 6);
+}
+
 // 주소 → 좌표 (카카오 로컬 API). 키 없으면 null 반환 → 앱은 검색 스킴으로 폴백 (필드서비스 동일)
 app.get('/api/geocode', async (req, res) => {
   const { address } = req.query;
   if (!address) return res.status(400).json({ error: 'address required' });
   const kakaoKey = process.env.KAKAO_REST_API_KEY;
   if (!kakaoKey) return res.json({ lon: null, lat: null });
-  const cleanAddress = String(address).replace(/번지/g, '').replace(/\s+/g, ' ').trim();
-  const queries = address === cleanAddress ? [address] : [address, cleanAddress];
-  for (const q of queries) {
+  const H = { headers: { 'Authorization': `KakaoAK ${kakaoKey}` } };
+  const hit = async (kind, q) => {
     try {
-      const resp = await fetch(`https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(q)}`,
-        { headers: { 'Authorization': `KakaoAK ${kakaoKey}` } });
+      const resp = await fetch(`https://dapi.kakao.com/v2/local/search/${kind}.json?query=${encodeURIComponent(q)}`, H);
       const data = await resp.json();
-      if (data.documents && data.documents.length > 0) {
-        const { x, y } = data.documents[0];
-        return res.json({ lon: parseFloat(x), lat: parseFloat(y) });
-      }
-    } catch (e) { console.log('[지오코딩 주소] 오류:', e.message); }
-    try {
-      const resp = await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(q)}`,
-        { headers: { 'Authorization': `KakaoAK ${kakaoKey}` } });
-      const data = await resp.json();
-      if (data.documents && data.documents.length > 0) {
-        const { x, y } = data.documents[0];
-        return res.json({ lon: parseFloat(x), lat: parseFloat(y) });
-      }
-    } catch (e) { console.log('[지오코딩 키워드] 오류:', e.message); }
+      const d = data.documents && data.documents[0];
+      return d ? { lon: parseFloat(d.x), lat: parseFloat(d.y) } : null;
+    } catch (e) { console.log(`[지오코딩 ${kind}] 오류:`, e.message); return null; }
+  };
+  const cands = addressCandidates(address);
+  // 1차: 주소검색(정확한 도로명·지번) 을 후보 전체에 대해 먼저 시도
+  for (const q of cands) {
+    const r = await hit('address', q);
+    if (r) return res.json({ ...r, matched: q, via: 'address' });
   }
+  // 2차: 키워드검색(건물명·상호) — 아파트명만 남은 경우 등
+  for (const q of cands) {
+    const r = await hit('keyword', q);
+    if (r) return res.json({ ...r, matched: q, via: 'keyword' });
+  }
+  console.log('[지오코딩] 좌표 못 찾음:', cands.join(' | '));
   res.json({ lon: null, lat: null });
 });
 
@@ -3688,6 +3720,19 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000);
 
+// 배포 로그에서 키 설정 여부를 한눈에 확인 (값은 찍지 않는다)
+function logConfigStatus() {
+  const yn = v => (v ? '있음' : '없음 ← 설정 필요');
+  console.log('[설정] 카카오 REST 키(길찾기 좌표):', yn(process.env.KAKAO_REST_API_KEY));
+  console.log('[설정] Firebase 서비스계정(푸시):', yn(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64));
+  console.log('[설정] Groq 키(견적 AI 파싱):', yn(process.env.GROQ_API_KEY));
+  console.log('[설정] 기기 공유키(전화/SMS 폴백):', process.env.CSEP_DEVICE_KEY ? '있음' : '없음 (토큰만 사용)');
+  if (!process.env.KAKAO_REST_API_KEY) {
+    console.log('  ※ 카카오 REST 키가 없으면 주소→좌표 변환이 항상 실패해,');
+    console.log('    티맵·카카오맵이 목적지 지정 없이 "검색"으로만 열립니다.');
+  }
+}
+
 async function backfillVatRefund() {
   try {
     const recs = (await pool.query('SELECT id FROM receptions WHERE estimate_id IS NOT NULL')).rows;
@@ -3731,5 +3776,6 @@ initDB()
   .then(() => { cleanupOldLogs(); setInterval(cleanupOldLogs, 24 * 60 * 60 * 1000); })
   .then(() => { cleanupExpiredSessions(); setInterval(cleanupExpiredSessions, 60 * 60 * 1000); })
   .then(() => backfillVatRefund())
+  .then(() => { logConfigStatus(); })
   .then(() => app.listen(PORT, () => console.log(`CSEP 서버 실행: http://localhost:${PORT}`)))
   .catch(e => { console.error('DB 초기화 실패:', e.message); app.listen(PORT, () => console.log(`CSEP 서버 실행(DB오류): http://localhost:${PORT}`)); });
